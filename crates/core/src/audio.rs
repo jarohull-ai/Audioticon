@@ -715,6 +715,10 @@ pub async fn export_to_m4b(
         .with_context(|| format!("Nie można zapisać pliku metadanych: {:?}", meta_file))?;
 
     let tmp_m4b = m4b_path.with_extension("tmp.m4b");
+    let lang_tag = match metadata.language.as_deref() {
+        Some("en") | Some("eng") => "language=eng",
+        _ => "language=pol",
+    };
 
     let status = tokio::process::Command::new("ffmpeg")
         .arg("-y")
@@ -727,13 +731,15 @@ pub async fn export_to_m4b(
         .arg("-map")
         .arg("0:a")
         .arg("-af")
-        .arg("loudnorm=I=-19:TP=-3.0:LRA=7,alimiter=limit=0.7:level=false")
+        .arg("aresample=44100,loudnorm=I=-19:TP=-3.5:LRA=7,alimiter=limit=0.65:level=false")
+        .arg("-ar")
+        .arg("44100")
         .arg("-c:a")
         .arg("aac")
         .arg("-b:a")
         .arg("80k")
         .arg("-metadata:s:a:0")
-        .arg("language=pol")
+        .arg(lang_tag)
         .arg("-f")
         .arg("mp4")
         .arg("-brand")
@@ -804,7 +810,9 @@ pub async fn export_to_mp3(
         .arg("-map_metadata")
         .arg("1")
         .arg("-af")
-        .arg("loudnorm=I=-19:TP=-3.0:LRA=7,alimiter=limit=0.7:level=false")
+        .arg("aresample=44100,loudnorm=I=-19:TP=-3.5:LRA=7,alimiter=limit=0.65:level=false")
+        .arg("-ar")
+        .arg("44100")
         .arg("-codec:a")
         .arg("libmp3lame")
         .arg("-qscale:a")

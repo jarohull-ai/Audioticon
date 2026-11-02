@@ -167,6 +167,7 @@ pub struct AudiobookMetadata {
     pub author: Option<String>,
     pub narrator: Option<String>,
     pub year: Option<String>,
+    pub language: Option<String>,
 }
 
 /// Summary result of a rendering job.

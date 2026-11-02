@@ -59,7 +59,7 @@ enum Commands {
         #[arg(long, default_value = "pl")]
         lang: String,
 
-        /// Ścieżka do lokalnego modelu ONNX dla Piper (domyślnie: ~/.cache/audioticon/models/pl_PL-darkman-medium.onnx)
+        /// Ścieżka do lokalnego modelu ONNX dla Piper (domyślnie: ~/.local/share/audioticon/models/)
         #[arg(long)]
         model: Option<PathBuf>,
 
@@ -135,11 +135,16 @@ fn get_default_cache_dir() -> PathBuf {
     }
 }
 
-fn get_default_piper_model() -> PathBuf {
-    if let Some(data_dir) = dirs::data_dir() {
-        data_dir.join("audioticon").join("models").join("pl_PL-darkman-medium.onnx")
+fn get_default_piper_model(lang: &str) -> PathBuf {
+    let filename = if lang.starts_with("en") {
+        "en_US-lessac-medium.onnx"
     } else {
-        PathBuf::from("/home/jaro/.local/share/audioticon/models/pl_PL-darkman-medium.onnx")
+        "pl_PL-darkman-medium.onnx"
+    };
+    if let Some(data_dir) = dirs::data_dir() {
+        data_dir.join("audioticon").join("models").join(filename)
+    } else {
+        PathBuf::from(format!("/home/jaro/.local/share/audioticon/models/{}", filename))
     }
 }
 
@@ -265,13 +270,21 @@ async fn main() -> Result<()> {
                 }
             };
 
+            let clean_lang = lang.to_lowercase();
+            if clean_lang != "pl" && clean_lang != "en" {
+                anyhow::bail!(
+                    "Nieobsługiwany język: '{}'. Audioticon obsługuje obecnie 'pl' (polski z verbalizerem) oraz 'en' (angielski z passthrough)",
+                    lang
+                );
+            }
+
             let cache_path = cache_dir.unwrap_or_else(get_default_cache_dir);
             std::fs::create_dir_all(&cache_path)?;
 
             let synthesizer: Arc<dyn SpeechSynthesizer> = match provider {
                 TtsProvider::Edge => Arc::new(EdgeTtsBridge::new(&voice)),
                 TtsProvider::Piper => {
-                    let m_path = model.unwrap_or_else(get_default_piper_model);
+                    let m_path = model.unwrap_or_else(|| get_default_piper_model(&clean_lang));
                     if !m_path.exists() {
                         anyhow::bail!(
                             "Nie znaleziono modelu Piper: {:?}. Pobierz model do ~/.local/share/audioticon/models/",
@@ -376,6 +389,7 @@ async fn main() -> Result<()> {
                 author: Some(book_author),
                 narrator: Some(book_narrator),
                 year: Some(book_year),
+                language: Some(clean_lang.clone()),
             };
 
             if is_m4b {
@@ -416,12 +430,20 @@ async fn main() -> Result<()> {
             println!("============================================================");
         }
         Commands::Script { input, format, lang, demo } => {
+            let clean_lang = lang.to_lowercase();
+            if clean_lang != "pl" && clean_lang != "en" {
+                anyhow::bail!(
+                    "Nieobsługiwany język: '{}'. Audioticon obsługuje obecnie 'pl' oraz 'en'",
+                    lang
+                );
+            }
+
             let script_text = match input {
                 Some(file_path) if !demo => std::fs::read_to_string(&file_path)
                     .with_context(|| format!("Nie można odczytać pliku: {:?}", file_path))?,
                 _ => DEMO_SCENE.to_string(),
             };
-            let director = EmojiDirector::default().with_lang(&lang);
+            let director = EmojiDirector::default().with_lang(&clean_lang);
             let script = director.parse(&script_text);
 
             match format {
