@@ -37,6 +37,10 @@ impl Default for EmojiDirector {
         m.insert("💭".to_string(), EmojiAction::Filter("thought".to_string()));
         m.insert("🤖".to_string(), EmojiAction::Filter("robot".to_string()));
 
+        // Structure & Chapter markers
+        m.insert("📖".to_string(), EmojiAction::Chapter);
+        m.insert("📑".to_string(), EmojiAction::Chapter);
+
         let compiled = Self::build_regex(&m);
         Self { actions: m, compiled_regex: compiled }
     }
@@ -83,6 +87,17 @@ impl EmojiDirector {
         }
     }
 
+    /// Splits text at newline or sentence boundary to isolate a chapter title.
+    fn split_chapter_title(s: &str) -> (&str, &str) {
+        let trimmed = s.trim_start();
+        if let Some(pos) = trimmed.find(['\n', '\r']) {
+            let (first, remainder) = trimmed.split_at(pos);
+            (first.trim(), remainder.trim_start())
+        } else {
+            (trimmed.trim(), "")
+        }
+    }
+
     /// Parses an emoji-directed text into a structured DirectedScript.
     pub fn parse(&self, raw_script: &str) -> DirectedScript {
         let mut script = DirectedScript::new();
@@ -100,12 +115,26 @@ impl EmojiDirector {
         let mut text_buf = String::new();
         let mut last_end = 0;
         let mut pending_one_shot_volume = false;
+        let mut pending_chapter = false;
 
         for mat in self.compiled_regex.find_iter(raw_script) {
             // Process text before the emoji
             let before = &raw_script[last_end..mat.start()];
             if !before.is_empty() {
-                if pending_one_shot_volume {
+                if pending_chapter {
+                    let (title, remainder) = Self::split_chapter_title(before);
+                    if !title.is_empty() {
+                        let clean_title = title.trim_end_matches(['.', ':', ';', ' ']).trim();
+                        script.items.push(DirectedItem::Chapter(clean_title.to_string()));
+                        let mut title_seg = current_segment.clone();
+                        title_seg.text = normalize_polish_text(title);
+                        script.items.push(DirectedItem::Speech(title_seg));
+                        pending_chapter = false;
+                    }
+                    if !remainder.is_empty() {
+                        text_buf.push_str(remainder);
+                    }
+                } else if pending_one_shot_volume {
                     let (token, remainder) = Self::split_first_token(before);
                     if !token.is_empty() {
                         let mut emphasized = current_segment.clone();
@@ -164,6 +193,9 @@ impl EmojiDirector {
                     EmojiAction::Filter(filter_name) => {
                         current_segment.filter = Some(filter_name.clone());
                     }
+                    EmojiAction::Chapter => {
+                        pending_chapter = true;
+                    }
                 }
             }
             last_end = mat.end();
@@ -172,7 +204,19 @@ impl EmojiDirector {
         // Process remaining text
         if last_end < raw_script.len() {
             let tail = &raw_script[last_end..];
-            if pending_one_shot_volume {
+            if pending_chapter {
+                let (title, remainder) = Self::split_chapter_title(tail);
+                if !title.is_empty() {
+                    let clean_title = title.trim_end_matches(['.', ':', ';', ' ']).trim();
+                    script.items.push(DirectedItem::Chapter(clean_title.to_string()));
+                    let mut title_seg = current_segment.clone();
+                    title_seg.text = normalize_polish_text(title);
+                    script.items.push(DirectedItem::Speech(title_seg));
+                }
+                if !remainder.is_empty() {
+                    text_buf.push_str(remainder);
+                }
+            } else if pending_one_shot_volume {
                 let (token, remainder) = Self::split_first_token(tail);
                 if !token.is_empty() {
                     let mut emphasized = current_segment.clone();
@@ -245,5 +289,22 @@ mod tests {
 
         assert!(speeches[0].text.contains("dwudziestego czwartego lutego"));
         assert!(speeches[1].text.contains("piętnasta czterdzieści siedem"));
+    }
+
+    #[test]
+    fn test_chapter_parsing() {
+        let director = EmojiDirector::default();
+        let input = "📖 Rozdział 1: Początek. 🛑 Adam wstał rano.";
+        let script = director.parse(input);
+
+        let mut chapters = Vec::new();
+        for item in &script.items {
+            if let DirectedItem::Chapter(ch) = item {
+                chapters.push(ch.clone());
+            }
+        }
+
+        assert_eq!(chapters.len(), 1);
+        assert_eq!(chapters[0], "Rozdział 1: Początek");
     }
 }

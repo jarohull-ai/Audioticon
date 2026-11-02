@@ -2,7 +2,10 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use std::sync::Arc;
-use audioticon_core::{AudioDirectorEngine, EdgeTtsBridge, PiperBridge, SpeechSynthesizer, EmojiDirector};
+use audioticon_core::{
+    export_to_m4b, export_to_mp3, AudiobookMetadata, AudioDirectorEngine, EdgeTtsBridge,
+    EmojiDirector, PiperBridge, SpeechSynthesizer,
+};
 
 #[derive(Parser)]
 #[command(name = "audioticon")]
@@ -50,6 +53,18 @@ enum Commands {
         #[arg(short, long)]
         cache_dir: Option<PathBuf>,
 
+        /// Tytuł audiobooka (metadane M4B / MP3)
+        #[arg(long)]
+        title: Option<String>,
+
+        /// Autor książki (metadane M4B / MP3)
+        #[arg(long)]
+        author: Option<String>,
+
+        /// Lektor / narrator (metadane M4B / MP3)
+        #[arg(long)]
+        narrator: Option<String>,
+
         /// Uruchamia wbudowaną scenę demonstracyjną Kijów (Styl: Achaja)
         #[arg(long)]
         demo: bool,
@@ -87,7 +102,9 @@ fn get_default_piper_model() -> PathBuf {
 }
 
 const DEMO_SCENE: &str = r#"
-Kijów, dwudziesty czwarty lutego dwa tysiące dwudziestego czwartego roku. 🛑
+📖 Prolog: Kijów 🛑
+
+Kijów, 24.02.2024. 🛑
 
 Adam Richter siedział przy biurku w mieszkaniu na Obołoni w Kijowie. ⏸️
 Za oknem było szaro, jak przez większość dni tej zimy. 🛑
@@ -106,11 +123,13 @@ W środku... tysiące zapisanych zdarzeń. 🛑
 Niektóre strony były tak wypisane, że atrament przebijał na drugą stronę. ⏸️
 Inne czyste... 😮‍💨 bo zabrakło mu siły, żeby dokończyć zdanie. 🛑
 
+📖 Rozdział 1: Archiwum Pyłu 🛑
+
 Nazwał to: 💥Archiwum Pyłu. 🛑
 
 Otworzył notes na stronie z granicy. 🛑
-Dwudziesty czwarty lutego dwa tysiące dwudziestego drugiego roku. ⏸️
-Godzina piętnasta czterdzieści siedem. ⏸️
+24.02.2022. ⏸️
+Godzina 15:47. ⏸️
 Dorohusk. 🛑
 
 Przez chwilę patrzył na te cyfry. 🛑
@@ -172,7 +191,19 @@ async fn main() -> Result<()> {
                 println!("📦 Zapisanych plików segmentów: {}", count);
             }
         }
-        Commands::Render { input, output, provider, voice, model, cache_dir, demo, demo_effects } => {
+        Commands::Render {
+            input,
+            output,
+            provider,
+            voice,
+            model,
+            cache_dir,
+            title,
+            author,
+            narrator,
+            demo,
+            demo_effects,
+        } => {
             let script_text = match input {
                 Some(file_path) if !demo && !demo_effects => {
                     std::fs::read_to_string(&file_path)
@@ -194,9 +225,7 @@ async fn main() -> Result<()> {
             std::fs::create_dir_all(&cache_path)?;
 
             let synthesizer: Arc<dyn SpeechSynthesizer> = match provider {
-                TtsProvider::Edge => {
-                    Arc::new(EdgeTtsBridge::new(&voice))
-                }
+                TtsProvider::Edge => Arc::new(EdgeTtsBridge::new(&voice)),
                 TtsProvider::Piper => {
                     let m_path = model.unwrap_or_else(get_default_piper_model);
                     if !m_path.exists() {
@@ -209,54 +238,91 @@ async fn main() -> Result<()> {
                 }
             };
 
+            let ext = output
+                .extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_lowercase();
+            let is_m4b = ext == "m4b";
+            let is_mp3 = ext == "mp3";
+            let is_wav = ext == "wav";
+
+            let book_title = title.unwrap_or_else(|| "Archiwum Pyłu".to_string());
+            let book_author = author.unwrap_or_else(|| "Adam Richter".to_string());
+            let book_narrator = narrator.unwrap_or_else(|| synthesizer.voice_name().to_string());
+
             println!("============================================================");
             println!("🎧 AUDIOTICON — Renderowanie Scenariusza");
+            println!("Tytuł:     {}", book_title);
+            println!("Autor:     {}", book_author);
+            println!("Lektor:    {}", book_narrator);
             println!("Provider:  {:?}", provider);
-            println!("Głos/ID:   {}", synthesizer.voice_name());
             println!("Cache dir: {:?}", cache_path);
             println!("Wyjście:   {:?}", output);
             println!("============================================================");
 
             let director = EmojiDirector::default();
             let script = director.parse(&script_text);
-            println!("Oś czasu:  {} segmentów. Łączny czas pauz: {} ms", script.items.len(), script.total_pause_ms());
+            println!(
+                "Oś czasu:  {} segmentów. Łączny czas pauz: {} ms",
+                script.items.len(),
+                script.total_pause_ms()
+            );
 
-            let engine = AudioDirectorEngine::new(cache_path, synthesizer);
+            let engine = AudioDirectorEngine::new(cache_path.clone(), synthesizer);
 
-            let is_mp3 = output.extension().and_then(|s| s.to_str()).map(|s| s.eq_ignore_ascii_case("mp3")).unwrap_or(false);
-            let wav_target = if is_mp3 {
-                output.with_extension("wav")
-            } else {
+            let wav_target = if is_wav {
                 output.clone()
+            } else {
+                cache_path.join(format!("master_{}.wav", std::process::id()))
             };
 
             let start_time = std::time::Instant::now();
-            engine.render(&script, &wav_target).await?;
+            let render_result = engine.render(&script, &wav_target).await?;
             let elapsed = start_time.elapsed();
 
-            if is_mp3 {
-                println!("\nKonwertowanie master WAV do MP3...");
-                let status = tokio::process::Command::new("ffmpeg")
-                    .arg("-y")
-                    .arg("-i")
-                    .arg(&wav_target)
-                    .arg("-codec:a")
-                    .arg("libmp3lame")
-                    .arg("-qscale:a")
-                    .arg("2")
-                    .arg(&output)
-                    .status()
-                    .await
-                    .with_context(|| "Błąd uruchamiania ffmpeg do konwersji MP3")?;
+            let metadata = AudiobookMetadata {
+                title: Some(book_title),
+                author: Some(book_author),
+                narrator: Some(book_narrator),
+                year: Some("2024".to_string()),
+            };
 
-                if !status.success() {
-                    anyhow::bail!("Konwersja do MP3 zakończyła się błędem: {:?}", status);
+            if is_m4b {
+                println!("\n📦 Eksportowanie audiobooka M4B z rozdziałami...");
+                export_to_m4b(&wav_target, &output, &render_result.chapters, &metadata).await?;
+                let _ = std::fs::remove_file(&wav_target);
+            } else if is_mp3 {
+                println!("\n📦 Eksportowanie audiobooka MP3 z metadanymi i rozdziałami...");
+                export_to_mp3(&wav_target, &output, &render_result.chapters, &metadata).await?;
+                let _ = std::fs::remove_file(&wav_target);
+            }
+
+            if !render_result.chapters.is_empty() {
+                println!("\n📑 Wygenerowane rozdziały ({}):", render_result.chapters.len());
+                for ch in &render_result.chapters {
+                    let start_sec = ch.start_ms as f64 / 1000.0;
+                    let end_sec = ch.end_ms as f64 / 1000.0;
+                    println!(
+                        "  • [{:02}:{:05.2} - {:02}:{:05.2}] {}",
+                        (start_sec / 60.0) as u32,
+                        start_sec % 60.0,
+                        (end_sec / 60.0) as u32,
+                        end_sec % 60.0,
+                        ch.title
+                    );
                 }
             }
 
             println!("\n============================================================");
             println!("✅ Gotowe! Plik wyjściowy: {:?}", output);
-            println!("⏱️ Czas operacji: {:.2?}", elapsed);
+            let dur_sec = render_result.duration_ms as f64 / 1000.0;
+            println!(
+                "⏱️ Długość audio: {:02}:{:05.2} | Czas renderu: {:.2?}",
+                (dur_sec / 60.0) as u32,
+                dur_sec % 60.0,
+                elapsed
+            );
             println!("============================================================");
         }
     }

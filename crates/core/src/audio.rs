@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use hound::{SampleFormat, WavReader, WavSpec, WavWriter};
 use tokio::sync::{Mutex, Semaphore};
 use crate::cache::compute_segment_hash;
-use crate::types::{DirectedItem, DirectedScript, TextSegment};
+use crate::types::{AudiobookMetadata, ChapterMark, DirectedItem, DirectedScript, RenderResult, TextSegment};
 
 pub const DEFAULT_SAMPLE_RATE: u32 = 24000;
 
@@ -551,27 +551,34 @@ impl AudioDirectorEngine {
     }
 
     /// Renders a directed script into a single master audio file with parallel async synthesis.
-    pub async fn render(&self, script: &DirectedScript, final_wav: &Path) -> Result<usize> {
+    /// Calculates accurate millisecond chapter boundaries and returns RenderResult.
+    pub async fn render(&self, script: &DirectedScript, final_wav: &Path) -> Result<RenderResult> {
         let mut chunk_paths = Vec::new();
         let mut missing_tasks = Vec::new();
+        let mut scheduled_items = Vec::new();
         let mut cache_hits = 0;
 
         // Phase 1: Scan timeline, schedule silences and identify missing cache segments
         for (idx, item) in script.items.iter().enumerate() {
             match item {
+                DirectedItem::Chapter(title) => {
+                    scheduled_items.push((None, Some(title.clone())));
+                }
                 DirectedItem::Silence(ms) => {
                     let silence_file = self.cache_dir.join(format!("silence_{}ms.wav", ms));
                     if !silence_file.exists() {
                         create_silence_wav(&silence_file, *ms, DEFAULT_SAMPLE_RATE)?;
                     }
-                    chunk_paths.push(silence_file);
+                    chunk_paths.push(silence_file.clone());
+                    scheduled_items.push((Some(silence_file), None));
                 }
                 DirectedItem::Breath(ms) => {
                     let breath_file = self.cache_dir.join(format!("breath_{}ms.wav", ms));
                     if !breath_file.exists() {
                         create_breath_wav(&breath_file, *ms, DEFAULT_SAMPLE_RATE)?;
                     }
-                    chunk_paths.push(breath_file);
+                    chunk_paths.push(breath_file.clone());
+                    scheduled_items.push((Some(breath_file), None));
                 }
                 DirectedItem::Speech(segment) => {
                     let hash = compute_segment_hash(segment, self.synthesizer.voice_name());
@@ -583,7 +590,8 @@ impl AudioDirectorEngine {
                     } else {
                         missing_tasks.push((idx, segment.clone(), cached_wav.clone(), hash));
                     }
-                    chunk_paths.push(cached_wav);
+                    chunk_paths.push(cached_wav.clone());
+                    scheduled_items.push((Some(cached_wav), None));
                 }
             }
         }
@@ -614,13 +622,196 @@ impl AudioDirectorEngine {
             }
         }
 
-        // Phase 3: Stitching all verified segments
+        // Phase 3: Calculate accurate chapter marks from generated audio duration
+        let mut chapters: Vec<ChapterMark> = Vec::new();
+        let mut active_chapter: Option<(String, u64)> = None;
+        let mut current_ms: u64 = 0;
+
+        for (wav_opt, chapter_opt) in scheduled_items {
+            if let Some(ch_title) = chapter_opt {
+                if let Some((prev_title, start)) = active_chapter.take() {
+                    chapters.push(ChapterMark {
+                        title: prev_title,
+                        start_ms: start,
+                        end_ms: current_ms,
+                    });
+                }
+                active_chapter = Some((ch_title, current_ms));
+            }
+            if let Some(wav_path) = wav_opt {
+                if let Ok(reader) = WavReader::open(&wav_path) {
+                    let dur = (reader.duration() as u64 * 1000) / reader.spec().sample_rate as u64;
+                    current_ms += dur;
+                }
+            }
+        }
+
+        if let Some((title, start)) = active_chapter.take() {
+            chapters.push(ChapterMark {
+                title,
+                start_ms: start,
+                end_ms: current_ms,
+            });
+        }
+
+        if chapters.is_empty() && current_ms > 0 {
+            chapters.push(ChapterMark {
+                title: "Rozdział 1".to_string(),
+                start_ms: 0,
+                end_ms: current_ms,
+            });
+        }
+
+        // Phase 4: Stitching all verified segments into master WAV
         println!("\nŁączenie {} segmentów audio w plik wynikowy...", chunk_paths.len());
         stitch_wav_files(&chunk_paths, final_wav, DEFAULT_SAMPLE_RATE)?;
 
         println!("Zakończono! Cache hits: {}, Nowo wygenerowane: {}", cache_hits, chunk_paths.len() - cache_hits);
-        Ok(chunk_paths.len())
+        Ok(RenderResult {
+            total_segments: chunk_paths.len(),
+            duration_ms: current_ms,
+            chapters,
+        })
     }
+}
+
+/// Exports master WAV to M4B (AAC in QuickTime container) with embedded chapters and audiobook metadata.
+pub async fn export_to_m4b(
+    wav_path: &Path,
+    m4b_path: &Path,
+    chapters: &[ChapterMark],
+    metadata: &AudiobookMetadata,
+) -> Result<()> {
+    let meta_file = m4b_path.with_extension("ffmeta.txt");
+    let mut meta_content = String::from(";FFMETADATA1\n");
+    if let Some(ref title) = metadata.title {
+        meta_content.push_str(&format!("title={}\n", title));
+        meta_content.push_str(&format!("album={}\n", title));
+    }
+    if let Some(ref author) = metadata.author {
+        meta_content.push_str(&format!("artist={}\n", author));
+    }
+    if let Some(ref narrator) = metadata.narrator {
+        meta_content.push_str(&format!("album_artist={}\n", narrator));
+        meta_content.push_str(&format!("composer={}\n", narrator));
+    }
+    if let Some(ref year) = metadata.year {
+        meta_content.push_str(&format!("date={}\n", year));
+    }
+    meta_content.push_str("genre=Audiobook\n\n");
+
+    for ch in chapters {
+        meta_content.push_str("[CHAPTER]\n");
+        meta_content.push_str("TIMEBASE=1/1000\n");
+        meta_content.push_str(&format!("START={}\n", ch.start_ms));
+        meta_content.push_str(&format!("END={}\n", ch.end_ms));
+        meta_content.push_str(&format!("title={}\n\n", ch.title));
+    }
+
+    std::fs::write(&meta_file, &meta_content)
+        .with_context(|| format!("Nie można zapisać pliku metadanych: {:?}", meta_file))?;
+
+    let tmp_m4b = m4b_path.with_extension("tmp.m4b");
+
+    let status = tokio::process::Command::new("ffmpeg")
+        .arg("-y")
+        .arg("-i")
+        .arg(wav_path)
+        .arg("-i")
+        .arg(&meta_file)
+        .arg("-map_metadata")
+        .arg("1")
+        .arg("-map")
+        .arg("0:a")
+        .arg("-c:a")
+        .arg("aac")
+        .arg("-b:a")
+        .arg("64k")
+        .arg("-movflags")
+        .arg("+faststart")
+        .arg(&tmp_m4b)
+        .status()
+        .await
+        .with_context(|| "Błąd uruchamiania ffmpeg do konwersji M4B")?;
+
+    let _ = std::fs::remove_file(&meta_file);
+
+    if !status.success() {
+        let _ = std::fs::remove_file(&tmp_m4b);
+        anyhow::bail!("Konwersja do M4B zakończyła się niepowodzeniem: {:?}", status);
+    }
+
+    std::fs::rename(&tmp_m4b, m4b_path)
+        .with_context(|| format!("Nie można przenieść pliku do {:?}", m4b_path))?;
+
+    Ok(())
+}
+
+/// Exports master WAV to MP3 with chapters and ID3v2 metadata.
+pub async fn export_to_mp3(
+    wav_path: &Path,
+    mp3_path: &Path,
+    chapters: &[ChapterMark],
+    metadata: &AudiobookMetadata,
+) -> Result<()> {
+    let meta_file = mp3_path.with_extension("ffmeta.txt");
+    let mut meta_content = String::from(";FFMETADATA1\n");
+    if let Some(ref title) = metadata.title {
+        meta_content.push_str(&format!("title={}\n", title));
+        meta_content.push_str(&format!("album={}\n", title));
+    }
+    if let Some(ref author) = metadata.author {
+        meta_content.push_str(&format!("artist={}\n", author));
+    }
+    if let Some(ref narrator) = metadata.narrator {
+        meta_content.push_str(&format!("album_artist={}\n", narrator));
+    }
+    if let Some(ref year) = metadata.year {
+        meta_content.push_str(&format!("date={}\n", year));
+    }
+    meta_content.push_str("genre=Audiobook\n\n");
+
+    for ch in chapters {
+        meta_content.push_str("[CHAPTER]\n");
+        meta_content.push_str("TIMEBASE=1/1000\n");
+        meta_content.push_str(&format!("START={}\n", ch.start_ms));
+        meta_content.push_str(&format!("END={}\n", ch.end_ms));
+        meta_content.push_str(&format!("title={}\n\n", ch.title));
+    }
+
+    std::fs::write(&meta_file, &meta_content)
+        .with_context(|| format!("Nie można zapisać pliku metadanych: {:?}", meta_file))?;
+
+    let tmp_mp3 = mp3_path.with_extension("tmp.mp3");
+
+    let status = tokio::process::Command::new("ffmpeg")
+        .arg("-y")
+        .arg("-i")
+        .arg(wav_path)
+        .arg("-i")
+        .arg(&meta_file)
+        .arg("-map_metadata")
+        .arg("1")
+        .arg("-codec:a")
+        .arg("libmp3lame")
+        .arg("-qscale:a")
+        .arg("2")
+        .arg(&tmp_mp3)
+        .status()
+        .await
+        .with_context(|| "Błąd uruchamiania ffmpeg do konwersji MP3")?;
+
+    let _ = std::fs::remove_file(&meta_file);
+
+    if !status.success() {
+        let _ = std::fs::remove_file(&tmp_mp3);
+        anyhow::bail!("Konwersja do MP3 zakończyła się niepowodzeniem: {:?}", status);
+    }
+
+    std::fs::rename(&tmp_mp3, mp3_path)
+        .with_context(|| format!("Nie można przenieść pliku do {:?}", mp3_path))?;
+
+    Ok(())
 }
 
 #[cfg(test)]

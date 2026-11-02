@@ -15,6 +15,8 @@ pub enum EmojiAction {
     VolumeMod(i32),
     /// DSP filter preset (e.g. 📱 "phone", 📻 "radio", 📢 "megaphone")
     Filter(String),
+    /// Chapter title marker (e.g. 📖 "Rozdział 1")
+    Chapter,
 }
 
 /// A chunk of spoken text with its acoustic properties.
@@ -45,6 +47,32 @@ pub enum DirectedItem {
     Speech(TextSegment),
     Silence(u32),
     Breath(u32),
+    Chapter(String),
+}
+
+/// A chapter boundary marker with title and time range in milliseconds.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChapterMark {
+    pub title: String,
+    pub start_ms: u64,
+    pub end_ms: u64,
+}
+
+/// Audiobook metadata for M4B and MP3 tags.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct AudiobookMetadata {
+    pub title: Option<String>,
+    pub author: Option<String>,
+    pub narrator: Option<String>,
+    pub year: Option<String>,
+}
+
+/// Summary result of a rendering job.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenderResult {
+    pub total_segments: usize,
+    pub duration_ms: u64,
+    pub chapters: Vec<ChapterMark>,
 }
 
 /// Complete directed script composed of sequential items.
@@ -63,7 +91,7 @@ impl DirectedScript {
             .iter()
             .map(|item| match item {
                 DirectedItem::Silence(ms) | DirectedItem::Breath(ms) => *ms,
-                DirectedItem::Speech(_) => 0,
+                DirectedItem::Speech(_) | DirectedItem::Chapter(_) => 0,
             })
             .sum()
     }
