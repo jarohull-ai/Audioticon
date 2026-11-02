@@ -429,23 +429,35 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 540px;
+      min-height: 640px;
       position: relative;
       user-select: none;
-      perspective: 1200px;
+      perspective: 1300px;
       overflow: hidden;
-      padding: 1.5rem 0;
+      padding: 1rem 0 3rem 0;
+    }
+
+    .orbit-layout-row {
+      width: 100%;
+      max-width: 1200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      gap: 1.5rem;
     }
 
     .orbit-stage {
-      width: 100%;
-      height: 420px;
+      flex: 1;
+      height: 480px;
       display: flex;
       align-items: center;
       justify-content: center;
       position: relative;
       transform-style: preserve-3d;
       cursor: grab;
+      /* Przesunięcie bębna lekko w lewo, robiąc miejsce na szklane logo po prawej */
+      transform: translateX(-70px);
     }
 
     .orbit-stage:active {
@@ -462,6 +474,126 @@
 
     .orbit-cylinder.dragging {
       transition: none;
+    }
+
+    /* Szklane Logo po prawej stronie (Glassmorphic Monolith) */
+    .glass-brand-panel {
+      width: 220px;
+      height: 360px;
+      border-radius: 24px;
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.09) 0%, rgba(6, 182, 212, 0.05) 50%, rgba(15, 23, 42, 0.85) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      box-shadow: 
+        0 25px 60px rgba(0, 0, 0, 0.7),
+        0 0 35px rgba(6, 182, 212, 0.25),
+        inset 0 1px 2px rgba(255, 255, 255, 0.4);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 1.75rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      text-align: center;
+      position: relative;
+      transform: perspective(1000px) rotateY(-14deg) rotateX(4deg);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      z-index: 10;
+      flex-shrink: 0;
+    }
+
+    .glass-brand-panel:hover {
+      transform: perspective(1000px) rotateY(-8deg) rotateX(2deg) scale(1.02);
+      box-shadow: 
+        0 30px 70px rgba(0, 0, 0, 0.8),
+        0 0 45px rgba(6, 182, 212, 0.45),
+        inset 0 1px 3px rgba(255, 255, 255, 0.6);
+    }
+
+    .glass-brand-panel::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 15%; right: 15%; height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+    }
+
+    .glass-logo-img {
+      width: 90px;
+      height: 90px;
+      border-radius: 18px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), 0 0 25px var(--accent-glow);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      object-fit: cover;
+    }
+
+    .glass-brand-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      background: linear-gradient(135deg, #ffffff 40%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-top: 0.75rem;
+    }
+
+    .glass-brand-tagline {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      line-height: 1.4;
+      margin-top: 0.35rem;
+    }
+
+    .glass-brand-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.3rem 0.65rem;
+      border-radius: 20px;
+      background: rgba(6, 182, 212, 0.15);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      color: #38bdf8;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    /* Dolny pas nawigacji — obniżony i z bezpiecznym odstępem od wirujących kafli */
+    .orbit-controls-wrap {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 2.75rem;
+      position: relative;
+      z-index: 40;
+    }
+
+    .orbit-hint {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(0, 0, 0, 0.45);
+      padding: 0.45rem 1.1rem;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+      margin-bottom: 0.85rem;
+    }
+
+    .orbit-dock {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 960px;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 0.6rem 0.8rem;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
     }
 
     /* Glassmorphic 3D Card (Architecture of Clarity Style) */
@@ -718,111 +850,136 @@
     <!-- 1. ORBITAL 3D CYLINDER VIEW                -->
     <!-- ========================================== -->
     <section id="view-3d">
-      <div class="orbit-stage" id="orbit-stage">
-        <div class="orbit-cylinder" id="orbit-cylinder">
-          <!-- Card 0: Tekst & Scenopis -->
-          <div class="orbit-card active" data-index="0" onclick="openCard(0)">
-            <span class="card-badge">Warstwa 01</span>
-            <div>
-              <div class="card-icon">📝</div>
-              <div class="card-title-3d">Tekst & Scenopis</div>
-              <div class="card-desc-3d">Edytor narracji ze znacznikami emoji i aliasami [pauza] [radio].</div>
+      <div class="orbit-layout-row">
+        <!-- Lewa / Centralna część: Obracany bęben 3D przesunięty w lewo -->
+        <div class="orbit-stage" id="orbit-stage">
+          <div class="orbit-cylinder" id="orbit-cylinder">
+            <!-- Card 0: Tekst & Scenopis -->
+            <div class="orbit-card active" data-index="0" onclick="openCard(0)">
+              <span class="card-badge">Warstwa 01</span>
+              <div>
+                <div class="card-icon">📝</div>
+                <div class="card-title-3d">Tekst & Scenopis</div>
+                <div class="card-desc-3d">Edytor narracji ze znacznikami emoji i aliasami [pauza] [radio].</div>
+              </div>
+              <button class="card-open-btn">Otwórz panel ↗</button>
             </div>
-            <button class="card-open-btn">Otwórz panel ↗</button>
-          </div>
 
-          <!-- Card 1: Rozdziały -->
-          <div class="orbit-card" data-index="1" onclick="openCard(1)">
-            <span class="card-badge">Warstwa 02</span>
-            <div>
-              <div class="card-icon">📖</div>
-              <div class="card-title-3d">Rozdziały & Spis</div>
-              <div class="card-desc-3d">Znaczniki rozdziałów 📖, struktura książki i automatyczny podział.</div>
+            <!-- Card 1: Rozdziały -->
+            <div class="orbit-card" data-index="1" onclick="openCard(1)">
+              <span class="card-badge">Warstwa 02</span>
+              <div>
+                <div class="card-icon">📖</div>
+                <div class="card-title-3d">Rozdziały & Spis</div>
+                <div class="card-desc-3d">Znaczniki rozdziałów 📖, struktura książki i automatyczny podział.</div>
+              </div>
+              <button class="card-open-btn">Otwórz panel ↗</button>
             </div>
-            <button class="card-open-btn">Otwórz panel ↗</button>
-          </div>
 
-          <!-- Card 2: Głosy & Silnik -->
-          <div class="orbit-card" data-index="2" onclick="openCard(2)">
-            <span class="card-badge">Warstwa 03</span>
-            <div>
-              <div class="card-icon">🗣️</div>
-              <div class="card-title-3d">Głosy & Silnik</div>
-              <div class="card-desc-3d">Piper TTS (100% offline w RAM) oraz Edge Neural (Marek / Zofia).</div>
+            <!-- Card 2: Głosy & Silnik -->
+            <div class="orbit-card" data-index="2" onclick="openCard(2)">
+              <span class="card-badge">Warstwa 03</span>
+              <div>
+                <div class="card-icon">🗣️</div>
+                <div class="card-title-3d">Głosy & Silnik</div>
+                <div class="card-desc-3d">Piper TTS (100% offline w RAM) oraz Edge Neural (Marek / Zofia).</div>
+              </div>
+              <button class="card-open-btn">Otwórz panel ↗</button>
             </div>
-            <button class="card-open-btn">Otwórz panel ↗</button>
-          </div>
 
-          <!-- Card 3: Efekty DSP -->
-          <div class="orbit-card" data-index="3" onclick="openCard(3)">
-            <span class="card-badge">Warstwa 04</span>
-            <div>
-              <div class="card-icon">🎛️</div>
-              <div class="card-title-3d">Efekty DSP</div>
-              <div class="card-desc-3d">Plany akustyczne: Radio 📻, Telefon 📱, Katedra 🏛️, Robot 🤖, Oddech 😮‍💨.</div>
+            <!-- Card 3: Efekty DSP -->
+            <div class="orbit-card" data-index="3" onclick="openCard(3)">
+              <span class="card-badge">Warstwa 04</span>
+              <div>
+                <div class="card-icon">🎛️</div>
+                <div class="card-title-3d">Efekty DSP</div>
+                <div class="card-desc-3d">Plany akustyczne: Radio 📻, Telefon 📱, Katedra 🏛️, Robot 🤖, Oddech 😮‍💨.</div>
+              </div>
+              <button class="card-open-btn">Otwórz panel ↗</button>
             </div>
-            <button class="card-open-btn">Otwórz panel ↗</button>
-          </div>
 
-          <!-- Card 4: Presety -->
-          <div class="orbit-card" data-index="4" onclick="openCard(4)">
-            <span class="card-badge">Warstwa 05</span>
-            <div>
-              <div class="card-icon">⚙️</div>
-              <div class="card-title-3d">Presety Projektu</div>
-              <div class="card-desc-3d">Własne warianty akustyczne i konfiguracja audioticon.toml.</div>
+            <!-- Card 4: Presety -->
+            <div class="orbit-card" data-index="4" onclick="openCard(4)">
+              <span class="card-badge">Warstwa 05</span>
+              <div>
+                <div class="card-icon">⚙️</div>
+                <div class="card-title-3d">Presety Projektu</div>
+                <div class="card-desc-3d">Własne warianty akustyczne i konfiguracja audioticon.toml.</div>
+              </div>
+              <button class="card-open-btn">Otwórz panel ↗</button>
             </div>
-            <button class="card-open-btn">Otwórz panel ↗</button>
-          </div>
 
-          <!-- Card 5: Cache & Oś Czasu -->
-          <div class="orbit-card" data-index="5" onclick="openCard(5)">
-            <span class="card-badge">Warstwa 06</span>
-            <div>
-              <div class="card-icon">⚡</div>
-              <div class="card-title-3d">Pamięć Cache</div>
-              <div class="card-desc-3d">Bezstratny cache zdań SHA-256. Re-render w ~20 ms na CPU.</div>
+            <!-- Card 5: Cache & Oś Czasu -->
+            <div class="orbit-card" data-index="5" onclick="openCard(5)">
+              <span class="card-badge">Warstwa 06</span>
+              <div>
+                <div class="card-icon">⚡</div>
+                <div class="card-title-3d">Pamięć Cache</div>
+                <div class="card-desc-3d">Bezstratny cache zdań SHA-256. Re-render w ~20 ms na CPU.</div>
+              </div>
+              <button class="card-open-btn">Otwórz panel ↗</button>
             </div>
-            <button class="card-open-btn">Otwórz panel ↗</button>
-          </div>
 
-          <!-- Card 6: Odsłuch & Mastering -->
-          <div class="orbit-card" data-index="6" onclick="openCard(6)">
-            <span class="card-badge">Warstwa 07</span>
-            <div>
-              <div class="card-icon">🎧</div>
-              <div class="card-title-3d">Mastering EBU R128</div>
-              <div class="card-desc-3d">Norma ACX / Audible: -19 LUFS, True-Peak -3.5 dBTP, pobieranie MP3.</div>
+            <!-- Card 6: Odsłuch & Mastering -->
+            <div class="orbit-card" data-index="6" onclick="openCard(6)">
+              <span class="card-badge">Warstwa 07</span>
+              <div>
+                <div class="card-icon">🎧</div>
+                <div class="card-title-3d">Mastering EBU R128</div>
+                <div class="card-desc-3d">Norma ACX / Audible: -19 LUFS, True-Peak -3.5 dBTP, pobieranie MP3.</div>
+              </div>
+              <button class="card-open-btn">Otwórz panel ↗</button>
             </div>
-            <button class="card-open-btn">Otwórz panel ↗</button>
-          </div>
 
-          <!-- Card 7: Eksport -->
-          <div class="orbit-card" data-index="7" onclick="openCard(7)">
-            <span class="card-badge">Warstwa 08</span>
-            <div>
-              <div class="card-icon">📦</div>
-              <div class="card-title-3d">Eksport & CLI</div>
-              <div class="card-desc-3d">Generowanie Apple M4B, skryptów ElevenLabs v3 oraz ChatTTS.</div>
+            <!-- Card 7: Eksport -->
+            <div class="orbit-card" data-index="7" onclick="openCard(7)">
+              <span class="card-badge">Warstwa 08</span>
+              <div>
+                <div class="card-icon">📦</div>
+                <div class="card-title-3d">Eksport & CLI</div>
+                <div class="card-desc-3d">Generowanie Apple M4B, skryptów ElevenLabs v3 oraz ChatTTS.</div>
+              </div>
+              <button class="card-open-btn">Otwórz panel ↗</button>
             </div>
-            <button class="card-open-btn">Otwórz panel ↗</button>
+          </div>
+        </div>
+
+        <!-- Prawa część: Szklany Monolit Logo Audioticon -->
+        <div class="glass-brand-panel">
+          <div>
+            <span class="glass-brand-badge">⚡ AUDIOTICON 3D</span>
+            <div style="margin-top: 1rem;">
+              <img src="logo.png" alt="Audioticon Logo" class="glass-logo-img">
+            </div>
+            <div class="glass-brand-title">AUDIOTICON</div>
+            <div class="glass-brand-tagline">Reżyseria audiobooków emotikonami z bezstratnym cachem i masteringiem EBU R128</div>
+          </div>
+          <div style="width: 100%; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.75rem;">
+            <div style="font-size: 0.72rem; color: #94a3b8; font-family: 'Fira Code', monospace;">
+              Norma: -19 LUFS<br>
+              Szczyt: -3.5 dBTP<br>
+              100% Offline Piper / Edge
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="orbit-hint">
-        <span>🖱️ Przeciągnij lewym przyciskiem myszy, aby obrócić bęben • Strzałki ← / → • Enter otwiera</span>
-      </div>
+      <!-- Dolny pas: Bezpiecznie obniżony pod wirującymi kaflami -->
+      <div class="orbit-controls-wrap">
+        <div class="orbit-hint">
+          <span>🖱️ Przeciągnij lewym przyciskiem myszy, aby obrócić bęben • Strzałki ← / → • Enter otwiera</span>
+        </div>
 
-      <div class="orbit-dock">
-        <button class="dock-pill active" onclick="rotateToCard(0)">📝 Tekst</button>
-        <button class="dock-pill" onclick="rotateToCard(1)">📖 Rozdziały</button>
-        <button class="dock-pill" onclick="rotateToCard(2)">🗣️ Głosy</button>
-        <button class="dock-pill" onclick="rotateToCard(3)">🎛️ Efekty</button>
-        <button class="dock-pill" onclick="rotateToCard(4)">⚙️ Presety</button>
-        <button class="dock-pill" onclick="rotateToCard(5)">⚡ Cache</button>
-        <button class="dock-pill" onclick="rotateToCard(6)">🎧 Mastering</button>
-        <button class="dock-pill" onclick="rotateToCard(7)">📦 Eksport</button>
+        <div class="orbit-dock">
+          <button class="dock-pill active" onclick="rotateToCard(0)">📝 Tekst</button>
+          <button class="dock-pill" onclick="rotateToCard(1)">📖 Rozdziały</button>
+          <button class="dock-pill" onclick="rotateToCard(2)">🗣️ Głosy</button>
+          <button class="dock-pill" onclick="rotateToCard(3)">🎛️ Efekty</button>
+          <button class="dock-pill" onclick="rotateToCard(4)">⚙️ Presety</button>
+          <button class="dock-pill" onclick="rotateToCard(5)">⚡ Cache</button>
+          <button class="dock-pill" onclick="rotateToCard(6)">🎧 Mastering</button>
+          <button class="dock-pill" onclick="rotateToCard(7)">📦 Eksport</button>
+        </div>
       </div>
     </section>
 
