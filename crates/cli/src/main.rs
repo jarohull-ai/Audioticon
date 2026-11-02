@@ -3,8 +3,8 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use std::sync::Arc;
 use audioticon_core::{
-    export_to_m4b, export_to_mp3, AudiobookMetadata, AudioDirectorEngine, EdgeTtsBridge,
-    EmojiDirector, PiperBridge, SpeechSynthesizer,
+    export_to_m4b, export_to_mp3, AudiobookMetadata, AudioDirectorEngine, DirectedItem,
+    EdgeTtsBridge, EmojiDirector, PiperBridge, SpeechSynthesizer,
 };
 
 #[derive(Parser)]
@@ -23,6 +23,16 @@ enum TtsProvider {
     Edge,
     /// Piper TTS (100% lokalny, ultra szybki model neuronowy ONNX)
     Piper,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+enum ScriptFormat {
+    /// Format ElevenLabs v3 z tagami aktorskimi ([whispers], [sighs], [shouts])
+    Elevenlabs,
+    /// Format ChatTTS z tagami inline ([whisper], [sigh], [shout])
+    Chattts,
+    /// Strukturalna oś czasu z deskryptorami stylu promptów
+    Timeline,
 }
 
 #[derive(Subcommand)]
@@ -82,6 +92,20 @@ enum Commands {
         /// Własny katalog bufora
         #[arg(short, long)]
         dir: Option<PathBuf>,
+    },
+    /// Eksportuje zareżyserowany tekst z emotikonami do formatów modeli ekspresyjnych (ElevenLabs, ChatTTS)
+    Script {
+        /// Ścieżka do pliku z tekstem ze znacznikami emoji (lub pomiń i użyj --demo)
+        #[arg(short, long)]
+        input: Option<PathBuf>,
+
+        /// Format wyjściowy tagów aktorskich
+        #[arg(short, long, value_enum, default_value_t = ScriptFormat::Elevenlabs)]
+        format: ScriptFormat,
+
+        /// Uruchamia wbudowaną scenę demonstracyjną Kijów
+        #[arg(long)]
+        demo: bool,
     },
 }
 
@@ -324,6 +348,62 @@ async fn main() -> Result<()> {
                 elapsed
             );
             println!("============================================================");
+        }
+        Commands::Script { input, format, demo } => {
+            let script_text = match input {
+                Some(file_path) if !demo => std::fs::read_to_string(&file_path)
+                    .with_context(|| format!("Nie można odczytać pliku: {:?}", file_path))?,
+                _ => DEMO_SCENE.to_string(),
+            };
+            let director = EmojiDirector::default();
+            let script = director.parse(&script_text);
+
+            match format {
+                ScriptFormat::Elevenlabs => {
+                    println!("{}", script.to_elevenlabs_script());
+                }
+                ScriptFormat::Chattts => {
+                    println!("{}", script.to_chattts_script());
+                }
+                ScriptFormat::Timeline => {
+                    println!("============================================================");
+                    println!("🎭 AUDIOTICON — Partytura Aktorska Osi Czasu");
+                    println!("============================================================");
+                    for (idx, item) in script.items.iter().enumerate() {
+                        match item {
+                            DirectedItem::Chapter(title) => {
+                                println!("\n[{:02}] 📖 ROZDZIAŁ: {}", idx, title)
+                            }
+                            DirectedItem::Silence(ms) => println!("  [{:02}] ⏸️ PAUZA: {} ms", idx, ms),
+                            DirectedItem::Breath(ms) => {
+                                println!("  [{:02}] 😮‍💨 ODDECH / WESTCHNIENIE: {} ms", idx, ms)
+                            }
+                            DirectedItem::Speech(seg) => {
+                                let mut meta = Vec::new();
+                                if let Some(style) = seg.style_prompt() {
+                                    meta.push(format!("Ekspresja: \"{}\"", style));
+                                }
+                                if let Some(ref filter) = seg.filter {
+                                    meta.push(format!("Filtr: {}", filter));
+                                }
+                                if seg.rate_mod != -6 {
+                                    meta.push(format!("Tempo: {:+}%", seg.rate_mod));
+                                }
+                                if seg.pitch_mod != -4 {
+                                    meta.push(format!("Wysokość: {:+}Hz", seg.pitch_mod));
+                                }
+                                let meta_str = if meta.is_empty() {
+                                    String::new()
+                                } else {
+                                    format!(" [{}]", meta.join(" | "))
+                                };
+                                println!("  [{:02}] 🗣️ \"{}\"{}", idx, seg.text, meta_str);
+                            }
+                        }
+                    }
+                    println!("\n============================================================");
+                }
+            }
         }
     }
 

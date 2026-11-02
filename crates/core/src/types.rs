@@ -19,7 +19,60 @@ pub enum EmojiAction {
     Chapter,
 }
 
-/// A chunk of spoken text with its acoustic properties.
+/// Expressive actor delivery and emotion tags for next-gen neural voice models.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum ActorTag {
+    Whisper,     // 🤫 Szept
+    Sigh,        // 😮‍💨 Westchnienie
+    Shout,       // 💥 Emfaza / podniesiony głos
+    Laugh,       // 😂 Śmiech
+    Hesitant,    // 🐢 Wahanie / powolna ostrożność
+    Urgent,      // 🐇 Nerwowość / pośpiech
+    Custom(String),
+}
+
+impl ActorTag {
+    /// Formats tag for ChatTTS (e.g. "[whisper]", "[sigh]")
+    pub fn as_chattts_tag(&self) -> &'static str {
+        match self {
+            ActorTag::Whisper => "[whisper]",
+            ActorTag::Sigh => "[sigh]",
+            ActorTag::Laugh => "[laugh]",
+            ActorTag::Shout => "[shout]",
+            ActorTag::Hesitant => "[hesitate]",
+            ActorTag::Urgent => "[fast]",
+            ActorTag::Custom(_) => "",
+        }
+    }
+
+    /// Formats tag for ElevenLabs v3 actor tags (e.g. "[whispers]", "[sighs]", "[shouts]")
+    pub fn as_elevenlabs_tag(&self) -> &'static str {
+        match self {
+            ActorTag::Whisper => "[whispers]",
+            ActorTag::Sigh => "[sighs]",
+            ActorTag::Laugh => "[laughs]",
+            ActorTag::Shout => "[shouts]",
+            ActorTag::Hesitant => "[hesitates]",
+            ActorTag::Urgent => "[urgently]",
+            ActorTag::Custom(_) => "",
+        }
+    }
+
+    /// Natural language style description for prompt-based models (e.g. XTTS, Bark, Voicebox)
+    pub fn as_style_description(&self) -> &'static str {
+        match self {
+            ActorTag::Whisper => "whispering softly, intimate close-up voice",
+            ActorTag::Sigh => "exhausted voice, heavy breath and sigh",
+            ActorTag::Laugh => "chuckles lightly while speaking",
+            ActorTag::Shout => "intense emphatic delivery, raised voice",
+            ActorTag::Hesitant => "slow, uncertain, hesitant pacing",
+            ActorTag::Urgent => "fast, breathless, nervous urgency",
+            ActorTag::Custom(_) => "",
+        }
+    }
+}
+
+/// A chunk of spoken text with its acoustic properties and expressive actor tags.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TextSegment {
     pub text: String,
@@ -27,6 +80,7 @@ pub struct TextSegment {
     pub pitch_mod: i32,
     pub volume_mod: i32,
     pub filter: Option<String>,
+    pub actor_tags: Vec<ActorTag>,
 }
 
 impl Default for TextSegment {
@@ -37,6 +91,54 @@ impl Default for TextSegment {
             pitch_mod: -4, // Default deeper base (-4Hz)
             volume_mod: 0,
             filter: None,
+            actor_tags: Vec::new(),
+        }
+    }
+}
+
+impl TextSegment {
+    /// Formats text for ChatTTS with expressive inline actor tags
+    pub fn format_for_chattts(&self) -> String {
+        let tags: Vec<&str> = self
+            .actor_tags
+            .iter()
+            .map(|t| t.as_chattts_tag())
+            .filter(|s| !s.is_empty())
+            .collect();
+        if tags.is_empty() {
+            self.text.clone()
+        } else {
+            format!("{} {}", tags.join(" "), self.text)
+        }
+    }
+
+    /// Formats text for ElevenLabs v3 with expressive inline actor tags
+    pub fn format_for_elevenlabs(&self) -> String {
+        let tags: Vec<&str> = self
+            .actor_tags
+            .iter()
+            .map(|t| t.as_elevenlabs_tag())
+            .filter(|s| !s.is_empty())
+            .collect();
+        if tags.is_empty() {
+            self.text.clone()
+        } else {
+            format!("{} {}", tags.join(" "), self.text)
+        }
+    }
+
+    /// Returns natural language style guidance prompt for generative voice models
+    pub fn style_prompt(&self) -> Option<String> {
+        let styles: Vec<&str> = self
+            .actor_tags
+            .iter()
+            .map(|t| t.as_style_description())
+            .filter(|s| !s.is_empty())
+            .collect();
+        if styles.is_empty() {
+            None
+        } else {
+            Some(styles.join("; "))
         }
     }
 }
@@ -94,5 +196,59 @@ impl DirectedScript {
                 DirectedItem::Speech(_) | DirectedItem::Chapter(_) => 0,
             })
             .sum()
+    }
+
+    /// Exports script into ChatTTS formatted text with control tags
+    pub fn to_chattts_script(&self) -> String {
+        let mut out = String::new();
+        for item in &self.items {
+            match item {
+                DirectedItem::Chapter(title) => {
+                    out.push_str(&format!("\n\n=== {} ===\n", title));
+                }
+                DirectedItem::Speech(seg) => {
+                    out.push_str(&seg.format_for_chattts());
+                    out.push(' ');
+                }
+                DirectedItem::Breath(_) => {
+                    out.push_str("[sigh] ");
+                }
+                DirectedItem::Silence(ms) => {
+                    if *ms >= 800 {
+                        out.push_str("\n\n");
+                    } else if *ms >= 350 {
+                        out.push_str(" ... ");
+                    }
+                }
+            }
+        }
+        out.trim().to_string()
+    }
+
+    /// Exports script into ElevenLabs v3 actor-tagged format
+    pub fn to_elevenlabs_script(&self) -> String {
+        let mut out = String::new();
+        for item in &self.items {
+            match item {
+                DirectedItem::Chapter(title) => {
+                    out.push_str(&format!("\n\n# {}\n", title));
+                }
+                DirectedItem::Speech(seg) => {
+                    out.push_str(&seg.format_for_elevenlabs());
+                    out.push(' ');
+                }
+                DirectedItem::Breath(_) => {
+                    out.push_str("[sighs] ");
+                }
+                DirectedItem::Silence(ms) => {
+                    if *ms >= 800 {
+                        out.push_str("\n\n");
+                    } else if *ms >= 350 {
+                        out.push_str(" ... ");
+                    }
+                }
+            }
+        }
+        out.trim().to_string()
     }
 }

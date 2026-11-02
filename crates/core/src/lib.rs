@@ -4,7 +4,10 @@ pub mod cache;
 pub mod audio;
 pub mod verbalizer;
 
-pub use types::{AudiobookMetadata, ChapterMark, DirectedItem, DirectedScript, EmojiAction, RenderResult, TextSegment};
+pub use types::{
+    ActorTag, AudiobookMetadata, ChapterMark, DirectedItem, DirectedScript, EmojiAction,
+    RenderResult, TextSegment,
+};
 pub use parser::EmojiDirector;
 pub use cache::compute_segment_hash;
 pub use audio::{

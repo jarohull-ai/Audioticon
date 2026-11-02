@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use regex::Regex;
-use crate::types::{DirectedItem, DirectedScript, EmojiAction, TextSegment};
+use crate::types::{ActorTag, DirectedItem, DirectedScript, EmojiAction, TextSegment};
 use crate::verbalizer::normalize_polish_text;
 
 /// Configurable Emoji Director Grammar
@@ -139,6 +139,7 @@ impl EmojiDirector {
                     if !token.is_empty() {
                         let mut emphasized = current_segment.clone();
                         emphasized.text = normalize_polish_text(token.trim());
+                        emphasized.actor_tags.push(ActorTag::Shout);
                         script.items.push(DirectedItem::Speech(emphasized));
                         // Immediately reset volume for rest of sentence
                         current_segment.volume_mod = 0;
@@ -166,7 +167,7 @@ impl EmojiDirector {
                 match action {
                     EmojiAction::Pause(ms) => {
                         script.items.push(DirectedItem::Silence(*ms));
-                        // After full pause (like 🛑), reset pacing back to defaults
+                        // After full pause (like 🛑), reset pacing and emotion tags back to defaults
                         if *ms >= 800 {
                             current_segment = TextSegment::default();
                             pending_one_shot_volume = false;
@@ -177,6 +178,11 @@ impl EmojiDirector {
                     }
                     EmojiAction::RateMod(rate) => {
                         current_segment.rate_mod = *rate;
+                        if *rate < 0 {
+                            current_segment.actor_tags.push(ActorTag::Hesitant);
+                        } else if *rate > 0 {
+                            current_segment.actor_tags.push(ActorTag::Urgent);
+                        }
                     }
                     EmojiAction::PitchMod(pitch) => {
                         current_segment.pitch_mod = *pitch;
@@ -186,8 +192,9 @@ impl EmojiDirector {
                         if *vol > 0 {
                             pending_one_shot_volume = true;
                         } else if *vol == -25 {
-                            // 🤫 whisper also slows down slightly
+                            // 🤫 whisper also slows down slightly and adds Whisper actor tag
                             current_segment.rate_mod = -10;
+                            current_segment.actor_tags.push(ActorTag::Whisper);
                         }
                     }
                     EmojiAction::Filter(filter_name) => {
@@ -221,6 +228,7 @@ impl EmojiDirector {
                 if !token.is_empty() {
                     let mut emphasized = current_segment.clone();
                     emphasized.text = normalize_polish_text(token.trim());
+                    emphasized.actor_tags.push(ActorTag::Shout);
                     script.items.push(DirectedItem::Speech(emphasized));
                     current_segment.volume_mod = 0;
                 }
@@ -306,5 +314,22 @@ mod tests {
 
         assert_eq!(chapters.len(), 1);
         assert_eq!(chapters[0], "Rozdział 1: Początek");
+    }
+
+    #[test]
+    fn test_actor_tags_translation() {
+        let director = EmojiDirector::default();
+        let input = "Na stole stał 💥budzik. 🛑 🤫 Cicho, dziecko śpi. 🛑 Zmęczony 😮‍💨 usiadł.";
+        let script = director.parse(input);
+
+        let eleven = script.to_elevenlabs_script();
+        assert!(eleven.contains("[shouts] budzik."));
+        assert!(eleven.contains("[whispers] Cicho, dziecko śpi."));
+        assert!(eleven.contains("[sighs]"));
+
+        let chat = script.to_chattts_script();
+        assert!(chat.contains("[shout] budzik."));
+        assert!(chat.contains("[whisper] Cicho, dziecko śpi."));
+        assert!(chat.contains("[sigh]"));
     }
 }
