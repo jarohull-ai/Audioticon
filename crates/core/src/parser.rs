@@ -6,15 +6,18 @@ use crate::types::{DirectedItem, DirectedScript, EmojiAction, TextSegment};
 #[derive(Debug, Clone)]
 pub struct EmojiDirector {
     actions: HashMap<String, EmojiAction>,
+    compiled_regex: Regex,
 }
 
 impl Default for EmojiDirector {
     fn default() -> Self {
         let mut m = HashMap::new();
-        // Pauses
+        // Pauses (register both with and without VS16 variant selector \u{FE0F})
         m.insert("🛑".to_string(), EmojiAction::Pause(900));
         m.insert("⏸️".to_string(), EmojiAction::Pause(400));
+        m.insert("⏸".to_string(), EmojiAction::Pause(400));
         m.insert("😮‍💨".to_string(), EmojiAction::Pause(350));
+        
         // Dynamics & Tempo
         m.insert("🐢".to_string(), EmojiAction::RateMod(-14));
         m.insert("🐇".to_string(), EmojiAction::RateMod(15));
@@ -22,11 +25,14 @@ impl Default for EmojiDirector {
         m.insert("📈".to_string(), EmojiAction::PitchMod(6));
         m.insert("💥".to_string(), EmojiAction::VolumeMod(15));
         m.insert("🤫".to_string(), EmojiAction::VolumeMod(-25));
+        
         // DSP Filters
         m.insert("📱".to_string(), EmojiAction::Filter("phone".to_string()));
         m.insert("📻".to_string(), EmojiAction::Filter("radio".to_string()));
         m.insert("📢".to_string(), EmojiAction::Filter("megaphone".to_string()));
-        Self { actions: m }
+
+        let compiled = Self::build_regex(&m);
+        Self { actions: m, compiled_regex: compiled }
     }
 }
 
@@ -35,8 +41,21 @@ impl EmojiDirector {
         Self::default()
     }
 
+    fn build_regex(actions: &HashMap<String, EmojiAction>) -> Regex {
+        if actions.is_empty() {
+            return Regex::new("$^").expect("Valid dummy regex");
+        }
+        // Sort keys by length descending to ensure compound/longer emojis match first
+        let mut keys: Vec<&String> = actions.keys().collect();
+        keys.sort_by_key(|k| std::cmp::Reverse(k.len()));
+        let emojis_pattern: Vec<String> = keys.into_iter().map(|e| regex::escape(e)).collect();
+        let re_str = format!("({})", emojis_pattern.join("|"));
+        Regex::new(&re_str).expect("Valid emoji regex")
+    }
+
     pub fn register(&mut self, emoji: impl Into<String>, action: EmojiAction) {
         self.actions.insert(emoji.into(), action);
+        self.compiled_regex = Self::build_regex(&self.actions);
     }
 
     /// Parses an emoji-directed text into a structured DirectedScript.
@@ -52,16 +71,12 @@ impl EmojiDirector {
             return script;
         }
 
-        // Build regex pattern matching registered emojis
-        let emojis_pattern: Vec<String> = self.actions.keys().map(|e| regex::escape(e)).collect();
-        let re_str = format!("({})", emojis_pattern.join("|"));
-        let re = Regex::new(&re_str).expect("Valid regex");
-
         let mut current_segment = TextSegment::default();
         let mut text_buf = String::new();
-
         let mut last_end = 0;
-        for mat in re.find_iter(raw_script) {
+        let mut one_shot_volume = false;
+
+        for mat in self.compiled_regex.find_iter(raw_script) {
             // Process text before the emoji
             let before = &raw_script[last_end..mat.start()];
             if !before.is_empty() {
@@ -76,8 +91,12 @@ impl EmojiDirector {
                     current_segment.text = clean_text;
                     script.items.push(DirectedItem::Speech(current_segment.clone()));
                     text_buf.clear();
-                    // Reset single-word modifications like volume
-                    current_segment.volume_mod = 0;
+
+                    // If previous segment had a one-shot emphasis, reset volume
+                    if one_shot_volume {
+                        current_segment.volume_mod = 0;
+                        one_shot_volume = false;
+                    }
                 }
 
                 // Apply action
@@ -87,6 +106,7 @@ impl EmojiDirector {
                         // After full pause (like 🛑), reset pacing back to defaults
                         if *ms >= 800 {
                             current_segment = TextSegment::default();
+                            one_shot_volume = false;
                         }
                     }
                     EmojiAction::RateMod(rate) => {
@@ -97,8 +117,11 @@ impl EmojiDirector {
                     }
                     EmojiAction::VolumeMod(vol) => {
                         current_segment.volume_mod = *vol;
-                        if *vol == -25 {
-                            // Szept also slows down slightly
+                        if *vol > 0 {
+                            // 💥 is typically a single-word / single-phrase accent
+                            one_shot_volume = true;
+                        } else if *vol == -25 {
+                            // 🤫 whisper also slows down slightly
                             current_segment.rate_mod = -10;
                         }
                     }
@@ -135,7 +158,6 @@ mod tests {
         let script = director.parse(input);
 
         assert!(!script.items.is_empty());
-        // Verify we have speech and silence items
         let silences: Vec<u32> = script
             .items
             .iter()
@@ -146,7 +168,6 @@ mod tests {
             .collect();
         assert_eq!(silences, vec![900, 900]);
 
-        // Verify volume modification was applied on "notes"
         let speeches: Vec<&TextSegment> = script
             .items
             .iter()
@@ -157,5 +178,27 @@ mod tests {
             .collect();
         assert!(speeches.iter().any(|s| s.text.contains("notes") && s.volume_mod == 15));
         assert!(speeches.iter().any(|s| s.text.contains("Zniszczony") && s.rate_mod == -14));
+    }
+
+    #[test]
+    fn test_vs16_pause_normalization() {
+        let director = EmojiDirector::default();
+        let with_vs16 = "Czekaj ⏸️ chwile.";
+        let without_vs16 = "Czekaj ⏸ chwile.";
+
+        let s1 = director.parse(with_vs16);
+        let s2 = director.parse(without_vs16);
+
+        let silences1: Vec<u32> = s1.items.iter().filter_map(|it| match it {
+            DirectedItem::Silence(ms) => Some(*ms),
+            _ => None,
+        }).collect();
+        let silences2: Vec<u32> = s2.items.iter().filter_map(|it| match it {
+            DirectedItem::Silence(ms) => Some(*ms),
+            _ => None,
+        }).collect();
+
+        assert_eq!(silences1, vec![400]);
+        assert_eq!(silences2, vec![400]);
     }
 }

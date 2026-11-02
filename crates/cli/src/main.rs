@@ -1,14 +1,63 @@
-use std::path::{Path, PathBuf};
-use anyhow::Result;
+use std::path::PathBuf;
+use anyhow::{Context, Result};
+use clap::{Parser, Subcommand};
 use audioticon_core::{AudioDirectorEngine, EdgeTtsBridge, EmojiDirector};
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    println!("============================================================");
-    println!("🎧 AUDIOTICON — Renderowanie Sceny Kijów (Styl: Achaja)");
-    println!("============================================================");
+#[derive(Parser)]
+#[command(name = "audioticon")]
+#[command(author = "Jarosław Kuchta <jarohull@gmail.com>")]
+#[command(version = "0.1.0")]
+#[command(about = "🎧 Audioticon — Reżyser audiobooków sterowany emotikonami z cachem zdań", long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
 
-    let script_text = r#"
+#[derive(Subcommand)]
+enum Commands {
+    /// Renderuje tekst ze znacznikami emoji do pliku audio (.wav lub .mp3)
+    Render {
+        /// Ścieżka do pliku z tekstem ze znacznikami emoji (lub pomiń i użyj --demo)
+        #[arg(short, long)]
+        input: Option<PathBuf>,
+
+        /// Ścieżka do pliku wyjściowego (.wav lub .mp3)
+        #[arg(short, long, default_value = "output.mp3")]
+        output: PathBuf,
+
+        /// Identyfikator głosu TTS (np. pl-PL-MarekNeural, pl-PL-ZofiaNeural)
+        #[arg(short, long, default_value = "pl-PL-MarekNeural")]
+        voice: String,
+
+        /// Własny katalog cache (domyślnie ~/.cache/audioticon)
+        #[arg(short, long)]
+        cache_dir: Option<PathBuf>,
+
+        /// Uruchamia wbudowaną scenę demonstracyjną Kijów (Styl: Achaja)
+        #[arg(long)]
+        demo: bool,
+    },
+    /// Zarządzanie lokalnym buforem audio (cache)
+    Cache {
+        /// Wyczyść wszystkie zapisane segmenty
+        #[arg(long)]
+        clear: bool,
+
+        /// Własny katalog bufora
+        #[arg(short, long)]
+        dir: Option<PathBuf>,
+    },
+}
+
+fn get_default_cache_dir() -> PathBuf {
+    if let Some(user_cache) = dirs::cache_dir() {
+        user_cache.join("audioticon")
+    } else {
+        PathBuf::from("/tmp/audioticon_cache")
+    }
+}
+
+const DEMO_SCENE: &str = r#"
 Kijów, dwudziesty czwarty lutego dwa tysiące dwudziestego czwartego roku. 🛑
 
 Adam Richter siedział przy biurku w mieszkaniu na Obołoni w Kijowie. ⏸️
@@ -41,42 +90,100 @@ Nie musiał czytać dalej. 🛑
 🤫 Pamiętał zapach. 🛑
 "#;
 
-    println!("\n[1] Zareżyserowany scenariusz (Styl: Achaja):\n{}", script_text.trim());
+#[tokio::main]
+async fn main() -> Result<()> {
+    let cli = Cli::parse();
 
-    let director = EmojiDirector::default();
-    let script = director.parse(script_text);
-    println!("\n[2] Oś czasu: {} segmentów (mowa + pauzy). Łączny czas pauz: {} ms", script.items.len(), script.total_pause_ms());
+    match cli.command {
+        Commands::Cache { clear, dir } => {
+            let cache_path = dir.unwrap_or_else(get_default_cache_dir);
+            if clear {
+                if cache_path.exists() {
+                    std::fs::remove_dir_all(&cache_path)?;
+                    std::fs::create_dir_all(&cache_path)?;
+                    println!("🧹 Wyczyszczono bufor: {:?}", cache_path);
+                } else {
+                    println!("Bufor jest pusty: {:?}", cache_path);
+                }
+            } else {
+                let count = if cache_path.exists() {
+                    std::fs::read_dir(&cache_path)?.filter_map(|e| e.ok()).count()
+                } else {
+                    0
+                };
+                println!("📂 Katalog cache: {:?}", cache_path);
+                println!("📦 Zapisanych plików segmentów: {}", count);
+            }
+        }
+        Commands::Render { input, output, voice, cache_dir, demo } => {
+            let script_text = match input {
+                Some(file_path) if !demo => {
+                    std::fs::read_to_string(&file_path)
+                        .with_context(|| format!("Nie można odczytać pliku: {:?}", file_path))?
+                }
+                _ => {
+                    if !demo {
+                        println!("ℹ️ Nie podano pliku wejściowego. Uruchamiam scenę demonstracyjną (--demo).\n");
+                    }
+                    DEMO_SCENE.to_string()
+                }
+            };
 
-    let cache_dir = PathBuf::from("/tmp/audioticon_cache");
-    let bridge = Box::new(EdgeTtsBridge::new("pl-PL-MarekNeural"));
-    let engine = AudioDirectorEngine::new(cache_dir, bridge);
+            let cache_path = cache_dir.unwrap_or_else(get_default_cache_dir);
+            std::fs::create_dir_all(&cache_path)?;
 
-    let master_wav = Path::new("/home/jaro/Desktop/kijow_audioticon_styl_achaja.wav");
+            println!("============================================================");
+            println!("🎧 AUDIOTICON — Renderowanie Scenariusza");
+            println!("Głos:      {}", voice);
+            println!("Cache dir: {:?}", cache_path);
+            println!("Wyjście:   {:?}", output);
+            println!("============================================================");
 
-    println!("\n[3] Przetwarzanie i buforowanie...");
-    let start_time = std::time::Instant::now();
-    engine.render(&script, master_wav).await?;
-    let elapsed = start_time.elapsed();
+            let director = EmojiDirector::default();
+            let script = director.parse(&script_text);
+            println!("Oś czasu:  {} segmentów. Łączny czas pauz: {} ms", script.items.len(), script.total_pause_ms());
 
-    // Dodatkowo eksport do MP3
-    let master_mp3 = Path::new("/home/jaro/Desktop/kijow_audioticon_styl_achaja.mp3");
-    let _ = tokio::process::Command::new("ffmpeg")
-        .arg("-y")
-        .arg("-i")
-        .arg(master_wav)
-        .arg("-codec:a")
-        .arg("libmp3lame")
-        .arg("-qscale:a")
-        .arg("2")
-        .arg(master_mp3)
-        .output()
-        .await;
+            let bridge = Box::new(EdgeTtsBridge::new(&voice));
+            let engine = AudioDirectorEngine::new(cache_path, bridge);
 
-    println!("\n============================================================");
-    println!("✅ Wygenerowano plik master: {:?}", master_wav);
-    println!("🎵 Wygenerowano wersję MP3:  {:?}", master_mp3);
-    println!("⏱️ Czas operacji: {:.2?}", elapsed);
-    println!("============================================================");
+            // If output is .mp3, render to an intermediate .wav first
+            let is_mp3 = output.extension().and_then(|s| s.to_str()).map(|s| s.eq_ignore_ascii_case("mp3")).unwrap_or(false);
+            let wav_target = if is_mp3 {
+                output.with_extension("wav")
+            } else {
+                output.clone()
+            };
+
+            let start_time = std::time::Instant::now();
+            engine.render(&script, &wav_target).await?;
+            let elapsed = start_time.elapsed();
+
+            if is_mp3 {
+                println!("\nKonwertowanie master WAV do MP3...");
+                let status = tokio::process::Command::new("ffmpeg")
+                    .arg("-y")
+                    .arg("-i")
+                    .arg(&wav_target)
+                    .arg("-codec:a")
+                    .arg("libmp3lame")
+                    .arg("-qscale:a")
+                    .arg("2")
+                    .arg(&output)
+                    .status()
+                    .await
+                    .with_context(|| "Błąd uruchamiania ffmpeg do konwersji MP3")?;
+
+                if !status.success() {
+                    anyhow::bail!("Konwersja do MP3 zakończyła się błędem: {:?}", status);
+                }
+            }
+
+            println!("\n============================================================");
+            println!("✅ Gotowe! Plik wyjściowy: {:?}", output);
+            println!("⏱️ Czas operacji: {:.2?}", elapsed);
+            println!("============================================================");
+        }
+    }
 
     Ok(())
 }

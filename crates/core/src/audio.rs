@@ -10,33 +10,41 @@ pub const DEFAULT_SAMPLE_RATE: u32 = 24000;
 
 /// Pure Rust generation of digital silence WAV file.
 pub fn create_silence_wav(out_path: &Path, duration_ms: u32, sample_rate: u32) -> Result<()> {
+    let tmp_path = out_path.with_extension("tmp.wav");
     let spec = WavSpec {
         channels: 1,
         sample_rate,
         bits_per_sample: 16,
         sample_format: SampleFormat::Int,
     };
-    let mut writer = WavWriter::create(out_path, spec)
-        .with_context(|| format!("Nie można utworzyć pliku ciszy: {:?}", out_path))?;
+    let mut writer = WavWriter::create(&tmp_path, spec)
+        .with_context(|| format!("Nie można utworzyć pliku ciszy: {:?}", tmp_path))?;
 
     let total_samples = (sample_rate as u64 * duration_ms as u64) / 1000;
     for _ in 0..total_samples {
         writer.write_sample(0i16)?;
     }
     writer.finalize()?;
+
+    // Atomic move
+    std::fs::rename(&tmp_path, out_path)
+        .with_context(|| format!("Nie można przenieść pliku ciszy do: {:?}", out_path))?;
+
     Ok(())
 }
 
 /// Pure Rust seamless sample-accurate stitching of multiple WAV files into one.
+/// Validates headers and supports mono downmixing if needed.
 pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -> Result<()> {
+    let tmp_out = out_path.with_extension("tmp.wav");
     let spec = WavSpec {
         channels: 1,
         sample_rate,
         bits_per_sample: 16,
         sample_format: SampleFormat::Int,
     };
-    let mut writer = WavWriter::create(out_path, spec)
-        .with_context(|| format!("Nie można utworzyć pliku wynikowego: {:?}", out_path))?;
+    let mut writer = WavWriter::create(&tmp_out, spec)
+        .with_context(|| format!("Nie można utworzyć pliku wynikowego: {:?}", tmp_out))?;
 
     for in_file in inputs {
         let file = File::open(in_file)
@@ -44,12 +52,42 @@ pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -
         let mut reader = WavReader::new(BufReader::new(file))
             .with_context(|| format!("Błąd odczytu nagłówka WAV: {:?}", in_file))?;
 
-        for sample in reader.samples::<i16>() {
-            let s = sample?;
-            writer.write_sample(s)?;
+        let in_spec = reader.spec();
+        if in_spec.sample_rate != sample_rate {
+            anyhow::bail!(
+                "Niezgodność częstotliwości próbkowania w {:?}: oczekiwano {} Hz, otrzymano {} Hz",
+                in_file,
+                sample_rate,
+                in_spec.sample_rate
+            );
+        }
+
+        match in_spec.channels {
+            1 => {
+                for sample in reader.samples::<i16>() {
+                    writer.write_sample(sample?)?;
+                }
+            }
+            2 => {
+                // Downmix stereo to mono
+                let mut samples = reader.samples::<i16>();
+                while let Some(left) = samples.next() {
+                    let right = samples.next().unwrap_or(Ok(0))?;
+                    let mono = ((left? as i32 + right as i32) / 2) as i16;
+                    writer.write_sample(mono)?;
+                }
+            }
+            other => {
+                anyhow::bail!("Nieobsługiwana liczba kanałów ({}) w pliku {:?}", other, in_file);
+            }
         }
     }
     writer.finalize()?;
+
+    // Atomic rename
+    std::fs::rename(&tmp_out, out_path)
+        .with_context(|| format!("Nie można przenieść pliku wynikowego do: {:?}", out_path))?;
+
     Ok(())
 }
 
@@ -60,23 +98,41 @@ pub trait SpeechSynthesizer: Send + Sync {
     fn voice_name(&self) -> &str;
 }
 
-/// Synthesizer bridge using edge-tts.
+/// Synthesizer bridge using edge-tts with audio trimming and DSP filter chaining.
 pub struct EdgeTtsBridge {
     pub voice: String,
-    pub python_bin: PathBuf,
+    pub edge_tts_bin: PathBuf,
 }
 
 impl EdgeTtsBridge {
     pub fn new(voice: impl Into<String>) -> Self {
-        let py = if Path::new("/tmp/edge_env/bin/python3").exists() {
-            PathBuf::from("/tmp/edge_env/bin/python3")
-        } else {
-            PathBuf::from("python3")
-        };
+        let bin = Self::find_edge_tts();
         Self {
             voice: voice.into(),
-            python_bin: py,
+            edge_tts_bin: bin,
         }
+    }
+
+    pub fn with_binary(voice: impl Into<String>, bin_path: PathBuf) -> Self {
+        Self {
+            voice: voice.into(),
+            edge_tts_bin: bin_path,
+        }
+    }
+
+    fn find_edge_tts() -> PathBuf {
+        let candidates = [
+            "/tmp/edge_env/bin/edge-tts",
+            "/usr/local/bin/edge-tts",
+            "/usr/bin/edge-tts",
+        ];
+        for c in candidates {
+            if Path::new(c).exists() {
+                return PathBuf::from(c);
+            }
+        }
+        // Fallback to PATH lookup
+        PathBuf::from("edge-tts")
     }
 }
 
@@ -90,14 +146,14 @@ impl SpeechSynthesizer for EdgeTtsBridge {
         let temp_txt = out_path.with_extension("txt");
         tokio::fs::write(&temp_txt, segment.text.trim()).await?;
 
-        // Python argparse requires --arg=val syntax for negative numbers starting with '-'
         let rate_arg = format!("--rate={:+}%", segment.rate_mod);
         let pitch_arg = format!("--pitch={:+}Hz", segment.pitch_mod);
         let vol_arg = format!("--volume={:+}%", segment.volume_mod);
 
         let temp_mp3 = out_path.with_extension("temp.mp3");
+        let temp_wav = out_path.with_extension("temp.wav");
 
-        let status = tokio::process::Command::new("/tmp/edge_env/bin/edge-tts")
+        let status = tokio::process::Command::new(&self.edge_tts_bin)
             .arg(format!("--voice={}", self.voice))
             .arg(rate_arg)
             .arg(pitch_arg)
@@ -105,33 +161,73 @@ impl SpeechSynthesizer for EdgeTtsBridge {
             .arg(format!("-f={}", temp_txt.display()))
             .arg(format!("--write-media={}", temp_mp3.display()))
             .status()
-            .await?;
+            .await
+            .with_context(|| format!("Nie można uruchomić {:?}", self.edge_tts_bin))?;
 
         if !status.success() {
+            let _ = tokio::fs::remove_file(&temp_txt).await;
             anyhow::bail!("edge-tts zakończył się błędem: {:?}", status);
         }
 
-        // Convert mp3 chunk to 24000Hz mono wav
+        // Construct ffmpeg audio filter chain:
+        // 1. Remove leading and trailing silence padding introduced by edge-tts/MP3 encoder delay
+        let mut filters = vec![
+            "silenceremove=start_periods=1:start_duration=0.005:start_threshold=-45dB:detection=rms".to_string(),
+            "areverse".to_string(),
+            "silenceremove=start_periods=1:start_duration=0.005:start_threshold=-45dB:detection=rms".to_string(),
+            "areverse".to_string(),
+        ];
+
+        // 2. Apply DSP filter effects if requested by emoji
+        if let Some(ref filter_name) = segment.filter {
+            match filter_name.as_str() {
+                "phone" => {
+                    filters.push("bandpass=f=1850:w=3100,acrusher=level_in=1:level_out=0.8:bits=8:mode=log".to_string());
+                }
+                "radio" => {
+                    filters.push("bandpass=f=1800:w=2600,volume=1.2,treble=g=-3".to_string());
+                }
+                "megaphone" => {
+                    filters.push("highpass=f=500,lowpass=f=4000,acrusher=level_in=1:level_out=1:bits=10:mode=lin,volume=1.3".to_string());
+                }
+                _ => {}
+            }
+        }
+
+        let filter_chain = filters.join(",");
+
+        // Convert mp3 to 24000Hz mono wav with silence trimming and DSP filter applied
         let conv = tokio::process::Command::new("ffmpeg")
             .arg("-y")
             .arg("-i")
             .arg(&temp_mp3)
+            .arg("-af")
+            .arg(&filter_chain)
             .arg("-ar")
             .arg(DEFAULT_SAMPLE_RATE.to_string())
             .arg("-ac")
             .arg("1")
             .arg("-c:a")
             .arg("pcm_s16le")
-            .arg(out_path)
+            .arg(&temp_wav)
             .output()
             .await?;
 
+        // Cleanup temporary raw files
+        let _ = tokio::fs::remove_file(&temp_txt).await;
+        let _ = tokio::fs::remove_file(&temp_mp3).await;
+
         if !conv.status.success() {
-            anyhow::bail!("ffmpeg conversion failed");
+            let stderr = String::from_utf8_lossy(&conv.stderr);
+            let _ = tokio::fs::remove_file(&temp_wav).await;
+            anyhow::bail!("ffmpeg conversion failed: {}", stderr);
         }
 
-        let _ = tokio::fs::remove_file(temp_txt).await;
-        let _ = tokio::fs::remove_file(temp_mp3).await;
+        // Atomic commit to cache
+        tokio::fs::rename(&temp_wav, out_path)
+            .await
+            .with_context(|| format!("Błąd atomowego zapisu do cache: {:?}", out_path))?;
+
         Ok(())
     }
 }

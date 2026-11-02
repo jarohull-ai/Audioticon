@@ -9,3 +9,5 @@ authors.workspace = true
 audioticon-core = { path = "../core" }
 anyhow = { workspace = true }
 tokio = { workspace = true }
+clap = { workspace = true }
+dirs = { workspace = true }

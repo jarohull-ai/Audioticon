@@ -7,9 +7,9 @@ use crate::types::TextSegment;
 pub fn compute_segment_hash(segment: &TextSegment, voice: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(segment.text.trim().as_bytes());
-    hasher.update(&segment.rate_mod.to_le_bytes());
-    hasher.update(&segment.pitch_mod.to_le_bytes());
-    hasher.update(&segment.volume_mod.to_le_bytes());
+    hasher.update(segment.rate_mod.to_le_bytes());
+    hasher.update(segment.pitch_mod.to_le_bytes());
+    hasher.update(segment.volume_mod.to_le_bytes());
     if let Some(f) = &segment.filter {
         hasher.update(f.as_bytes());
     }
