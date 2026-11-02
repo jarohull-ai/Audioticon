@@ -1,8 +1,10 @@
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use anyhow::{Context, Result};
 use hound::{SampleFormat, WavReader, WavSpec, WavWriter};
+use tokio::sync::{Mutex, Semaphore};
 use crate::cache::compute_segment_hash;
 use crate::types::{DirectedItem, DirectedScript, TextSegment};
 
@@ -112,10 +114,11 @@ pub fn build_ffmpeg_filter_chain(filter: Option<&str>) -> String {
                 filters.push("highpass=f=500,lowpass=f=3800,volume=2.0,acrusher=level_in=1:level_out=1:bits=12:mode=lin".to_string());
             }
             "cathedral" => {
-                filters.push("aecho=0.8:0.88:60|120:0.4|0.25".to_string());
+                // Add pad duration before aecho so the reverb tail naturally decays without harsh cutoff
+                filters.push("apad=pad_dur=0.8,aecho=0.8:0.88:60|120:0.4|0.25".to_string());
             }
             "dungeon" => {
-                filters.push("aecho=0.8:0.75:30|60:0.3|0.2".to_string());
+                filters.push("apad=pad_dur=0.6,aecho=0.8:0.75:30|60:0.3|0.2".to_string());
             }
             "thought" => {
                 filters.push("lowpass=f=4500,aecho=0.8:0.6:20:0.2".to_string());
@@ -135,6 +138,9 @@ pub fn build_ffmpeg_filter_chain(filter: Option<&str>) -> String {
 pub trait SpeechSynthesizer: Send + Sync {
     async fn synthesize(&self, segment: &TextSegment, out_path: &Path) -> Result<()>;
     fn voice_name(&self) -> &str;
+    fn max_concurrency(&self) -> usize {
+        6 // Default async network concurrency
+    }
 }
 
 /// Synthesizer bridge using edge-tts with audio trimming and DSP filter chaining.
@@ -178,6 +184,10 @@ impl EdgeTtsBridge {
 impl SpeechSynthesizer for EdgeTtsBridge {
     fn voice_name(&self) -> &str {
         &self.voice
+    }
+
+    fn max_concurrency(&self) -> usize {
+        6 // Run up to 6 requests concurrently to Microsoft servers
     }
 
     async fn synthesize(&self, segment: &TextSegment, out_path: &Path) -> Result<()> {
@@ -242,11 +252,20 @@ impl SpeechSynthesizer for EdgeTtsBridge {
     }
 }
 
-/// Offline Local Synthesizer bridge using Piper TTS (ONNX, 100% offline).
+/// Inner state of the persistent Piper Python worker process.
+struct PiperWorkerProcess {
+    _process: std::process::Child,
+    stdin: std::process::ChildStdin,
+    reader: BufReader<std::process::ChildStdout>,
+}
+
+/// Offline Local Synthesizer bridge using a persistent Piper worker (100% offline, model kept in RAM).
 pub struct PiperBridge {
     pub model_path: PathBuf,
     pub voice_id: String,
-    pub piper_bin: PathBuf,
+    pub python_bin: PathBuf,
+    pub worker_script: PathBuf,
+    worker: Mutex<Option<PiperWorkerProcess>>,
 }
 
 impl PiperBridge {
@@ -257,26 +276,54 @@ impl PiperBridge {
             .unwrap_or("piper_model")
             .to_string();
 
-        let bin = Self::find_piper();
+        let py = Self::find_python();
+        let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/piper_worker.py");
+
         Self {
             model_path,
             voice_id: format!("piper-{}", name),
-            piper_bin: bin,
+            python_bin: py,
+            worker_script: script,
+            worker: Mutex::new(None),
         }
     }
 
-    fn find_piper() -> PathBuf {
+    fn find_python() -> PathBuf {
         let candidates = [
-            "/tmp/edge_env/bin/piper",
-            "/usr/local/bin/piper",
-            "/usr/bin/piper",
+            "/tmp/edge_env/bin/python3",
+            "/usr/bin/python3",
+            "python3",
         ];
         for c in candidates {
             if Path::new(c).exists() {
                 return PathBuf::from(c);
             }
         }
-        PathBuf::from("piper")
+        PathBuf::from("python3")
+    }
+
+    fn spawn_worker(&self) -> Result<PiperWorkerProcess> {
+        let mut child = std::process::Command::new(&self.python_bin)
+            .arg(&self.worker_script)
+            .arg(&self.model_path)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()
+            .with_context(|| format!("Błąd startu procesu pomocniczego Piper: {:?}", self.worker_script))?;
+
+        let stdin = child.stdin.take().expect("Child stdin open");
+        let stdout = child.stdout.take().expect("Child stdout open");
+        let mut reader = BufReader::new(stdout);
+
+        let mut ready_line = String::new();
+        reader.read_line(&mut ready_line)?;
+
+        Ok(PiperWorkerProcess {
+            _process: child,
+            stdin,
+            reader,
+        })
     }
 }
 
@@ -286,45 +333,62 @@ impl SpeechSynthesizer for PiperBridge {
         &self.voice_id
     }
 
-    async fn synthesize(&self, segment: &TextSegment, out_path: &Path) -> Result<()> {
-        let temp_txt = out_path.with_extension("txt");
-        tokio::fs::write(&temp_txt, segment.text.trim()).await?;
+    fn max_concurrency(&self) -> usize {
+        1 // Serialized access to in-memory model worker (runs in ~100ms per sentence)
+    }
 
+    async fn synthesize(&self, segment: &TextSegment, out_path: &Path) -> Result<()> {
         let temp_raw_wav = out_path.with_extension("piper_raw.wav");
         let temp_wav = out_path.with_extension("temp.wav");
 
-        // Map rate_mod to piper length_scale:
-        // normal is 1.0; negative rate_mod slows down (length_scale > 1.0); positive accelerates
         let length_scale = if segment.rate_mod < 0 {
             1.0 - (segment.rate_mod as f32 / 100.0)
         } else {
             1.0 / (1.0 + (segment.rate_mod as f32 / 100.0))
         };
-
-        // Map volume_mod to piper volume multiplier
         let volume_scale = (1.0 + (segment.volume_mod as f32 / 100.0)).clamp(0.2, 2.0);
 
-        let status = tokio::process::Command::new(&self.piper_bin)
-            .arg("--model")
-            .arg(&self.model_path)
-            .arg("--input-file")
-            .arg(&temp_txt)
-            .arg("--output-file")
-            .arg(&temp_raw_wav)
-            .arg("--length-scale")
-            .arg(format!("{:.2}", length_scale))
-            .arg("--volume")
-            .arg(format!("{:.2}", volume_scale))
-            .status()
-            .await
-            .with_context(|| format!("Nie można uruchomić {:?}", self.piper_bin))?;
+        let req_json = serde_json::json!({
+            "text": segment.text.trim(),
+            "out_path": temp_raw_wav.to_str().unwrap_or_default(),
+            "length_scale": length_scale,
+            "volume": volume_scale
+        });
 
-        if !status.success() {
-            let _ = tokio::fs::remove_file(&temp_txt).await;
-            anyhow::bail!("piper zakończył się błędem: {:?}", status);
+        // Acquire worker and synthesize in-memory
+        {
+            let mut worker_guard = self.worker.lock().await;
+            if worker_guard.is_none() {
+                *worker_guard = Some(self.spawn_worker()?);
+            }
+
+            let worker = worker_guard.as_mut().unwrap();
+            let mut line = req_json.to_string();
+            line.push('\n');
+
+            worker.stdin.write_all(line.as_bytes())?;
+            worker.stdin.flush()?;
+
+            let mut resp_line = String::new();
+            worker.reader.read_line(&mut resp_line)?;
+
+            let val: serde_json::Value = serde_json::from_str(&resp_line)
+                .with_context(|| format!("Nieprawidłowa odpowiedź procesu Piper: {}", resp_line))?;
+
+            if val.get("status").and_then(|s| s.as_str()) != Some("ok") {
+                anyhow::bail!("Piper worker error: {:?}", val);
+            }
         }
 
-        let filter_chain = build_ffmpeg_filter_chain(segment.filter.as_deref());
+        let mut filter_chain = build_ffmpeg_filter_chain(segment.filter.as_deref());
+
+        // Handle pitch modification for Piper via ffmpeg asetrate + atempo
+        if segment.pitch_mod != 0 {
+            let semitones = segment.pitch_mod as f32 / 3.0;
+            let factor = 2f32.powf(semitones / 12.0);
+            let pitch_filter = format!("asetrate=24000*{:.3},atempo={:.3}", factor, 1.0 / factor);
+            filter_chain = format!("{},{}", filter_chain, pitch_filter);
+        }
 
         // Process through ffmpeg for silence trimming, sample rate unification, and DSP filters
         let conv = tokio::process::Command::new("ffmpeg")
@@ -343,7 +407,6 @@ impl SpeechSynthesizer for PiperBridge {
             .output()
             .await?;
 
-        let _ = tokio::fs::remove_file(&temp_txt).await;
         let _ = tokio::fs::remove_file(&temp_raw_wav).await;
 
         if !conv.status.success() {
@@ -360,14 +423,14 @@ impl SpeechSynthesizer for PiperBridge {
     }
 }
 
-/// Rendering orchestrator with granular caching.
+/// Rendering orchestrator with high-concurrency caching.
 pub struct AudioDirectorEngine {
     pub cache_dir: PathBuf,
-    pub synthesizer: Box<dyn SpeechSynthesizer>,
+    pub synthesizer: Arc<dyn SpeechSynthesizer>,
 }
 
 impl AudioDirectorEngine {
-    pub fn new(cache_dir: PathBuf, synthesizer: Box<dyn SpeechSynthesizer>) -> Self {
+    pub fn new(cache_dir: PathBuf, synthesizer: Arc<dyn SpeechSynthesizer>) -> Self {
         std::fs::create_dir_all(&cache_dir).ok();
         Self {
             cache_dir,
@@ -375,12 +438,13 @@ impl AudioDirectorEngine {
         }
     }
 
-    /// Renders a directed script into a single master audio file.
+    /// Renders a directed script into a single master audio file with parallel async synthesis.
     pub async fn render(&self, script: &DirectedScript, final_wav: &Path) -> Result<usize> {
         let mut chunk_paths = Vec::new();
+        let mut missing_tasks = Vec::new();
         let mut cache_hits = 0;
-        let mut cache_misses = 0;
 
+        // Phase 1: Scan timeline, schedule silences and identify missing cache segments
         for (idx, item) in script.items.iter().enumerate() {
             match item {
                 DirectedItem::Silence(ms) => {
@@ -398,19 +462,44 @@ impl AudioDirectorEngine {
                         cache_hits += 1;
                         println!("  [{:02}] ⚡ CACHE HIT (0ms): \"{}\" [{}]", idx, segment.text, &hash[0..8]);
                     } else {
-                        cache_misses += 1;
-                        println!("  [{:02}] ⏳ GENEROWANIE: \"{}\" [{}]", idx, segment.text, &hash[0..8]);
-                        self.synthesizer.synthesize(segment, &cached_wav).await?;
+                        missing_tasks.push((idx, segment.clone(), cached_wav.clone(), hash));
                     }
                     chunk_paths.push(cached_wav);
                 }
             }
         }
 
+        // Phase 2: Parallel async synthesis of missing segments
+        if !missing_tasks.is_empty() {
+            let concurrency = self.synthesizer.max_concurrency();
+            let semaphore = Arc::new(Semaphore::new(concurrency));
+            let total_missing = missing_tasks.len();
+            println!("\n🚀 Generowanie {} segmentów równolegle (współbieżność: {})...", total_missing, concurrency);
+
+            let mut join_set = tokio::task::JoinSet::new();
+
+            for (idx, seg, out_path, hash) in missing_tasks {
+                let sem = semaphore.clone();
+                let synth = self.synthesizer.clone();
+
+                join_set.spawn(async move {
+                    let _permit = sem.acquire().await.expect("Semaphore acquire");
+                    println!("  [{:02}] ⏳ GENEROWANIE: \"{}\" [{}]", idx, seg.text, &hash[0..8]);
+                    synth.synthesize(&seg, &out_path).await?;
+                    Ok::<(), anyhow::Error>(())
+                });
+            }
+
+            while let Some(res) = join_set.join_next().await {
+                res.with_context(|| "Błąd zadania syntezy mowy")??;
+            }
+        }
+
+        // Phase 3: Stitching all verified segments
         println!("\nŁączenie {} segmentów audio w plik wynikowy...", chunk_paths.len());
         stitch_wav_files(&chunk_paths, final_wav, DEFAULT_SAMPLE_RATE)?;
 
-        println!("Zakończono! Cache hits: {}, Nowo wygenerowane: {}", cache_hits, cache_misses);
+        println!("Zakończono! Cache hits: {}, Nowo wygenerowane: {}", cache_hits, chunk_paths.len() - cache_hits);
         Ok(chunk_paths.len())
     }
 }

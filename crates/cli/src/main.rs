@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
+use std::sync::Arc;
 use audioticon_core::{AudioDirectorEngine, EdgeTtsBridge, PiperBridge, SpeechSynthesizer, EmojiDirector};
 
 #[derive(Parser)]
@@ -78,7 +79,11 @@ fn get_default_cache_dir() -> PathBuf {
 }
 
 fn get_default_piper_model() -> PathBuf {
-    get_default_cache_dir().join("models").join("pl_PL-darkman-medium.onnx")
+    if let Some(data_dir) = dirs::data_dir() {
+        data_dir.join("audioticon").join("models").join("pl_PL-darkman-medium.onnx")
+    } else {
+        PathBuf::from("/home/jaro/.local/share/audioticon/models/pl_PL-darkman-medium.onnx")
+    }
 }
 
 const DEMO_SCENE: &str = r#"
@@ -188,19 +193,19 @@ async fn main() -> Result<()> {
             let cache_path = cache_dir.unwrap_or_else(get_default_cache_dir);
             std::fs::create_dir_all(&cache_path)?;
 
-            let synthesizer: Box<dyn SpeechSynthesizer> = match provider {
+            let synthesizer: Arc<dyn SpeechSynthesizer> = match provider {
                 TtsProvider::Edge => {
-                    Box::new(EdgeTtsBridge::new(&voice))
+                    Arc::new(EdgeTtsBridge::new(&voice))
                 }
                 TtsProvider::Piper => {
                     let m_path = model.unwrap_or_else(get_default_piper_model);
                     if !m_path.exists() {
                         anyhow::bail!(
-                            "Nie znaleziono modelu Piper: {:?}. Pobierz model do ~/.cache/audioticon/models/",
+                            "Nie znaleziono modelu Piper: {:?}. Pobierz model do ~/.local/share/audioticon/models/",
                             m_path
                         );
                     }
-                    Box::new(PiperBridge::new(m_path))
+                    Arc::new(PiperBridge::new(m_path))
                 }
             };
 

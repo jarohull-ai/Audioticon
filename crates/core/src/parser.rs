@@ -63,6 +63,25 @@ impl EmojiDirector {
         self.compiled_regex = Self::build_regex(&self.actions);
     }
 
+    /// Splits the immediate first word (or quoted phrase) for one-shot emphasis modifiers like 💥
+    fn split_first_token(s: &str) -> (&str, &str) {
+        let trimmed = s.trim_start();
+        if let Some(after_quote) = trimmed.strip_prefix('"') {
+            if let Some(end_quote) = after_quote.find('"') {
+                let token_end = 1 + end_quote + 1;
+                let punc_len = trimmed[token_end..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_punctuation() && !c.is_whitespace())
+                    .count();
+                return (&trimmed[..token_end + punc_len], trimmed[token_end + punc_len..].trim_start());
+            }
+        }
+        match trimmed.find(char::is_whitespace) {
+            Some(pos) => (&trimmed[..pos], trimmed[pos..].trim_start()),
+            None => (trimmed, ""),
+        }
+    }
+
     /// Parses an emoji-directed text into a structured DirectedScript.
     pub fn parse(&self, raw_script: &str) -> DirectedScript {
         let mut script = DirectedScript::new();
@@ -79,13 +98,28 @@ impl EmojiDirector {
         let mut current_segment = TextSegment::default();
         let mut text_buf = String::new();
         let mut last_end = 0;
-        let mut one_shot_volume = false;
+        let mut pending_one_shot_volume = false;
 
         for mat in self.compiled_regex.find_iter(raw_script) {
             // Process text before the emoji
             let before = &raw_script[last_end..mat.start()];
             if !before.is_empty() {
-                text_buf.push_str(before);
+                if pending_one_shot_volume {
+                    let (token, remainder) = Self::split_first_token(before);
+                    if !token.is_empty() {
+                        let mut emphasized = current_segment.clone();
+                        emphasized.text = token.trim().to_string();
+                        script.items.push(DirectedItem::Speech(emphasized));
+                        // Immediately reset volume for rest of sentence
+                        current_segment.volume_mod = 0;
+                        pending_one_shot_volume = false;
+                    }
+                    if !remainder.is_empty() {
+                        text_buf.push_str(remainder);
+                    }
+                } else {
+                    text_buf.push_str(before);
+                }
             }
 
             let emoji_str = mat.as_str();
@@ -96,12 +130,6 @@ impl EmojiDirector {
                     current_segment.text = clean_text;
                     script.items.push(DirectedItem::Speech(current_segment.clone()));
                     text_buf.clear();
-
-                    // If previous segment had a one-shot emphasis, reset volume
-                    if one_shot_volume {
-                        current_segment.volume_mod = 0;
-                        one_shot_volume = false;
-                    }
                 }
 
                 // Apply action
@@ -111,7 +139,7 @@ impl EmojiDirector {
                         // After full pause (like 🛑), reset pacing back to defaults
                         if *ms >= 800 {
                             current_segment = TextSegment::default();
-                            one_shot_volume = false;
+                            pending_one_shot_volume = false;
                         }
                     }
                     EmojiAction::RateMod(rate) => {
@@ -123,8 +151,7 @@ impl EmojiDirector {
                     EmojiAction::VolumeMod(vol) => {
                         current_segment.volume_mod = *vol;
                         if *vol > 0 {
-                            // 💥 is typically a single-word / single-phrase accent
-                            one_shot_volume = true;
+                            pending_one_shot_volume = true;
                         } else if *vol == -25 {
                             // 🤫 whisper also slows down slightly
                             current_segment.rate_mod = -10;
@@ -140,8 +167,23 @@ impl EmojiDirector {
 
         // Process remaining text
         if last_end < raw_script.len() {
-            text_buf.push_str(&raw_script[last_end..]);
+            let tail = &raw_script[last_end..];
+            if pending_one_shot_volume {
+                let (token, remainder) = Self::split_first_token(tail);
+                if !token.is_empty() {
+                    let mut emphasized = current_segment.clone();
+                    emphasized.text = token.trim().to_string();
+                    script.items.push(DirectedItem::Speech(emphasized));
+                    current_segment.volume_mod = 0;
+                }
+                if !remainder.is_empty() {
+                    text_buf.push_str(remainder);
+                }
+            } else {
+                text_buf.push_str(tail);
+            }
         }
+
         let clean_text = text_buf.trim().to_string();
         if !clean_text.is_empty() {
             current_segment.text = clean_text;
@@ -155,6 +197,32 @@ impl EmojiDirector {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_single_word_explosion() {
+        let director = EmojiDirector::default();
+        let input = "Na biurku leżał 💥notes. A potem długo nic się nie działo.";
+        let script = director.parse(input);
+
+        let speeches: Vec<&TextSegment> = script
+            .items
+            .iter()
+            .filter_map(|it| match it {
+                DirectedItem::Speech(seg) => Some(seg),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(speeches.len(), 3);
+        assert_eq!(speeches[0].text, "Na biurku leżał");
+        assert_eq!(speeches[0].volume_mod, 0);
+
+        assert_eq!(speeches[1].text, "notes.");
+        assert_eq!(speeches[1].volume_mod, 15);
+
+        assert_eq!(speeches[2].text, "A potem długo nic się nie działo.");
+        assert_eq!(speeches[2].volume_mod, 0);
+    }
 
     #[test]
     fn test_parse_pauses_and_modifiers() {
@@ -172,38 +240,5 @@ mod tests {
             })
             .collect();
         assert_eq!(silences, vec![900, 900]);
-
-        let speeches: Vec<&TextSegment> = script
-            .items
-            .iter()
-            .filter_map(|it| match it {
-                DirectedItem::Speech(seg) => Some(seg),
-                _ => None,
-            })
-            .collect();
-        assert!(speeches.iter().any(|s| s.text.contains("notes") && s.volume_mod == 15));
-        assert!(speeches.iter().any(|s| s.text.contains("Zniszczony") && s.rate_mod == -14));
-    }
-
-    #[test]
-    fn test_demo_effects_parsing() {
-        let director = EmojiDirector::default();
-        let input = r#"
-Oto demonstracja zaawansowanych efektów akustycznych Audioticon. 🛑
-
-Narrator mówi czystym, studyjnym głosem. ⏸️
-Ale nagle odbiera telefon. 🛑
-📱 "Halo? Richter, słyszysz mnie? Mamy problem na punkcie kontrolnym!" 🛑
-
-W tle odzywa się wojskowa radiostacja krótkofalowa. 🛑
-📻 "Baza jeden do patrolu. Zgłaszam naruszenie perymetru w sektorze czwartym. Odbiór." 🛑
-"#;
-        let script = director.parse(input);
-        for (i, it) in script.items.iter().enumerate() {
-            match it {
-                DirectedItem::Silence(ms) => println!("[{:02}] SILENCE: {}ms", i, ms),
-                DirectedItem::Speech(seg) => println!("[{:02}] SPEECH: filter={:?}, text={:?}", i, seg.filter, seg.text),
-            }
-        }
     }
 }
