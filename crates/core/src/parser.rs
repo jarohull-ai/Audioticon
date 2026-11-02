@@ -26,10 +26,15 @@ impl Default for EmojiDirector {
         m.insert("💥".to_string(), EmojiAction::VolumeMod(15));
         m.insert("🤫".to_string(), EmojiAction::VolumeMod(-25));
         
-        // DSP Filters
+        // DSP Filters & Acoustic Environments
         m.insert("📱".to_string(), EmojiAction::Filter("phone".to_string()));
         m.insert("📻".to_string(), EmojiAction::Filter("radio".to_string()));
         m.insert("📢".to_string(), EmojiAction::Filter("megaphone".to_string()));
+        m.insert("🏛️".to_string(), EmojiAction::Filter("cathedral".to_string()));
+        m.insert("🏛".to_string(), EmojiAction::Filter("cathedral".to_string()));
+        m.insert("🏰".to_string(), EmojiAction::Filter("dungeon".to_string()));
+        m.insert("💭".to_string(), EmojiAction::Filter("thought".to_string()));
+        m.insert("🤖".to_string(), EmojiAction::Filter("robot".to_string()));
 
         let compiled = Self::build_regex(&m);
         Self { actions: m, compiled_regex: compiled }

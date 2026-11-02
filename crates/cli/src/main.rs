@@ -1,16 +1,24 @@
 use std::path::PathBuf;
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
-use audioticon_core::{AudioDirectorEngine, EdgeTtsBridge, EmojiDirector};
+use clap::{Parser, Subcommand, ValueEnum};
+use audioticon_core::{AudioDirectorEngine, EdgeTtsBridge, PiperBridge, SpeechSynthesizer, EmojiDirector};
 
 #[derive(Parser)]
 #[command(name = "audioticon")]
 #[command(author = "Jarosław Kuchta <jarohull@gmail.com>")]
-#[command(version = "0.1.0")]
-#[command(about = "🎧 Audioticon — Reżyser audiobooków sterowany emotikonami z cachem zdań", long_about = None)]
+#[command(version = "0.2.0")]
+#[command(about = "🎧 Audioticon — Reżyser audiobooków sterowany emotikonami z cachem zdań i filtrami DSP", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+enum TtsProvider {
+    /// Microsoft Edge TTS (wysoka jakość online)
+    Edge,
+    /// Piper TTS (100% lokalny, ultra szybki model neuronowy ONNX)
+    Piper,
 }
 
 #[derive(Subcommand)]
@@ -25,9 +33,17 @@ enum Commands {
         #[arg(short, long, default_value = "output.mp3")]
         output: PathBuf,
 
-        /// Identyfikator głosu TTS (np. pl-PL-MarekNeural, pl-PL-ZofiaNeural)
+        /// Silnik syntezy mowy: edge (online) lub piper (lokalny offline)
+        #[arg(long, value_enum, default_value_t = TtsProvider::Edge)]
+        provider: TtsProvider,
+
+        /// Identyfikator głosu Edge-TTS (np. pl-PL-MarekNeural, pl-PL-ZofiaNeural)
         #[arg(short, long, default_value = "pl-PL-MarekNeural")]
         voice: String,
+
+        /// Ścieżka do lokalnego modelu ONNX dla Piper (domyślnie: ~/.cache/audioticon/models/pl_PL-darkman-medium.onnx)
+        #[arg(long)]
+        model: Option<PathBuf>,
 
         /// Własny katalog cache (domyślnie ~/.cache/audioticon)
         #[arg(short, long)]
@@ -36,6 +52,10 @@ enum Commands {
         /// Uruchamia wbudowaną scenę demonstracyjną Kijów (Styl: Achaja)
         #[arg(long)]
         demo: bool,
+
+        /// Uruchamia scenę demonstracyjną wszystkich efektów akustycznych (telefon, radio, katedra, myśli, robot)
+        #[arg(long)]
+        demo_effects: bool,
     },
     /// Zarządzanie lokalnym buforem audio (cache)
     Cache {
@@ -55,6 +75,10 @@ fn get_default_cache_dir() -> PathBuf {
     } else {
         PathBuf::from("/tmp/audioticon_cache")
     }
+}
+
+fn get_default_piper_model() -> PathBuf {
+    get_default_cache_dir().join("models").join("pl_PL-darkman-medium.onnx")
 }
 
 const DEMO_SCENE: &str = r#"
@@ -90,6 +114,34 @@ Nie musiał czytać dalej. 🛑
 🤫 Pamiętał zapach. 🛑
 "#;
 
+const DEMO_EFFECTS_SCENE: &str = r#"
+Oto demonstracja zaawansowanych efektów akustycznych Audioticon. 🛑
+
+Narrator mówi czystym, studyjnym głosem. ⏸️
+Ale nagle odbiera telefon. 🛑
+📱 "Halo? Richter, słyszysz mnie? Mamy problem na punkcie kontrolnym!" 🛑
+
+W tle odzywa się wojskowa radiostacja krótkofalowa. 🛑
+📻 "Baza jeden do patrolu. Zgłaszam naruszenie perymetru w sektorze czwartym. Odbiór." 🛑
+
+Dowódca bierze tubę i krzyczy przez megafon na placu: 🛑
+📢 "Wszyscy natychmiast opuścić ten rejon! To nie są ćwiczenia!" 🛑
+
+Adam cofa się w głąb starej, opuszczonej katedry. 🛑
+🏛️ Kroki niosły się głuchym echem po kamiennych łukach świątyni. 🛑
+
+Schodzi wąskimi schodami do wilgotnych lochów. 🛑
+🏰 Ciemność była lepka, a woda kapała gdzieś w głębi podziemi. 🛑
+
+Zatrzymał się. 🛑
+💭 "Czy oni naprawdę myślą, że nie byłem na to przygotowany? Wszystko przewidziałem." 🛑
+
+Nagle z mroku wyłonił się syntetyczny głos bojowego androida: 🛑
+🤖 "Cel zidentyfikowany. Rozpoczynam procedurę neutralizacji." 🛑
+
+I znowu zapadła śmiertelna cisza. 🛑
+"#;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -115,26 +167,47 @@ async fn main() -> Result<()> {
                 println!("📦 Zapisanych plików segmentów: {}", count);
             }
         }
-        Commands::Render { input, output, voice, cache_dir, demo } => {
+        Commands::Render { input, output, provider, voice, model, cache_dir, demo, demo_effects } => {
             let script_text = match input {
-                Some(file_path) if !demo => {
+                Some(file_path) if !demo && !demo_effects => {
                     std::fs::read_to_string(&file_path)
                         .with_context(|| format!("Nie można odczytać pliku: {:?}", file_path))?
                 }
                 _ => {
-                    if !demo {
-                        println!("ℹ️ Nie podano pliku wejściowego. Uruchamiam scenę demonstracyjną (--demo).\n");
+                    if demo_effects {
+                        DEMO_EFFECTS_SCENE.to_string()
+                    } else {
+                        if !demo {
+                            println!("ℹ️ Nie podano pliku wejściowego. Uruchamiam scenę demonstracyjną (--demo).\n");
+                        }
+                        DEMO_SCENE.to_string()
                     }
-                    DEMO_SCENE.to_string()
                 }
             };
 
             let cache_path = cache_dir.unwrap_or_else(get_default_cache_dir);
             std::fs::create_dir_all(&cache_path)?;
 
+            let synthesizer: Box<dyn SpeechSynthesizer> = match provider {
+                TtsProvider::Edge => {
+                    Box::new(EdgeTtsBridge::new(&voice))
+                }
+                TtsProvider::Piper => {
+                    let m_path = model.unwrap_or_else(get_default_piper_model);
+                    if !m_path.exists() {
+                        anyhow::bail!(
+                            "Nie znaleziono modelu Piper: {:?}. Pobierz model do ~/.cache/audioticon/models/",
+                            m_path
+                        );
+                    }
+                    Box::new(PiperBridge::new(m_path))
+                }
+            };
+
             println!("============================================================");
             println!("🎧 AUDIOTICON — Renderowanie Scenariusza");
-            println!("Głos:      {}", voice);
+            println!("Provider:  {:?}", provider);
+            println!("Głos/ID:   {}", synthesizer.voice_name());
             println!("Cache dir: {:?}", cache_path);
             println!("Wyjście:   {:?}", output);
             println!("============================================================");
@@ -143,10 +216,8 @@ async fn main() -> Result<()> {
             let script = director.parse(&script_text);
             println!("Oś czasu:  {} segmentów. Łączny czas pauz: {} ms", script.items.len(), script.total_pause_ms());
 
-            let bridge = Box::new(EdgeTtsBridge::new(&voice));
-            let engine = AudioDirectorEngine::new(cache_path, bridge);
+            let engine = AudioDirectorEngine::new(cache_path, synthesizer);
 
-            // If output is .mp3, render to an intermediate .wav first
             let is_mp3 = output.extension().and_then(|s| s.to_str()).map(|s| s.eq_ignore_ascii_case("mp3")).unwrap_or(false);
             let wav_target = if is_mp3 {
                 output.with_extension("wav")

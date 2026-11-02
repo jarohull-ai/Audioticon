@@ -91,6 +91,45 @@ pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -
     Ok(())
 }
 
+/// Constructs FFmpeg audio filter chain with silence trimming and DSP acoustic presets.
+pub fn build_ffmpeg_filter_chain(filter: Option<&str>) -> String {
+    let mut filters = vec![
+        "silenceremove=start_periods=1:start_duration=0.005:start_threshold=-45dB:detection=rms".to_string(),
+        "areverse".to_string(),
+        "silenceremove=start_periods=1:start_duration=0.005:start_threshold=-45dB:detection=rms".to_string(),
+        "areverse".to_string(),
+    ];
+
+    if let Some(preset) = filter {
+        match preset {
+            "phone" => {
+                filters.push("bandpass=f=1850:w=3100,acrusher=level_in=1:level_out=0.8:bits=8:mode=log".to_string());
+            }
+            "radio" => {
+                filters.push("bandpass=f=1800:w=2600,volume=1.2,treble=g=-3".to_string());
+            }
+            "megaphone" => {
+                filters.push("highpass=f=500,lowpass=f=4000,acrusher=level_in=1:level_out=1:bits=10:mode=lin,volume=1.3".to_string());
+            }
+            "cathedral" => {
+                filters.push("aecho=0.8:0.88:60|120:0.4|0.25".to_string());
+            }
+            "dungeon" => {
+                filters.push("aecho=0.8:0.75:30|60:0.3|0.2".to_string());
+            }
+            "thought" => {
+                filters.push("lowpass=f=4500,aecho=0.8:0.6:20:0.2".to_string());
+            }
+            "robot" => {
+                filters.push("flanger=delay=5:depth=2:regen=50:width=80:speed=2,acrusher=bits=12:mode=lin".to_string());
+            }
+            _ => {}
+        }
+    }
+
+    filters.join(",")
+}
+
 /// Trait for TTS synthesizers.
 #[async_trait::async_trait]
 pub trait SpeechSynthesizer: Send + Sync {
@@ -131,7 +170,6 @@ impl EdgeTtsBridge {
                 return PathBuf::from(c);
             }
         }
-        // Fallback to PATH lookup
         PathBuf::from("edge-tts")
     }
 }
@@ -169,34 +207,8 @@ impl SpeechSynthesizer for EdgeTtsBridge {
             anyhow::bail!("edge-tts zakończył się błędem: {:?}", status);
         }
 
-        // Construct ffmpeg audio filter chain:
-        // 1. Remove leading and trailing silence padding introduced by edge-tts/MP3 encoder delay
-        let mut filters = vec![
-            "silenceremove=start_periods=1:start_duration=0.005:start_threshold=-45dB:detection=rms".to_string(),
-            "areverse".to_string(),
-            "silenceremove=start_periods=1:start_duration=0.005:start_threshold=-45dB:detection=rms".to_string(),
-            "areverse".to_string(),
-        ];
+        let filter_chain = build_ffmpeg_filter_chain(segment.filter.as_deref());
 
-        // 2. Apply DSP filter effects if requested by emoji
-        if let Some(ref filter_name) = segment.filter {
-            match filter_name.as_str() {
-                "phone" => {
-                    filters.push("bandpass=f=1850:w=3100,acrusher=level_in=1:level_out=0.8:bits=8:mode=log".to_string());
-                }
-                "radio" => {
-                    filters.push("bandpass=f=1800:w=2600,volume=1.2,treble=g=-3".to_string());
-                }
-                "megaphone" => {
-                    filters.push("highpass=f=500,lowpass=f=4000,acrusher=level_in=1:level_out=1:bits=10:mode=lin,volume=1.3".to_string());
-                }
-                _ => {}
-            }
-        }
-
-        let filter_chain = filters.join(",");
-
-        // Convert mp3 to 24000Hz mono wav with silence trimming and DSP filter applied
         let conv = tokio::process::Command::new("ffmpeg")
             .arg("-y")
             .arg("-i")
@@ -213,7 +225,6 @@ impl SpeechSynthesizer for EdgeTtsBridge {
             .output()
             .await?;
 
-        // Cleanup temporary raw files
         let _ = tokio::fs::remove_file(&temp_txt).await;
         let _ = tokio::fs::remove_file(&temp_mp3).await;
 
@@ -223,7 +234,124 @@ impl SpeechSynthesizer for EdgeTtsBridge {
             anyhow::bail!("ffmpeg conversion failed: {}", stderr);
         }
 
-        // Atomic commit to cache
+        tokio::fs::rename(&temp_wav, out_path)
+            .await
+            .with_context(|| format!("Błąd atomowego zapisu do cache: {:?}", out_path))?;
+
+        Ok(())
+    }
+}
+
+/// Offline Local Synthesizer bridge using Piper TTS (ONNX, 100% offline).
+pub struct PiperBridge {
+    pub model_path: PathBuf,
+    pub voice_id: String,
+    pub piper_bin: PathBuf,
+}
+
+impl PiperBridge {
+    pub fn new(model_path: PathBuf) -> Self {
+        let name = model_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("piper_model")
+            .to_string();
+
+        let bin = Self::find_piper();
+        Self {
+            model_path,
+            voice_id: format!("piper-{}", name),
+            piper_bin: bin,
+        }
+    }
+
+    fn find_piper() -> PathBuf {
+        let candidates = [
+            "/tmp/edge_env/bin/piper",
+            "/usr/local/bin/piper",
+            "/usr/bin/piper",
+        ];
+        for c in candidates {
+            if Path::new(c).exists() {
+                return PathBuf::from(c);
+            }
+        }
+        PathBuf::from("piper")
+    }
+}
+
+#[async_trait::async_trait]
+impl SpeechSynthesizer for PiperBridge {
+    fn voice_name(&self) -> &str {
+        &self.voice_id
+    }
+
+    async fn synthesize(&self, segment: &TextSegment, out_path: &Path) -> Result<()> {
+        let temp_txt = out_path.with_extension("txt");
+        tokio::fs::write(&temp_txt, segment.text.trim()).await?;
+
+        let temp_raw_wav = out_path.with_extension("piper_raw.wav");
+        let temp_wav = out_path.with_extension("temp.wav");
+
+        // Map rate_mod to piper length_scale:
+        // normal is 1.0; negative rate_mod slows down (length_scale > 1.0); positive accelerates
+        let length_scale = if segment.rate_mod < 0 {
+            1.0 - (segment.rate_mod as f32 / 100.0)
+        } else {
+            1.0 / (1.0 + (segment.rate_mod as f32 / 100.0))
+        };
+
+        // Map volume_mod to piper volume multiplier
+        let volume_scale = (1.0 + (segment.volume_mod as f32 / 100.0)).clamp(0.2, 2.0);
+
+        let status = tokio::process::Command::new(&self.piper_bin)
+            .arg("--model")
+            .arg(&self.model_path)
+            .arg("--input-file")
+            .arg(&temp_txt)
+            .arg("--output-file")
+            .arg(&temp_raw_wav)
+            .arg("--length-scale")
+            .arg(format!("{:.2}", length_scale))
+            .arg("--volume")
+            .arg(format!("{:.2}", volume_scale))
+            .status()
+            .await
+            .with_context(|| format!("Nie można uruchomić {:?}", self.piper_bin))?;
+
+        if !status.success() {
+            let _ = tokio::fs::remove_file(&temp_txt).await;
+            anyhow::bail!("piper zakończył się błędem: {:?}", status);
+        }
+
+        let filter_chain = build_ffmpeg_filter_chain(segment.filter.as_deref());
+
+        // Process through ffmpeg for silence trimming, sample rate unification, and DSP filters
+        let conv = tokio::process::Command::new("ffmpeg")
+            .arg("-y")
+            .arg("-i")
+            .arg(&temp_raw_wav)
+            .arg("-af")
+            .arg(&filter_chain)
+            .arg("-ar")
+            .arg(DEFAULT_SAMPLE_RATE.to_string())
+            .arg("-ac")
+            .arg("1")
+            .arg("-c:a")
+            .arg("pcm_s16le")
+            .arg(&temp_wav)
+            .output()
+            .await?;
+
+        let _ = tokio::fs::remove_file(&temp_txt).await;
+        let _ = tokio::fs::remove_file(&temp_raw_wav).await;
+
+        if !conv.status.success() {
+            let stderr = String::from_utf8_lossy(&conv.stderr);
+            let _ = tokio::fs::remove_file(&temp_wav).await;
+            anyhow::bail!("ffmpeg conversion failed: {}", stderr);
+        }
+
         tokio::fs::rename(&temp_wav, out_path)
             .await
             .with_context(|| format!("Błąd atomowego zapisu do cache: {:?}", out_path))?;
