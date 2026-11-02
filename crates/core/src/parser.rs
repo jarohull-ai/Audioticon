@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use regex::Regex;
 use crate::types::{DirectedItem, DirectedScript, EmojiAction, TextSegment};
+use crate::verbalizer::normalize_polish_text;
 
 /// Configurable Emoji Director Grammar
 #[derive(Debug, Clone)]
@@ -108,7 +109,7 @@ impl EmojiDirector {
                     let (token, remainder) = Self::split_first_token(before);
                     if !token.is_empty() {
                         let mut emphasized = current_segment.clone();
-                        emphasized.text = token.trim().to_string();
+                        emphasized.text = normalize_polish_text(token.trim());
                         script.items.push(DirectedItem::Speech(emphasized));
                         // Immediately reset volume for rest of sentence
                         current_segment.volume_mod = 0;
@@ -127,7 +128,7 @@ impl EmojiDirector {
                 // If we have buffered text, flush it before the action
                 let clean_text = text_buf.trim().to_string();
                 if !clean_text.is_empty() {
-                    current_segment.text = clean_text;
+                    current_segment.text = normalize_polish_text(&clean_text);
                     script.items.push(DirectedItem::Speech(current_segment.clone()));
                     text_buf.clear();
                 }
@@ -172,7 +173,7 @@ impl EmojiDirector {
                 let (token, remainder) = Self::split_first_token(tail);
                 if !token.is_empty() {
                     let mut emphasized = current_segment.clone();
-                    emphasized.text = token.trim().to_string();
+                    emphasized.text = normalize_polish_text(token.trim());
                     script.items.push(DirectedItem::Speech(emphasized));
                     current_segment.volume_mod = 0;
                 }
@@ -186,7 +187,7 @@ impl EmojiDirector {
 
         let clean_text = text_buf.trim().to_string();
         if !clean_text.is_empty() {
-            current_segment.text = clean_text;
+            current_segment.text = normalize_polish_text(&clean_text);
             script.items.push(DirectedItem::Speech(current_segment));
         }
 
@@ -225,20 +226,21 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_pauses_and_modifiers() {
+    fn test_verbalized_script() {
         let director = EmojiDirector::default();
-        let input = "Na biurku leżał 💥notes. 🛑 🐢 Zniszczony od wilgoci. 🛑";
+        let input = "Data: 24.02.2022. 🛑 Godzina: 15:47. 🛑";
         let script = director.parse(input);
 
-        assert!(!script.items.is_empty());
-        let silences: Vec<u32> = script
+        let speeches: Vec<&TextSegment> = script
             .items
             .iter()
             .filter_map(|it| match it {
-                DirectedItem::Silence(ms) => Some(*ms),
+                DirectedItem::Speech(seg) => Some(seg),
                 _ => None,
             })
             .collect();
-        assert_eq!(silences, vec![900, 900]);
+
+        assert!(speeches[0].text.contains("dwudziestego czwartego lutego"));
+        assert!(speeches[1].text.contains("piętnasta czterdzieści siedem"));
     }
 }

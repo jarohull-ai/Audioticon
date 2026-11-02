@@ -1,0 +1,374 @@
+//! Polski normalizator tekstu (Verbalizer) dla syntezy mowy.
+//! Konwertuje liczby całkowite, godziny (np. 15:47) oraz daty (np. 24.02.2024)
+//! na w pełni odmienione słowa w języku polskim.
+
+use regex::{Captures, Regex};
+use std::sync::OnceLock;
+
+const ONES: [&str; 10] = [
+    "", "jeden", "dwa", "trzy", "cztery", "pięć", "sześć", "siedem", "osiem", "dziewięć",
+];
+
+const TEENS: [&str; 10] = [
+    "dziesięć", "jedenaście", "dwanaście", "trzynaście", "czternaście", "piętnaście",
+    "szesnaście", "siedemnaście", "osiemnaście", "dziewiętnaście",
+];
+
+const TENS: [&str; 10] = [
+    "", "dziesięć", "dwadzieścia", "trzydzieści", "czterdzieści", "pięćdziesiąt",
+    "sześćdziesiąt", "siedemdziesiąt", "osiemdziesiąt", "dziewięćdziesiąt",
+];
+
+const HUNDREDS: [&str; 10] = [
+    "", "sto", "dwieście", "trzysta", "czterysta", "pięćset", "sześćset", "siedemset",
+    "osiemset", "dziewięćset",
+];
+
+const ORDINAL_HOURS: [&str; 25] = [
+    "północ",
+    "pierwsza",
+    "druga",
+    "trzecia",
+    "czwarta",
+    "piąta",
+    "szósta",
+    "siódma",
+    "ósma",
+    "dziewiąta",
+    "dziesiąta",
+    "jedenasta",
+    "dwunasta",
+    "trzynasta",
+    "czternasta",
+    "piętnasta",
+    "szesnasta",
+    "siedemnasta",
+    "osiemnasta",
+    "dziewiętnasta",
+    "dwudziesta",
+    "dwudziesta pierwsza",
+    "dwudziesta druga",
+    "dwudziesta trzecia",
+    "dwudziesta czwarta",
+];
+
+const ORDINAL_DAYS_GENITIVE: [&str; 32] = [
+    "",
+    "pierwszego",
+    "drugiego",
+    "trzeciego",
+    "czwartego",
+    "piątego",
+    "szóstego",
+    "siódmego",
+    "ósmego",
+    "dziewiątego",
+    "dziesiątego",
+    "jedenastego",
+    "dwunastego",
+    "trzynastego",
+    "czternastego",
+    "piętnastego",
+    "szesnastego",
+    "siedemnastego",
+    "osiemnastego",
+    "dziewiętnastego",
+    "dwudziestego",
+    "dwudziestego pierwszego",
+    "dwudziestego drugiego",
+    "dwudziestego trzeciego",
+    "dwudziestego czwartego",
+    "dwudziestego piątego",
+    "dwudziestego szóstego",
+    "dwudziestego siódmego",
+    "dwudziestego ósmego",
+    "dwudziestego dziewiątego",
+    "trzydziestego",
+    "trzydziestego pierwszego",
+];
+
+const MONTHS_GENITIVE: [&str; 13] = [
+    "",
+    "stycznia",
+    "lutego",
+    "marca",
+    "kwietnia",
+    "maja",
+    "czerwca",
+    "lipca",
+    "sierpnia",
+    "września",
+    "października",
+    "listopada",
+    "grudnia",
+];
+
+/// Formy gramatyczne skali wielkich liczb: [jeden, 2-4, reszta]
+const SCALES: [(&str, &str, &str); 4] = [
+    ("", "", ""),
+    ("tysiąc", "tysiące", "tysięcy"),
+    ("milion", "miliony", "milionów"),
+    ("miliard", "miliardy", "miliardów"),
+];
+
+/// Zamienia liczbę od 0 do 999 na słowa.
+fn triplet_to_words(n: u32) -> String {
+    if n == 0 {
+        return String::new();
+    }
+    let h = (n / 100) as usize;
+    let t = ((n % 100) / 10) as usize;
+    let o = (n % 10) as usize;
+
+    let mut parts = Vec::new();
+    if h > 0 {
+        parts.push(HUNDREDS[h]);
+    }
+
+    if t == 1 {
+        parts.push(TEENS[o]);
+    } else {
+        if t > 1 {
+            parts.push(TENS[t]);
+        }
+        if o > 0 {
+            parts.push(ONES[o]);
+        }
+    }
+
+    parts.join(" ")
+}
+
+/// Zamienia liczbę całkowitą nieujemną na słowa w mianowniku.
+pub fn number_to_words(mut n: u64) -> String {
+    if n == 0 {
+        return "zero".to_string();
+    }
+
+    let mut scale_idx = 0;
+    let mut parts = Vec::new();
+
+    while n > 0 && scale_idx < SCALES.len() {
+        let triplet = (n % 1000) as u32;
+        if triplet > 0 {
+            let words = triplet_to_words(triplet);
+            let (singular, few, many) = SCALES[scale_idx];
+
+            if scale_idx == 0 {
+                parts.push(words);
+            } else {
+                let suffix = if triplet == 1 {
+                    singular
+                } else {
+                    let last_two = triplet % 100;
+                    let last_one = triplet % 10;
+                    if (11..=19).contains(&last_two) {
+                        many
+                    } else if (2..=4).contains(&last_one) {
+                        few
+                    } else {
+                        many
+                    }
+                };
+                if triplet == 1 && scale_idx == 1 {
+                    // Dla 1000 mówimy "tysiąc", a nie "jeden tysiąc"
+                    parts.push(suffix.to_string());
+                } else {
+                    parts.push(format!("{} {}", words, suffix));
+                }
+            }
+        }
+        n /= 1000;
+        scale_idx += 1;
+    }
+
+    parts.reverse();
+    parts.join(" ")
+}
+
+/// Zamienia rok na słowa w dopełniaczu (np. 2024 -> "dwa tysiące dwudziestego czwartego roku")
+fn year_to_words_genitive(year: u32) -> String {
+    if (2000..2100).contains(&year) {
+        let remainder = year - 2000;
+        if remainder == 0 {
+            "dwa tysiące roku".to_string()
+        } else if remainder <= 31 {
+            format!("dwa tysiące {} roku", ORDINAL_DAYS_GENITIVE[remainder as usize])
+        } else {
+            // np. 2045 -> dwa tysiące czterdziestego piątego roku
+            let t = (remainder / 10) as usize;
+            let o = (remainder % 10) as usize;
+            let tens_gen = match t {
+                2 => "dwudziestego",
+                3 => "trzydziestego",
+                4 => "czterdziestego",
+                5 => "pięćdziesiątego",
+                6 => "sześćdziesiątego",
+                7 => "siedemdziesiątego",
+                8 => "osiemdziesiątego",
+                9 => "dziewięćdziesiątego",
+                _ => "",
+            };
+            let ones_gen = ORDINAL_DAYS_GENITIVE[o];
+            if o == 0 {
+                format!("dwa tysiące {} roku", tens_gen)
+            } else {
+                format!("dwa tysiące {} {} roku", tens_gen, ones_gen)
+            }
+        }
+    } else if (1900..2000).contains(&year) {
+        let remainder = year - 1900;
+        if remainder <= 31 {
+            format!("tysiąc dziewięćset {} roku", ORDINAL_DAYS_GENITIVE[remainder as usize])
+        } else {
+            let t = (remainder / 10) as usize;
+            let o = (remainder % 10) as usize;
+            let tens_gen = match t {
+                3 => "trzydziestego",
+                4 => "czterdziestego",
+                5 => "pięćdziesiątego",
+                6 => "sześćdziesiątego",
+                7 => "siedemdziesiątego",
+                8 => "osiemdziesiątego",
+                9 => "dziewięćdziesiątego",
+                _ => "",
+            };
+            let ones_gen = ORDINAL_DAYS_GENITIVE[o];
+            if o == 0 {
+                format!("tysiąc dziewięćset {} roku", tens_gen)
+            } else {
+                format!("tysiąc dziewięćset {} {} roku", tens_gen, ones_gen)
+            }
+        }
+    } else {
+        format!("{} roku", number_to_words(year as u64))
+    }
+}
+
+/// Normalizuje daty w formacie DD.MM.YYYY lub DD-MM-YYYY
+fn normalize_dates(text: &str) -> String {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| {
+        Regex::new(r"\b([0-3]?[0-9])[.\-/]([0-1]?[0-9])[.\-/]([1-2][0-9]{3})\b").expect("Valid date regex")
+    });
+
+    re.replace_all(text, |caps: &Captures| {
+        let day: u32 = caps[1].parse().unwrap_or(0);
+        let month: u32 = caps[2].parse().unwrap_or(0);
+        let year: u32 = caps[3].parse().unwrap_or(0);
+
+        if (1..=31).contains(&day) && (1..=12).contains(&month) && year >= 1000 {
+            let day_word = ORDINAL_DAYS_GENITIVE[day as usize];
+            let month_word = MONTHS_GENITIVE[month as usize];
+            let year_words = year_to_words_genitive(year);
+            format!("{} {} {}", day_word, month_word, year_words)
+        } else {
+            caps[0].to_string()
+        }
+    }).to_string()
+}
+
+/// Normalizuje godziny w formacie HH:MM (np. 15:47 -> "piętnasta czterdzieści siedem")
+fn normalize_times(text: &str) -> String {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| {
+        Regex::new(r"\b([0-2]?[0-9]):([0-5][0-9])\b").expect("Valid time regex")
+    });
+
+    re.replace_all(text, |caps: &Captures| {
+        let hour: usize = caps[1].parse().unwrap_or(99);
+        let minute: u32 = caps[2].parse().unwrap_or(99);
+
+        if hour <= 24 && minute < 60 {
+            let hour_str = ORDINAL_HOURS[hour];
+            let min_str = if minute == 0 {
+                String::new()
+            } else if minute < 10 {
+                format!("zero {}", number_to_words(minute as u64))
+            } else {
+                number_to_words(minute as u64)
+            };
+
+            if min_str.is_empty() {
+                hour_str.to_string()
+            } else {
+                format!("{} {}", hour_str, min_str)
+            }
+        } else {
+            caps[0].to_string()
+        }
+    }).to_string()
+}
+
+/// Normalizuje wolnostojące liczby całkowite
+fn normalize_standalone_numbers(text: &str) -> String {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| {
+        Regex::new(r"\b\d+\b").expect("Valid number regex")
+    });
+
+    re.replace_all(text, |caps: &Captures| {
+        if let Ok(n) = caps[0].parse::<u64>() {
+            number_to_words(n)
+        } else {
+            caps[0].to_string()
+        }
+    }).to_string()
+}
+
+/// Główna funkcja normalizująca tekst w języku polskim:
+/// 1. Konwertuje daty (np. 24.02.2024 -> "dwudziestego czwartego lutego dwa tysiące dwudziestego czwartego roku")
+/// 2. Konwertuje godziny (np. 15:47 -> "piętnasta czterdzieści siedem")
+/// 3. Konwertuje samodzielne liczby (np. 1500 -> "tysiąc pięćset")
+pub fn normalize_polish_text(raw_text: &str) -> String {
+    let step1 = normalize_dates(raw_text);
+    let step2 = normalize_times(&step1);
+    normalize_standalone_numbers(&step2)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_number_to_words() {
+        assert_eq!(number_to_words(0), "zero");
+        assert_eq!(number_to_words(7), "siedem");
+        assert_eq!(number_to_words(14), "czternaście");
+        assert_eq!(number_to_words(42), "czterdzieści dwa");
+        assert_eq!(number_to_words(100), "sto");
+        assert_eq!(number_to_words(315), "trzysta piętnaście");
+        assert_eq!(number_to_words(1000), "tysiąc");
+        assert_eq!(number_to_words(2024), "dwa tysiące dwadzieścia cztery");
+        assert_eq!(number_to_words(1547), "tysiąc pięćset czterdzieści siedem");
+    }
+
+    #[test]
+    fn test_normalize_time() {
+        assert_eq!(normalize_times("Godzina: 15:47."), "Godzina: piętnasta czterdzieści siedem.");
+        assert_eq!(normalize_times("O 08:05 rano."), "O ósma zero pięć rano.");
+        assert_eq!(normalize_times("Spotkanie o 12:00."), "Spotkanie o dwunasta.");
+    }
+
+    #[test]
+    fn test_normalize_date() {
+        assert_eq!(
+            normalize_dates("Data: 24.02.2022."),
+            "Data: dwudziestego czwartego lutego dwa tysiące dwudziestego drugiego roku."
+        );
+        assert_eq!(
+            normalize_dates("Dnia 15.03.2024 roku"),
+            "Dnia piętnastego marca dwa tysiące dwudziestego czwartego roku roku"
+        );
+    }
+
+    #[test]
+    fn test_normalize_full_sentence() {
+        let input = "Data: 24.02.2022. Godzina: 15:47. Przeszło 450 osób.";
+        let result = normalize_polish_text(input);
+        assert_eq!(
+            result,
+            "Data: dwudziestego czwartego lutego dwa tysiące dwudziestego drugiego roku. Godzina: piętnasta czterdzieści siedem. Przeszło czterysta pięćdziesiąt osób."
+        );
+    }
+}
