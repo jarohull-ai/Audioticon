@@ -445,6 +445,7 @@
       justify-content: center;
       position: relative;
       gap: 1.5rem;
+      transform-style: preserve-3d;
     }
 
     .orbit-stage {
@@ -466,8 +467,8 @@
     }
 
     .orbit-cylinder {
-      width: 250px;
-      height: 350px;
+      width: 230px;
+      height: 340px;
       position: relative;
       transform-style: preserve-3d;
       transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
@@ -600,8 +601,8 @@
     /* Glassmorphic 3D Card (Architecture of Clarity Style) */
     .orbit-card {
       position: absolute;
-      width: 250px;
-      height: 350px;
+      width: 230px;
+      height: 340px;
       left: 0;
       top: 0;
       border-radius: 18px;
@@ -609,14 +610,17 @@
       border: 1px solid rgba(255, 255, 255, 0.2);
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.25);
       backdrop-filter: blur(14px);
-      padding: 1.5rem 1.25rem;
+      -webkit-backdrop-filter: blur(14px);
+      padding: 1.4rem 1.15rem;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       color: #fff;
       cursor: pointer;
-      transition: border-color 0.3s, box-shadow 0.3s, filter 0.3s, transform 0.3s;
+      transition: border-color 0.3s, box-shadow 0.3s, filter 0.3s, transform 0.3s, opacity 0.3s;
       backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      transform-origin: 50% 50%;
     }
 
     .orbit-card::before {
@@ -635,7 +639,17 @@
       filter: brightness(1.15);
     }
 
-    .orbit-card:not(.active) {
+    .orbit-card.card-flank {
+      filter: brightness(0.72);
+    }
+
+    .orbit-card.card-rear {
+      opacity: 0 !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+    }
+
+    .orbit-card:not(.active):not(.card-flank):not(.card-rear) {
       filter: brightness(0.65) blur(0.5px);
       opacity: 0.85;
     }
@@ -801,6 +815,28 @@
         transform: none;
         height: 420px;
       }
+      .orbit-cylinder {
+        width: 190px;
+        height: 290px;
+      }
+      .orbit-card {
+        width: 190px;
+        height: 290px;
+        padding: 1.15rem 0.95rem;
+      }
+      .card-icon {
+        font-size: 2.2rem;
+      }
+      .card-title-3d {
+        font-size: 1.05rem;
+      }
+      .card-desc-3d {
+        font-size: 0.75rem;
+      }
+      .card-open-btn {
+        padding: 0.45rem 0.75rem;
+        font-size: 0.75rem;
+      }
       .glass-brand-panel {
         width: 100%;
         max-width: 360px;
@@ -819,6 +855,37 @@
       }
       .glass-brand-title {
         margin-top: 0;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .orbit-stage {
+        height: 360px;
+      }
+      .orbit-cylinder {
+        width: 160px;
+        height: 250px;
+      }
+      .orbit-card {
+        width: 160px;
+        height: 250px;
+        padding: 0.9rem 0.75rem;
+        border-radius: 14px;
+      }
+      .card-icon {
+        font-size: 1.75rem;
+        margin: 0.4rem 0 0.15rem 0;
+      }
+      .card-title-3d {
+        font-size: 0.92rem;
+      }
+      .card-desc-3d {
+        font-size: 0.68rem;
+        line-height: 1.3;
+      }
+      .card-open-btn {
+        padding: 0.35rem 0.6rem;
+        font-size: 0.7rem;
       }
     }
 
@@ -1373,10 +1440,10 @@
     // ========================================================
     const CARD_COUNT = 8;
     function getCardRadius() {
-      if (window.innerWidth < 640) return 240;
-      if (window.innerWidth < 900) return 290;
-      if (window.innerWidth < 1200) return 350;
-      return 390;
+      if (window.innerWidth < 640) return 280;
+      if (window.innerWidth < 900) return 340;
+      if (window.innerWidth < 1200) return 390;
+      return 430;
     }
 
     let currentOrbitAngle = 0;
@@ -1396,6 +1463,7 @@
         const theta = idx * angleStep;
         card.style.transform = `rotateY(${theta}deg) translateZ(${radius}px)`;
       });
+      updateActiveCardStatus(currentOrbitAngle);
     }
 
     function initOrbitCylinder() {
@@ -1501,10 +1569,44 @@
       currentActiveCard = rawIdx;
 
       document.querySelectorAll('.orbit-card').forEach((card, idx) => {
-        if (idx === currentActiveCard) {
+        // Obliczenie rzeczywistego kąta karty względem patrzącego (front = 0 deg)
+        let netAngle = (idx * step + angleDeg) % 360;
+        while (netAngle < -180) netAngle += 360;
+        while (netAngle > 180) netAngle -= 360;
+        const absAngle = Math.abs(netAngle);
+
+        if (absAngle < 22.5) {
+          // Karta na pierwszym planie (aktywna)
           card.classList.add('active');
+          card.classList.remove('card-flank', 'card-rear');
+          card.style.zIndex = '30';
+          card.style.opacity = '1';
+          card.style.visibility = 'visible';
+          card.style.pointerEvents = 'auto';
+        } else if (absAngle < 70) {
+          // Karty boczne (flankujące lewa/prawa) — widoczne, bez nakładania
+          card.classList.remove('active', 'card-rear');
+          card.classList.add('card-flank');
+          card.style.zIndex = '20';
+          card.style.opacity = '0.85';
+          card.style.visibility = 'visible';
+          card.style.pointerEvents = 'auto';
+        } else if (absAngle < 105) {
+          // Karty na profilu horyzontu cylindra
+          card.classList.remove('active', 'card-rear');
+          card.classList.add('card-flank');
+          card.style.zIndex = '10';
+          card.style.opacity = '0.35';
+          card.style.visibility = 'visible';
+          card.style.pointerEvents = 'auto';
         } else {
-          card.classList.remove('active');
+          // Karty z tyłu cylindra — całkowicie ukrywane, co uniemożliwia jakiekolwiek przenikanie i kolizje 3D
+          card.classList.remove('active', 'card-flank');
+          card.classList.add('card-rear');
+          card.style.zIndex = '1';
+          card.style.opacity = '0';
+          card.style.visibility = 'hidden';
+          card.style.pointerEvents = 'none';
         }
       });
 
