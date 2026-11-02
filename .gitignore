@@ -2,6 +2,7 @@ target/
 dist/
 *.wav
 *.mp3
+!docs/audio/*.mp3
 *.m4b
 *.onnx
 *.onnx.json
