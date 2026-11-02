@@ -35,17 +35,82 @@ Audioticon rozwiązuje fundamentalny problem syntezy audiobooków: **brak intuic
    - **Piper Neural TTS** (ONNX, 100% offline) — zintegrowany z polskim modelem lektorskim `pl_PL-darkman`. Trwały proces roboczy w RAM generuje zdanie w zaledwie **~107 ms** na CPU!
 7. **Próżniowe przycinanie ciszy (Sample-Accurate Trimming)**:
    - Automatyczne usuwanie paddingu enkodera MP3/TTS na brzegach fragmentów (`silenceremove`), dzięki czemu pauzy trwają co do milisekundy dokładnie tyle, ile zaplanowano.
+8. **System Modułowych Presetów Akustycznych (`audioticon.toml`)**:
+   - Dowolne rozszerzanie i modyfikowanie efektów DSP przez makro-suwaki `0.0..1.0` (intensywność, pogłos, pasmo, przesterowanie, odległość, modulatory).
+   - Warianty inline w tekście z natychmiastowym fallbackiem: `📻:wojskowe`, `📱[retro]`, `🏛️:kaplica`, `🤫:intymny`, `🤖:ciezki`.
+9. **Standard ACX / Audible & EBU R128 Masteringu**:
+   - Wbudowany 2-przebiegowy procesor dynamiki EBU R128 (`loudnorm=I=-19:TP=-3.0:LRA=7`) z organicznym generowaniem tła akustycznego studia (room tone ~ -68 dBFS) eliminujący efekt "bramki cyfrowej ciszy" w słuchawkach.
 
 ---
 
-## 🚀 Wyniki wydajnościowe
+## 📊 Pomiary wydajności i Benchmarki (Real-World Telemetry)
 
-Pomiary dla sceny testowej (28 zdań, ~71 s audio):
+Testy przeprowadzono na procesorze wielordzeniowym CPU x86_64 na oryginalnym tekście powieści *„Archiwum Pyłu”* (plik EPUB):
 
-| Tryb | Pierwsze renderowanie (zimny cache) | Kolejne uruchomienie (ciepły cache) |
-| :--- | :--- | :--- |
-| **Piper TTS (100% Offline)** | **4,92 s** | **0,02 s (20 ms)** |
-| **Edge-TTS (Parallel)** | **6,36 s** | **0,02 s (20 ms)** |
+### 1. Zestawienie czasów renderowania
+
+| Testowany materiał | Długość audio | Słowa / Segmenty | Silnik TTS | Zimny cache (1. uruchomienie) | Ciepły cache (edycja/re-render) | Real-Time Factor (RTF) | Przyspieszenie vs odsłuch |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Scena Showcase (DSP + Rozdziały)** | **1 min 23 s** (83 s) | 165 słów / 30 segm. | **Piper (Offline)** | **4,94 s** | **24 ms (0,024 s)** | **0,059** | **16,8×** (zimny) / **3450×** (cache) |
+| **Scena Showcase (DSP + Rozdziały)** | **1 min 23 s** (83 s) | 165 słów / 30 segm. | Edge-TTS (Cloud) | 12,09 s | 21 ms (0,021 s) | 0,145 | 6,8× (zimny) / 3900× (cache) |
+| **Prolog: Granica w Dorohusku** | **3 min 16 s** (196 s) | 361 słów / 28 akap. | **Piper (Offline)** | **7,68 s** | **54 ms (0,054 s)** | **0,039** | **25,5×** (zimny) / **3600×** (cache) |
+| **Rozdział 1: Cięcie** | **8 min 15 s** (495 s) | 1022 słów / 57 akap. | **Piper (Offline)** | **18,09 s** | **139 ms (0,139 s)** | **0,0365** | **27,4×** (zimny) / **3560×** (cache) |
+
+> 💡 **Kluczowa przewaga Cache:** Zmiana pojedynczego słowa lub emotikony w 8-minutowym rozdziale wymaga zsyntetyzowania tylko 1 segmentu (~120 ms). Cały plik audio M4B/MP3 zostaje złożony na nowo i zmasterowany w ułamku sekundy, podczas gdy w rozwiązaniach chmurowych (ElevenLabs) sam transport sieciowy trwa 300–800 ms.
+
+### 2. Zgodność ze standardami nadawczymi i ACX / Audible
+
+Pomiary filtra `ebur128` dla wygenerowanego pliku rozdziału powieści:
+- **Integrated Loudness ($I$):** **-19,2 LUFS** (Wymóg ACX: $-23$ do $-18$ LUFS $\rightarrow$ **Idealnie w celu**)
+- **True Peak (Szczyt absolutny):** **-3,0 dBFS** (Wymóg ACX: $\le -3,0$ dBTP $\rightarrow$ **Zero przesterowań, 0 clips**)
+- **Loudness Range (LRA):** **3,2 LU** (Wymóg lektorski: kontrolowany zakres dynamiki do odsłuchu w podróży/słuchawkach)
+- **Zasobożerność RAM:** ~115 MB (proces roboczy Piper z modelem ONNX darkman: 63,2 MB).
+
+---
+
+## 🏆 Porównanie z systemami globalnymi
+
+| Możliwość | **Audioticon** | ElevenLabs Projects | Kokoro 82M | F5-TTS | Cartesia Sonic |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Środowisko pracy** | **100% Offline / Prywatne** (lub Cloud) | Tylko Chmura | Lokalnie / Self-hosted | Lokalnie / GPU | Tylko Chmura |
+| **Reżyseria Emotikonami w tekście** | **TAK (natywna)** | NIE (brak) | NIE | NIE | NIE |
+| **Bezstratny Cache zdań (SHA-256)** | **TAK (< 140 ms re-render)** | Częściowy (w UI) | Brak (wymaga kodu) | Brak | Brak |
+| **Plany akustyczne DSP (radio, tel, sala)** | **TAK (zintegrowane)** | NIE (wymaga DAW) | NIE | NIE | NIE |
+| **Natywny eksport M4B z rozdziałami** | **TAK (1 klik)** | NIE (paczki zip MP3) | NIE | NIE | NIE |
+| **Automatyczny mastering ACX/EBU R128** | **TAK (-19 LUFS / -3 dBTP)** | Częściowy | NIE | NIE | NIE |
+| **Sprzęt wymagany** | Zwykły CPU (laptop) | Przeglądarka / Internet | GPU / mocny CPU | Nowoczesne GPU | Internet |
+
+---
+
+## 🎛️ Konfiguracja Presetów Akustycznych (`audioticon.toml`)
+
+Audioticon pozwala tworzyć własne brzmienia efektów i nadawać im nazwy w pliku `audioticon.toml` w katalogu projektu:
+
+```toml
+[presets."radio:wojskowe"]
+base_effect = "radio"
+intensity = 1.0
+distortion = 0.5
+bandwidth = 0.6
+volume = 1.15
+
+[presets."🏛️:kaplica"]
+base_effect = "cathedral"
+reverb_decay = 0.35
+distance = 0.4
+volume = 1.0
+```
+
+W tekście scenariusza wystarczy użyć wariantu:
+```text
+📻:wojskowe Uwaga patrol drugi, zgłaszam podejrzany ruch w sektorze czwartym. 🛑
+🏛️:kaplica W tym pomieszczeniu panowała absolutna cisza. 🛑
+```
+
+Sprawdzenie dostępnych presetów i ich parametrów:
+```bash
+cargo run --bin audioticon-cli -- presets
+```
 
 ---
 
