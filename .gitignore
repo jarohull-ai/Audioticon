@@ -1,5 +1,8 @@
 target/
 *.wav
 *.mp3
+*.onnx
+*.onnx.json
 cache/
+models/
 .DS_Store
