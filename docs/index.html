@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audioticon Live Playground — Reżyseria Audiobooków na Żywo</title>
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(17, 24, 39, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent: #06b6d4;
+      --accent-glow: rgba(6, 182, 212, 0.35);
+      --purple: #8b5cf6;
+      --gold: #f59e0b;
+      --green: #10b981;
+      --red: #ef4444;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(6, 182, 212, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
+        radial-gradient(at 50% 100%, rgba(15, 23, 42, 0.8) 0px, transparent 60%);
+      color: var(--text);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      background: rgba(9, 13, 22, 0.8);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .brand img {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .brand-title {
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #fff 30%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      color: #38bdf8;
+    }
+
+    .btn-github {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      background: #1f2937;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      text-decoration: none;
+      transition: all 0.2s ease;
+    }
+
+    .btn-github:hover {
+      background: #374151;
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    main {
+      flex: 1;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2rem;
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 2rem;
+    }
+
+    @media (max-width: 1024px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .preset-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .preset-chip {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 0.4rem 0.75rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+
+    .preset-chip:hover {
+      background: rgba(6, 182, 212, 0.15);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .emoji-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      padding: 0.6rem;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .emoji-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 0.35rem 0.6rem;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      color: #e5e7eb;
+      transition: all 0.15s;
+    }
+
+    .emoji-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .emoji-btn span {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .editor-wrapper {
+      position: relative;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    textarea#script-input {
+      width: 100%;
+      height: 260px;
+      background: rgba(10, 15, 26, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      padding: 1.1rem;
+      color: #f9fafb;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      resize: vertical;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    textarea#script-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .select-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    select {
+      background: #1f2937;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #06b6d4, #3b82f6);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 0.75rem 1.5rem;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 20px var(--accent-glow);
+      transition: all 0.2s;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(6, 182, 212, 0.5);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    /* Timeline visualizer */
+    .timeline-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      max-height: 380px;
+      overflow-y: auto;
+      padding-right: 0.5rem;
+    }
+
+    .timeline-container::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .timeline-container::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+    }
+
+    .timeline-block {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      transition: all 0.15s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .timeline-block::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--text-muted);
+    }
+
+    .timeline-block.phone::before { background: #38bdf8; }
+    .timeline-block.radio::before { background: #fb923c; }
+    .timeline-block.cathedral::before { background: #c084fc; }
+    .timeline-block.cave::before { background: #818cf8; }
+    .timeline-block.whisper::before { background: #34d399; }
+    .timeline-block.robot::before { background: #f43f5e; }
+    .timeline-block.thought::before { background: #60a5fa; }
+    .timeline-block.silence::before { background: #6b7280; }
+    .timeline-block.breath::before { background: #a7f3d0; }
+
+    .timeline-block.active-speech {
+      border-color: var(--accent);
+      background: rgba(6, 182, 212, 0.12);
+      transform: scale(1.01);
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.2);
+    }
+
+    .block-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .filter-tag {
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    .block-text {
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .block-verbalized {
+      font-size: 0.8rem;
+      color: var(--accent);
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* Audio visualizer canvas */
+    .vis-box {
+      width: 100%;
+      height: 70px;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      position: relative;
+    }
+
+    canvas#visualizer {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Tabs */
+    .tabs-nav {
+      display: flex;
+      gap: 0.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 0.5rem;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .tab-content {
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      max-height: 180px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--card-border);
+      background: rgba(9, 13, 22, 0.6);
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="https://github.com/jarohull-ai/Audioticon" target="_blank" class="brand">
+      <img src="logo.png" alt="Audioticon Logo">
+      <div>
+        <div class="brand-title">Audioticon Live Playground</div>
+        <div class="brand-subtitle">Reżyseria audiobooków emotikonami & DSP na żywo</div>
+      </div>
+    </a>
+    <div class="header-actions">
+      <span class="badge-pill">⚡ 100% Client-Side Web Audio</span>
+      <span class="badge-pill">v0.1.0 Stable</span>
+      <a href="https://github.com/jarohull-ai/Audioticon" target="_blank" class="btn-github">
+        <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        GitHub (Star)
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <!-- LEFT PANEL: SCRIPT EDITOR -->
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title">✍️ Edytor Scenariusza</div>
+        <div class="select-group">
+          <label for="lang-select">Język:</label>
+          <select id="lang-select">
+            <option value="pl" selected>Polski (PL)</option>
+            <option value="en">English (EN)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="preset-chips">
+        <span class="preset-chip" onclick="loadPreset('aurora')">❄️ Stacja Aurora</span>
+        <span class="preset-chip" onclick="loadPreset('radio')">📻 Patrol Radiowy</span>
+        <span class="preset-chip" onclick="loadPreset('cathedral')">🏛️ Katedra & Szept</span>
+        <span class="preset-chip" onclick="loadPreset('android')">🤖 Bojowy Android</span>
+      </div>
+
+      <!-- Quick Emoji Bar -->
+      <div class="emoji-bar">
+        <button class="emoji-btn" onclick="insertEmoji('🛑')">🛑 <span>Koniec</span></button>
+        <button class="emoji-btn" onclick="insertEmoji('⏸️')">⏸️ <span>Pauza</span></button>
+        <button class="emoji-btn" onclick="insertEmoji('📱')">📱 <span>Telefon</span></button>
+        <button class="emoji-btn" onclick="insertEmoji('📻')">📻 <span>Radio</span></button>
+        <button class="emoji-btn" onclick="insertEmoji('🏛️')">🏛️ <span>Katedra</span></button>
+        <button class="emoji-btn" onclick="insertEmoji('🏰')">🏰 <span>Lochy</span></button>
+        <button class="emoji-btn" onclick="insertEmoji('🤫')">🤫 <span>Szept</span></button>
+        <button class="emoji-btn" onclick="insertEmoji('🤖')">🤖 <span>Robot</span></button>
+        <button class="emoji-btn" onclick="insertEmoji('💥')">💥 <span>Akcent</span></button>
+        <button class="emoji-btn" onclick="insertEmoji('😮‍💨')">😮‍💨 <span>Oddech</span></button>
+        <button class="emoji-btn" onclick="insertEmoji('🐢')">🐢 <span>Wolno</span></button>
+        <button class="emoji-btn" onclick="insertEmoji('🐇')">🐇 <span>Szybko</span></button>
+      </div>
+
+      <div class="editor-wrapper">
+        <textarea id="script-input" spellcheck="false" placeholder="Wpisz lub wklej tekst ze znacznikami emoji..."></textarea>
+      </div>
+
+      <div class="controls-row">
+        <div class="select-group">
+          <label for="voice-select">Głos lektora:</label>
+          <select id="voice-select"></select>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="btn-secondary" onclick="parseCurrentScript()">⚡ Parsuj</button>
+          <button class="btn-primary" id="play-btn" onclick="togglePlay()">
+            <span id="play-icon">▶</span> <span id="play-text">Odsłuchaj na żywo</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL: TIMELINE & EXPORT -->
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title">🎧 Oś Czasu Reżysera (Audio Blocks)</div>
+        <div id="status-badge" style="font-size: 0.75rem; color: var(--accent); font-weight: 600;">Gotowy</div>
+      </div>
+
+      <!-- Real-time Audio Oscilloscope / Visualizer -->
+      <div class="vis-box">
+        <canvas id="visualizer"></canvas>
+      </div>
+
+      <!-- Blocks Container -->
+      <div class="timeline-container" id="timeline"></div>
+
+      <!-- Export Formats -->
+      <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: auto;">
+        <div class="tabs-nav">
+          <button class="tab-btn active" onclick="switchTab('eleven')">ElevenLabs v3</button>
+          <button class="tab-btn" onclick="switchTab('chattts')">ChatTTS</button>
+          <button class="tab-btn" onclick="switchTab('cli')">Audioticon CLI</button>
+          <button class="tab-btn" onclick="switchTab('json')">JSON AST</button>
+        </div>
+        <div class="tab-content" id="export-box"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Projekt <strong>Audioticon</strong> stworzony przez <a href="https://github.com/jarohull-ai" target="_blank">Jarosława Kuchtę</a>. Licencja MIT / Apache-2.0. Zbudowane w Rust i Web Audio API.</p>
+  </footer>
+
+  <script>
+    // =========================================================================
+    // 1. POLISH & ENGLISH NUMBER/DATE VERBALIZER
+    // =========================================================================
+    const UNITS_PL = ["", "jeden", "dwa", "trzy", "cztery", "pięć", "sześć", "siedem", "osiem", "dziewięć"];
+    const TEENS_PL = ["dziesięć", "jedenaście", "dwanaście", "trzynaście", "czternaście", "piętnaście", "szesnaście", "siedemnaście", "osiemnaście", "dziewiętnaście"];
+    const TENS_PL = ["", "dziesięć", "dwadzieścia", "trzydzieści", "czterdzieści", "pięćdziesiąt", "sześćdziesiąt", "siedemdziesiąt", "osiemdziesiąt", "dziewięćdziesiąt"];
+    const HUNDREDS_PL = ["", "sto", "dwieście", "trzysta", "czterysta", "pięćset", "sześćset", "siedemset", "osiemset", "dziewięćset"];
+    const MONTHS_GENITIVE_PL = ["", "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia", "września", "października", "listopada", "grudnia"];
+
+    function numberToWordsPl(n) {
+      if (n === 0) return "zero";
+      let parts = [];
+      if (n >= 1000) {
+        let th = Math.floor(n / 1000);
+        n %= 1000;
+        if (th === 1) parts.push("tysiąc");
+        else if (th >= 2 && th <= 4) parts.push(numberToWordsPl(th) + " tysiące");
+        else parts.push(numberToWordsPl(th) + " tysięcy");
+      }
+      if (n >= 100) {
+        parts.push(HUNDREDS_PL[Math.floor(n / 100)]);
+        n %= 100;
+      }
+      if (n >= 20) {
+        parts.push(TENS_PL[Math.floor(n / 10)]);
+        n %= 10;
+      } else if (n >= 10) {
+        parts.push(TEENS_PL[n - 10]);
+        n = 0;
+      }
+      if (n > 0) parts.push(UNITS_PL[n]);
+      return parts.filter(Boolean).join(" ");
+    }
+
+    function verbalizeText(text, lang = "pl") {
+      if (lang !== "pl") return text;
+      // 1. Daty: DD.MM.YYYY
+      text = text.replace(/(\d{1,2})\.(\d{2})\.(\d{4})/g, (match, d, m, y) => {
+        let dayWords = numberToWordsPl(parseInt(d, 10));
+        let monthWords = MONTHS_GENITIVE_PL[parseInt(m, 10)] || m;
+        let yearWords = numberToWordsPl(parseInt(y, 10));
+        return `${dayWords} ${monthWords} ${yearWords} roku`;
+      });
+      // 2. Godziny: HH:MM
+      text = text.replace(/(\d{1,2}):(\d{2})/g, (match, h, m) => {
+        return `${numberToWordsPl(parseInt(h, 10))} ${numberToWordsPl(parseInt(m, 10))}`;
+      });
+      // 3. Liczby
+      text = text.replace(/\b\d+\b/g, (match) => {
+        let n = parseInt(match, 10);
+        if (n < 1000000) return numberToWordsPl(n);
+        return match;
+      });
+      return text;
+    }
+
+    // =========================================================================
+    // 2. PRESETS & SCENES
+    // =========================================================================
+    const PRESETS = {
+      aurora: `📖 Prolog: Stacja Aurora 🛑\n\nSpitsbergen, 15.01.2026. 🛑\n\nJan Zawadzki odebrał sygnał z interkomu. ⏸️\n📱 "Halo? Stacja Aurora, słyszycie nas? Zbliża się arktyczny sztorm!" 🛑\n\nJan podszedł do mikrofonu i odpowiedział spokojnie: 🛑\n"Słyszymy was głośno i wyraźnie. Zabezpieczamy bazę." 🛑`,
+      radio: `📻 "Baza jeden do patrolu. Zgłaszam naruszenie perymetru o godzinie 15:47. Odbiór." 🛑\n\nPatrol potwierdza meldunek: 🛑\n📻 "Tu patrol dwa. Zbliżamy się do sektora czwartego. Cisza radiowa." 🛑`,
+      cathedral: `Jan wszedł w głąb starej, opuszczonej świątyni. 🛑\n🏛️ Kroki niosły się głuchym echem po wysokich, kamiennych łukach. 🛑\n\nZatrzymał się w mroku. ⏸️\n🤫 "Ktoś tu przed chwilą był... Czuję zapach świec." 🛑`,
+      android: `Z ciemnego korytarza wyłonił się syntetyczny głos autonomicznego mechanizmu: 🛑\n🤖 "Autodiagnostyka zakończona. 💥Cel zidentyfikowany. Rozpoczynam procedurę." 🛑\n\nI znowu zapadła lodowata cisza. 🛑`
+    };
+
+    function loadPreset(key) {
+      if (PRESETS[key]) {
+        document.getElementById('script-input').value = PRESETS[key];
+        parseCurrentScript();
+      }
+    }
+
+    function insertEmoji(emoji) {
+      const input = document.getElementById('script-input');
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      const val = input.value;
+      input.value = val.substring(0, start) + emoji + " " + val.substring(end);
+      input.focus();
+      input.selectionStart = input.selectionEnd = start + emoji.length + 1;
+      parseCurrentScript();
+    }
+
+    // =========================================================================
+    // 3. EMOJI DIRECTOR PARSER (MATCHING RUST AUDIOTICON-CORE)
+    // =========================================================================
+    let parsedItems = [];
+
+    function parseScript(rawText, lang = "pl") {
+      let items = [];
+      const lines = rawText.split('\n');
+
+      for (let line of lines) {
+        line = line.trim();
+        if (!line) continue;
+
+        // Rozbijamy po znacznikach pauzy
+        let tokens = line.split(/(🛑|⏸️)/g);
+        for (let tok of tokens) {
+          tok = tok.trim();
+          if (!tok) continue;
+          if (tok === '🛑') {
+            items.push({ type: 'silence', durationMs: 1000 });
+            continue;
+          }
+          if (tok === '⏸️') {
+            items.push({ type: 'silence', durationMs: 500 });
+            continue;
+          }
+
+          // Sprawdzamy emotikony efektów
+          let filter = 'normal';
+          let rate = 1.0;
+          let pitch = 1.0;
+          let volume = 1.0;
+          let hasEmphasis = false;
+          let hasBreath = false;
+
+          if (tok.includes('📱')) filter = 'phone';
+          else if (tok.includes('📻')) filter = 'radio';
+          else if (tok.includes('🏛️')) filter = 'cathedral';
+          else if (tok.includes('🏰')) filter = 'cave';
+          else if (tok.includes('🤫')) { filter = 'whisper'; volume = 0.7; pitch = 0.95; }
+          else if (tok.includes('🤖')) { filter = 'robot'; pitch = 0.75; }
+          else if (tok.includes('💭')) { filter = 'thought'; volume = 0.85; }
+
+          if (tok.includes('💥')) { hasEmphasis = true; volume = 1.3; }
+          if (tok.includes('😮‍💨')) { hasBreath = true; }
+          if (tok.includes('🐢')) { rate = 0.8; }
+          if (tok.includes('🐇')) { rate = 1.25; }
+
+          // Czyszczenie z emotikonów
+          let cleanText = tok.replace(/[📖🛑⏸️📱📻🏛️🏰🤫🤖💥😮‍💨🐢🐇💭📢"]/g, '').trim();
+          if (hasBreath) {
+            items.push({ type: 'breath', durationMs: 400 });
+          }
+          if (cleanText) {
+            let verbalized = verbalizeText(cleanText, lang);
+            items.push({
+              type: 'speech',
+              filter: filter,
+              rawText: cleanText,
+              verbalized: verbalized,
+              rate: rate,
+              pitch: pitch,
+              volume: volume,
+              emphasis: hasEmphasis
+            });
+          }
+        }
+      }
+      return items;
+    }
+
+    function renderTimeline(items) {
+      const container = document.getElementById('timeline');
+      container.innerHTML = '';
+
+      items.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.className = `timeline-block ${item.type === 'speech' ? item.filter : item.type}`;
+        div.id = `block-${index}`;
+
+        if (item.type === 'silence') {
+          div.innerHTML = `
+            <div class="block-header">
+              <span>⏸️ Cisza / Odstęp</span>
+              <span class="filter-tag">${item.durationMs} ms</span>
+            </div>
+          `;
+        } else if (item.type === 'breath') {
+          div.innerHTML = `
+            <div class="block-header">
+              <span>😮‍💨 Oddech lektora</span>
+              <span class="filter-tag">400 ms</span>
+            </div>
+          `;
+        } else {
+          div.innerHTML = `
+            <div class="block-header">
+              <span>${getFilterIcon(item.filter)} ${item.filter.toUpperCase()}</span>
+              <span class="filter-tag">Rate: ${item.rate}x | Pitch: ${item.pitch}</span>
+            </div>
+            <div class="block-text">${escapeHtml(item.rawText)}</div>
+            ${item.rawText !== item.verbalized ? `<div class="block-verbalized">🗣️ "${escapeHtml(item.verbalized)}"</div>` : ''}
+          `;
+        }
+        container.appendChild(div);
+      });
+    }
+
+    function getFilterIcon(filter) {
+      switch(filter) {
+        case 'phone': return '📱';
+        case 'radio': return '📻';
+        case 'cathedral': return '🏛️';
+        case 'cave': return '🏰';
+        case 'whisper': return '🤫';
+        case 'robot': return '🤖';
+        case 'thought': return '💭';
+        default: return '🎙️';
+      }
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function renderExports(items) {
+      // 1. Elevenlabs
+      let eleven = items.map(it => {
+        if (it.type === 'silence') return `[pause ${it.durationMs / 1000}s]`;
+        if (it.type === 'breath') return `[sighs]`;
+        let tag = '';
+        if (it.filter === 'whisper') tag = '[whispering] ';
+        else if (it.filter === 'phone') tag = '[phone voice] ';
+        else if (it.filter === 'radio') tag = '[radio filter] ';
+        else if (it.filter === 'robot') tag = '[monotone robotic] ';
+        return `${tag}${it.rawText}`;
+      }).join('\n');
+
+      // 2. ChatTTS
+      let chattts = items.map(it => {
+        if (it.type === 'silence') return `[pause_${it.durationMs}ms]`;
+        if (it.type === 'breath') return `[sigh]`;
+        if (it.filter === 'whisper') return `[whisper] ${it.rawText}`;
+        return it.rawText;
+      }).join(' ');
+
+      // 3. CLI
+      let cli = `# Uruchomienie lokalne z pełnym masteringiem EBU R128 (-19 LUFS / -3.5 dBTP):\naudioticon render \\\n  --input scenariusz.txt \\\n  --output audiobook.m4b \\\n  --provider piper \\\n  --lang ${document.getElementById('lang-select').value}`;
+
+      // 4. JSON
+      let json = JSON.stringify(items, null, 2);
+
+      window.exportData = { eleven, chattts, cli, json };
+      updateActiveTab();
+    }
+
+    let activeTab = 'eleven';
+    function switchTab(tab) {
+      activeTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+      updateActiveTab();
+    }
+
+    function updateActiveTab() {
+      if (window.exportData) {
+        document.getElementById('export-box').textContent = window.exportData[activeTab];
+      }
+    }
+
+    function parseCurrentScript() {
+      const raw = document.getElementById('script-input').value;
+      const lang = document.getElementById('lang-select').value;
+      parsedItems = parseScript(raw, lang);
+      renderTimeline(parsedItems);
+      renderExports(parsedItems);
+    }
+
+    // =========================================================================
+    // 4. WEB AUDIO DSP & PROCEDURAL SOUND GENERATOR
+    // =========================================================================
+    let audioCtx = null;
+    function getAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    // Procedural SFX
+    function playRadioSquelch(isEnd = false) {
+      try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        const dur = isEnd ? 0.2 : 0.12;
+
+        // White noise
+        const bufferSize = ctx.sampleRate * dur;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 1400;
+        filter.Q.value = 3.0;
+
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+
+        noise.start(now);
+      } catch(e) {}
+    }
+
+    function playBreathSound() {
+      try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        const dur = 0.35;
+
+        const bufferSize = ctx.sampleRate * dur;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * 0.15;
+        }
+
+        const noise = ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(900, now);
+        filter.frequency.linearRampToValueAtTime(400, now + dur);
+
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.01, now);
+        gain.gain.linearRampToValueAtTime(0.08, now + 0.15);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+
+        noise.start(now);
+      } catch(e) {}
+    }
+
+    function playPhoneChime() {
+      try {
+        const ctx = getAudioContext();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.setValueAtTime(480, now + 0.05);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.1);
+      } catch(e) {}
+    }
+
+    // =========================================================================
+    // 5. LIVE PLAYBACK ENGINE WITH SPEECH SYNTHESIS & HIGHLIGHTING
+    // =========================================================================
+    let isPlaying = false;
+    let playIndex = 0;
+    let animId = null;
+
+    function populateVoices() {
+      const voiceSelect = document.getElementById('voice-select');
+      const voices = window.speechSynthesis.getVoices();
+      voiceSelect.innerHTML = '';
+
+      voices.forEach((v, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = `${v.name} (${v.lang})`;
+        if (v.lang.startsWith('pl')) {
+          opt.selected = true;
+        }
+        voiceSelect.appendChild(opt);
+      });
+    }
+
+    window.speechSynthesis.onvoiceschanged = populateVoices;
+
+    function togglePlay() {
+      if (isPlaying) {
+        stopPlay();
+      } else {
+        startPlay();
+      }
+    }
+
+    function startPlay() {
+      if (!parsedItems.length) parseCurrentScript();
+      if (!parsedItems.length) return;
+
+      isPlaying = true;
+      playIndex = 0;
+      document.getElementById('play-icon').textContent = '⏹';
+      document.getElementById('play-text').textContent = 'Zatrzymaj';
+      document.getElementById('status-badge').textContent = '▶ Odtwarzanie...';
+      startVisualizer();
+      playNext();
+    }
+
+    function stopPlay() {
+      isPlaying = false;
+      window.speechSynthesis.cancel();
+      document.getElementById('play-icon').textContent = '▶';
+      document.getElementById('play-text').textContent = 'Odsłuchaj na żywo';
+      document.getElementById('status-badge').textContent = 'Gotowy';
+      document.querySelectorAll('.timeline-block').forEach(b => b.classList.remove('active-speech'));
+      stopVisualizer();
+    }
+
+    function playNext() {
+      if (!isPlaying || playIndex >= parsedItems.length) {
+        stopPlay();
+        return;
+      }
+
+      document.querySelectorAll('.timeline-block').forEach(b => b.classList.remove('active-speech'));
+      const activeEl = document.getElementById(`block-${playIndex}`);
+      if (activeEl) {
+        activeEl.classList.add('active-speech');
+        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+
+      const item = parsedItems[playIndex];
+      playIndex++;
+
+      if (item.type === 'silence') {
+        setTimeout(playNext, item.durationMs);
+      } else if (item.type === 'breath') {
+        playBreathSound();
+        setTimeout(playNext, 450);
+      } else if (item.type === 'speech') {
+        // Effects before speech
+        if (item.filter === 'radio') playRadioSquelch(false);
+        if (item.filter === 'phone') playPhoneChime();
+
+        const utter = new SpeechSynthesisUtterance(item.verbalized);
+        const voices = window.speechSynthesis.getVoices();
+        const selectedIdx = document.getElementById('voice-select').value;
+        if (voices[selectedIdx]) utter.voice = voices[selectedIdx];
+
+        utter.rate = item.rate;
+        utter.pitch = item.pitch;
+        utter.volume = item.volume;
+
+        utter.onend = () => {
+          if (item.filter === 'radio') playRadioSquelch(true);
+          setTimeout(playNext, 150);
+        };
+
+        utter.onerror = () => {
+          setTimeout(playNext, 150);
+        };
+
+        window.speechSynthesis.speak(utter);
+      }
+    }
+
+    // =========================================================================
+    // 6. ANIMATED CANVAS OSCILLOSCOPE
+    // =========================================================================
+    const canvas = document.getElementById('visualizer');
+    const ctx2d = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    let waveOffset = 0;
+    function drawWave() {
+      ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+      ctx2d.lineWidth = 2;
+      ctx2d.strokeStyle = isPlaying ? '#06b6d4' : 'rgba(255, 255, 255, 0.2)';
+      ctx2d.beginPath();
+
+      const sliceWidth = canvas.width / 80;
+      let x = 0;
+
+      for (let i = 0; i < 80; i++) {
+        let v = 0;
+        if (isPlaying) {
+          v = Math.sin(i * 0.2 + waveOffset) * 0.4 + (Math.random() - 0.5) * 0.3;
+        } else {
+          v = Math.sin(i * 0.1 + waveOffset) * 0.05;
+        }
+        let y = (v + 1) * (canvas.height / 2);
+
+        if (i === 0) ctx2d.moveTo(x, y);
+        else ctx2d.lineTo(x, y);
+        x += sliceWidth;
+      }
+
+      ctx2d.stroke();
+      waveOffset += isPlaying ? 0.15 : 0.02;
+      animId = requestAnimationFrame(drawWave);
+    }
+
+    function startVisualizer() {
+      if (!animId) drawWave();
+    }
+
+    function stopVisualizer() {
+      // continues gentle idle wave
+    }
+
+    // Start idle animation
+    drawWave();
+
+    // Init
+    document.addEventListener('DOMContentLoaded', () => {
+      populateVoices();
+      loadPreset('aurora');
+      document.getElementById('script-input').addEventListener('input', () => {
+        parseCurrentScript();
+      });
+      document.getElementById('lang-select').addEventListener('change', () => {
+        parseCurrentScript();
+      });
+    });
+  </script>
+</body>
+</html>

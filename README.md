@@ -25,7 +25,15 @@
   <img src="https://img.shields.io/badge/DSP%20Acoustics-Radio%20%7C%20Phone%20%7C%20Cathedral%20%7C%20Robot-critical.svg" alt="DSP Acoustics" />
 </p>
 
+<p align="center">
+  <a href="https://jarohull-ai.github.io/Audioticon/">
+    <img src="https://img.shields.io/badge/🚀%20Live%20Demo-Audioticon%20Playground-06b6d4?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Live Demo Playground" />
+  </a>
+</p>
+
 Audioticon rozwiązuje fundamentalny problem syntezy audiobooków: **brak intuicyjnego, czytelnego dla człowieka języka reżyserii**. Zamiast skomplikowanych i nieczytelnych dla pisarzy tagów XML/SSML (`<prosody rate="-10%" pitch="-4Hz"><break time="400ms"/>`), Audioticon pozwala reżyserować tempo, ton, pauzy, emocje i plany akustyczne za pomocą **emotikonów wstawianych bezpośrednio w tekst**.
+
+> 🚀 **Wypróbuj na żywo w przeglądarce bez instalacji:** [Otwórz Audioticon Live Playground](https://jarohull-ai.github.io/Audioticon/) — wklej lub wpisz tekst ze znacznikami emoji, zobacz wizualną oś czasu audio i odsłuchaj z efektami DSP w czasie rzeczywistym!
 
 ---
 
