@@ -9,10 +9,20 @@
 </p>
 
 <p align="center">
-  <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-1.85%2B-orange.svg" alt="Rust" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg" alt="License" /></a>
-  <img src="https://img.shields.io/badge/audio-ACX%20%2F%20EBU%20R128-green.svg" alt="ACX / EBU R128" />
-  <img src="https://img.shields.io/badge/engine-100%25%20Local%20%26%20Cloud-purple.svg" alt="Offline & Cloud" />
+  <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-1.85%2B-DEA584.svg?logo=rust&logoColor=white" alt="Rust 1.85+" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-blue.svg" alt="License: MIT/Apache-2.0" /></a>
+  <img src="https://img.shields.io/badge/Tests-17%2F17%20Passing-brightgreen.svg" alt="Tests 17/17 Passing" />
+  <img src="https://img.shields.io/badge/RAM-~115%20MB%20Footprint-success.svg" alt="RAM Footprint" />
+  <img src="https://img.shields.io/badge/i18n-Polish%20%2B%20English-informational.svg" alt="Languages: PL + EN" />
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Speed-18x--27x%20Real--Time%20(CPU)-brightgreen.svg" alt="18x-27x Real-Time" />
+  <img src="https://img.shields.io/badge/Sentence%20Cache-~20ms%20Turnaround%20(SHA--256)-blue.svg" alt="SHA-256 Cache" />
+  <img src="https://img.shields.io/badge/Mastering-ACX%20%2F%20Audible%20%26%20EBU%20R128-green.svg" alt="ACX / EBU R128" />
+  <img src="https://img.shields.io/badge/Export-Apple%20M4B%20%2B%20MP3%20Chapters-purple.svg" alt="Apple M4B Export" />
+  <img src="https://img.shields.io/badge/Engines-Piper%20(100%25%20Offline)%20%7C%20Edge%20Neural-blueviolet.svg" alt="Engines" />
+  <img src="https://img.shields.io/badge/DSP%20Acoustics-Radio%20%7C%20Phone%20%7C%20Cathedral%20%7C%20Robot-critical.svg" alt="DSP Acoustics" />
 </p>
 
 Audioticon rozwiązuje fundamentalny problem syntezy audiobooków: **brak intuicyjnego, czytelnego dla człowieka języka reżyserii**. Zamiast skomplikowanych i nieczytelnych dla pisarzy tagów XML/SSML (`<prosody rate="-10%" pitch="-4Hz"><break time="400ms"/>`), Audioticon pozwala reżyserować tempo, ton, pauzy, emocje i plany akustyczne za pomocą **emotikonów wstawianych bezpośrednio w tekst**.
