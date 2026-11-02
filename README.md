@@ -1,9 +1,19 @@
-# 🎧 Audioticon
+<p align="center">
+  <img src="assets/logo.png" alt="Audioticon Logo" width="300" style="border-radius: 20px;" />
+</p>
 
-> **Język reżyserii audiobooków sterowany emotikonami z bezstratnym cachem zdań i filtrami DSP.**
+<h1 align="center">🎧 Audioticon</h1>
 
-[![Rust](https://img.shields.io/badge/Rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
-[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE)
+<p align="center">
+  <strong>Język reżyserii audiobooków sterowany emotikonami z bezstratnym cachem zdań i filtrami DSP.</strong>
+</p>
+
+<p align="center">
+  <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-1.85%2B-orange.svg" alt="Rust" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg" alt="License" /></a>
+  <img src="https://img.shields.io/badge/audio-ACX%20%2F%20EBU%20R128-green.svg" alt="ACX / EBU R128" />
+  <img src="https://img.shields.io/badge/engine-100%25%20Local%20%26%20Cloud-purple.svg" alt="Offline & Cloud" />
+</p>
 
 Audioticon rozwiązuje fundamentalny problem syntezy audiobooków: **brak intuicyjnego, czytelnego dla człowieka języka reżyserii**. Zamiast skomplikowanych i nieczytelnych dla pisarzy tagów XML/SSML (`<prosody rate="-10%" pitch="-4Hz"><break time="400ms"/>`), Audioticon pozwala reżyserować tempo, ton, pauzy, emocje i plany akustyczne za pomocą **emotikonów wstawianych bezpośrednio w tekst**.
 
