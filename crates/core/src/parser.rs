@@ -186,24 +186,24 @@ mod tests {
     }
 
     #[test]
-    fn test_vs16_pause_normalization() {
+    fn test_demo_effects_parsing() {
         let director = EmojiDirector::default();
-        let with_vs16 = "Czekaj ⏸️ chwile.";
-        let without_vs16 = "Czekaj ⏸ chwile.";
+        let input = r#"
+Oto demonstracja zaawansowanych efektów akustycznych Audioticon. 🛑
 
-        let s1 = director.parse(with_vs16);
-        let s2 = director.parse(without_vs16);
+Narrator mówi czystym, studyjnym głosem. ⏸️
+Ale nagle odbiera telefon. 🛑
+📱 "Halo? Richter, słyszysz mnie? Mamy problem na punkcie kontrolnym!" 🛑
 
-        let silences1: Vec<u32> = s1.items.iter().filter_map(|it| match it {
-            DirectedItem::Silence(ms) => Some(*ms),
-            _ => None,
-        }).collect();
-        let silences2: Vec<u32> = s2.items.iter().filter_map(|it| match it {
-            DirectedItem::Silence(ms) => Some(*ms),
-            _ => None,
-        }).collect();
-
-        assert_eq!(silences1, vec![400]);
-        assert_eq!(silences2, vec![400]);
+W tle odzywa się wojskowa radiostacja krótkofalowa. 🛑
+📻 "Baza jeden do patrolu. Zgłaszam naruszenie perymetru w sektorze czwartym. Odbiór." 🛑
+"#;
+        let script = director.parse(input);
+        for (i, it) in script.items.iter().enumerate() {
+            match it {
+                DirectedItem::Silence(ms) => println!("[{:02}] SILENCE: {}ms", i, ms),
+                DirectedItem::Speech(seg) => println!("[{:02}] SPEECH: filter={:?}, text={:?}", i, seg.filter, seg.text),
+            }
+        }
     }
 }

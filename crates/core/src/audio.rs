@@ -103,13 +103,13 @@ pub fn build_ffmpeg_filter_chain(filter: Option<&str>) -> String {
     if let Some(preset) = filter {
         match preset {
             "phone" => {
-                filters.push("bandpass=f=1850:w=3100,acrusher=level_in=1:level_out=0.8:bits=8:mode=log".to_string());
+                filters.push("highpass=f=300,lowpass=f=3400,volume=2.2,acrusher=level_in=1:level_out=0.9:bits=10:mode=lin".to_string());
             }
             "radio" => {
-                filters.push("bandpass=f=1800:w=2600,volume=1.2,treble=g=-3".to_string());
+                filters.push("highpass=f=400,lowpass=f=2800,volume=2.2,treble=g=-2".to_string());
             }
             "megaphone" => {
-                filters.push("highpass=f=500,lowpass=f=4000,acrusher=level_in=1:level_out=1:bits=10:mode=lin,volume=1.3".to_string());
+                filters.push("highpass=f=500,lowpass=f=3800,volume=2.0,acrusher=level_in=1:level_out=1:bits=12:mode=lin".to_string());
             }
             "cathedral" => {
                 filters.push("aecho=0.8:0.88:60|120:0.4|0.25".to_string());
