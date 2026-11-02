@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "audioticon")]
-#[command(author = "Jarosław Kuchta <jarohull@gmail.com>")]
-#[command(version = "0.2.0")]
+#[command(author = "Jarosław Kuchta")]
+#[command(version)]
 #[command(about = "🎧 Audioticon — Reżyser audiobooków sterowany emotikonami z cachem zdań i filtrami DSP", long_about = None)]
 struct Cli {
     #[command(subcommand)]
@@ -83,7 +83,7 @@ enum Commands {
         #[arg(long)]
         year: Option<String>,
 
-        /// Uruchamia wbudowaną scenę demonstracyjną Kijów (Styl: Achaja)
+        /// Uruchamia wbudowaną scenę demonstracyjną (Stacja Polarna Aurora)
         #[arg(long)]
         demo: bool,
 
@@ -115,7 +115,7 @@ enum Commands {
         #[arg(long, default_value = "pl")]
         lang: String,
 
-        /// Uruchamia wbudowaną scenę demonstracyjną Kijów
+        /// Uruchamia wbudowaną scenę demonstracyjną
         #[arg(long)]
         demo: bool,
     },
@@ -152,68 +152,68 @@ fn get_default_piper_model(lang: &str) -> PathBuf {
 }
 
 const DEMO_SCENE: &str = r#"
-📖 Prolog: Kijów 🛑
+📖 Prolog: Stacja Aurora 🛑
 
-Kijów, 24.02.2024. 🛑
+Spitsbergen, 15.01.2026. 🛑
 
-Adam Richter siedział przy biurku w mieszkaniu na Obołoni w Kijowie. ⏸️
-Za oknem było szaro, jak przez większość dni tej zimy. 🛑
-Na parapecie stał wyschnięty aloes, 😮‍💨 którego nie podlewał od tygodni. 🛑
+Jan Zawadzki siedział przy pulpicie stacji badawczej na Spitsbergenie. ⏸️
+Za oknem szalała zamieć, jak przez większość nocy polarnej. 🛑
+Na blacie stał kubek z zimną herbatą, 😮‍💨 której nie pił od godzin. 🛑
 
-Na biurku leżał 💥notes. 🛑
+Na stole leżał 💥dziennik pokładowy. 🛑
 
-🐢 Zniszczony od wilgoci... 😮‍💨 od dotyku... od noszenia w plecaku, który mokł w deszczu i leżał w błocie. 🛑
-Okładka wyblakła, rogi starte, grzbiet pęknięty w trzech miejscach. 🛑
+🐢 Przetarty na krawędziach... 😮‍💨 od ciągłego przeglądania... od noszenia w skafandrze arktycznym. 🛑
+Okładka zmatowiała, grzbiet przetarty w kilku miejscach. 🛑
 
-W środku... tysiące zapisanych zdarzeń. 🛑
-📉Nazwisk. ⏸️
-📉Godzin. ⏸️
+W środku... setki pomiarów i odczytów. 🛑
+📉Temperatur. ⏸️
+📉Wiatrów. ⏸️
 📉Współrzędnych. 🛑
 
-Niektóre strony były tak wypisane, że atrament przebijał na drugą stronę. ⏸️
-Inne czyste... 😮‍💨 bo zabrakło mu siły, żeby dokończyć zdanie. 🛑
+Niektóre wpisy nanoszono pośpiesznie ołówkiem. ⏸️
+Inne były staranne... 😮‍💨 z czasów, gdy na stacji panował jeszcze całkowity spokój. 🛑
 
-📖 Rozdział 1: Archiwum Pyłu 🛑
+📖 Rozdział 1: Sygnał z Lodu 🛑
 
-Nazwał to: 💥Archiwum Pyłu. 🛑
+Nazwał ten zapis: 💥Projekt Aurora. 🛑
 
-Otworzył notes na stronie z granicy. 🛑
-24.02.2022. ⏸️
-Godzina 15:47. ⏸️
-Dorohusk. 🛑
+Otworzył dziennik na stronie z pierwszego kontaktu. 🛑
+15.01.2025. ⏸️
+Godzina 03:14. ⏸️
+Sektor Północny. 🛑
 
-Przez chwilę patrzył na te cyfry. 🛑
-Potem zamknął notes. 🛑
+Przez dłuższą chwilę patrzył na te współrzędne. 🛑
+Potem zamknął dziennik. 🛑
 Nie musiał czytać dalej. 🛑
-🤫 Pamiętał zapach. 🛑
+🤫 Pamiętał każdy szczegół. 🛑
 "#;
 
 const DEMO_EFFECTS_SCENE: &str = r#"
 Oto demonstracja zaawansowanych efektów akustycznych Audioticon. 🛑
 
 Narrator mówi czystym, studyjnym głosem. ⏸️
-Ale nagle odbiera telefon. 🛑
-📱 "Halo? Richter, słyszysz mnie? Mamy problem na punkcie kontrolnym!" 🛑
+Ale nagle odzywa się interkom satelitarny. 🛑
+📱 "Halo? Stacja Aurora, słyszycie nas? Zbliża się arktyczny sztorm!" 🛑
 
-W tle odzywa się wojskowa radiostacja krótkofalowa. 🛑
-📻 "Baza jeden do patrolu. Zgłaszam naruszenie perymetru w sektorze czwartym. Odbiór." 🛑
+W tle trzaskają zakłócenia wojskowej radiostacji krótkofalowej. 🛑
+📻 "Baza do patrolu śnieżnego. Zgłaszam nagły spadek ciśnienia. Natychmiast powrót do hangaru. Odbiór." 🛑
 
-Dowódca bierze tubę i krzyczy przez megafon na placu: 🛑
-📢 "Wszyscy natychmiast opuścić ten rejon! To nie są ćwiczenia!" 🛑
+Kierownik stacji włącza tubę i krzyczy przez megafon w hali maszyn: 🛑
+📢 "Wszyscy zabezpieczyć śluzy zewnętrzne! To nie są ćwiczenia!" 🛑
 
-Adam cofa się w głąb starej, opuszczonej katedry. 🛑
-🏛️ Kroki niosły się głuchym echem po kamiennych łukach świątyni. 🛑
+Jan wchodzi w głąb wysokiej, opuszczonej kopuły obserwatorium. 🛑
+🏛️ Kroki niosły się głuchym echem po stalowych i kamiennych łukach. 🛑
 
-Schodzi wąskimi schodami do wilgotnych lochów. 🛑
-🏰 Ciemność była lepka, a woda kapała gdzieś w głębi podziemi. 🛑
+Schodzi technicznymi schodami do podziemnego tunelu w wiecznej zmarzlinie. 🛑
+🏰 Ciemność była absolutna, a krople lodu stukały cicho o metalowe podpory. 🛑
 
 Zatrzymał się. 🛑
-💭 "Czy oni naprawdę myślą, że nie byłem na to przygotowany? Wszystko przewidziałem." 🛑
+💭 "Czy aparatura pomiarowa wytrzyma to ciśnienie? Musimy utrzymać zasilanie generatora." 🛑
 
-Nagle z mroku wyłonił się syntetyczny głos bojowego androida: 🛑
-🤖 "Cel zidentyfikowany. Rozpoczynam procedurę neutralizacji." 🛑
+Nagle z terminala wyłonił się syntetyczny głos autonomicznego systemu stacji: 🛑
+🤖 "Autodiagnostyka zakończona. Wykryto anomalię w reaktorze pomocniczym." 🛑
 
-I znowu zapadła śmiertelna cisza. 🛑
+I znowu zapadła lodowata cisza. 🛑
 "#;
 
 #[tokio::main]

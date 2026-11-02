@@ -387,6 +387,8 @@ struct PiperWorkerProcess {
     reader: BufReader<std::process::ChildStdout>,
 }
 
+const PIPER_WORKER_CODE: &str = include_str!("piper_worker.py");
+
 /// Offline Local Synthesizer bridge using a persistent Piper worker (100% offline, model kept in RAM).
 pub struct PiperBridge {
     pub model_path: PathBuf,
@@ -405,7 +407,7 @@ impl PiperBridge {
             .to_string();
 
         let py = Self::find_python();
-        let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/piper_worker.py");
+        let script = Self::ensure_worker_script();
 
         Self {
             model_path,
@@ -416,7 +418,38 @@ impl PiperBridge {
         }
     }
 
+    fn ensure_worker_script() -> PathBuf {
+        let script_dir = dirs::data_dir()
+            .unwrap_or_else(|| PathBuf::from("/tmp"))
+            .join("audioticon");
+        let _ = std::fs::create_dir_all(&script_dir);
+        let script_path = script_dir.join("piper_worker.py");
+        if !script_path.exists()
+            || std::fs::read_to_string(&script_path)
+                .map(|s| s != PIPER_WORKER_CODE)
+                .unwrap_or(true)
+        {
+            let _ = std::fs::write(&script_path, PIPER_WORKER_CODE);
+        }
+        script_path
+    }
+
     fn find_python() -> PathBuf {
+        // 1. Check dedicated audioticon virtualenv (~/.local/share/audioticon/venv/bin/python3)
+        if let Some(data_dir) = dirs::data_dir() {
+            let venv_py = data_dir.join("audioticon/venv/bin/python3");
+            if venv_py.exists() {
+                return venv_py;
+            }
+        }
+        // 2. Check active VIRTUAL_ENV
+        if let Ok(venv) = std::env::var("VIRTUAL_ENV") {
+            let p = PathBuf::from(venv).join("bin/python3");
+            if p.exists() {
+                return p;
+            }
+        }
+        // 3. Fallbacks
         let candidates = ["/tmp/edge_env/bin/python3", "/usr/bin/python3", "python3"];
         for c in candidates {
             if Path::new(c).exists() {
