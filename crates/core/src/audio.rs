@@ -10,7 +10,25 @@ use crate::types::{AudiobookMetadata, ChapterMark, DirectedItem, DirectedScript,
 
 pub const DEFAULT_SAMPLE_RATE: u32 = 24000;
 
-/// Pure Rust generation of digital silence WAV file.
+/// Fast XorShift64 PRNG for deterministic procedural audio noise
+struct SimpleNoiseRng(u64);
+
+impl SimpleNoiseRng {
+    fn new(seed: u64) -> Self {
+        Self(if seed == 0 { 0x853c_49e6_748f_ea9b } else { seed })
+    }
+
+    fn next_f32(&mut self) -> f32 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        ((self.0 as f32) / (u64::MAX as f32)) * 2.0 - 1.0
+    }
+}
+
+/// Pure Rust generation of studio room-tone silence WAV file.
+/// Instead of digital dead-zero vacuum (-inf dB), generates an ultra-subtle
+/// studio ambient floor at ~ -68 dBFS, completely eliminating headphone gating sensations.
 pub fn create_silence_wav(out_path: &Path, duration_ms: u32, sample_rate: u32) -> Result<()> {
     let tmp_path = out_path.with_extension("tmp.wav");
     let spec = WavSpec {
@@ -23,8 +41,15 @@ pub fn create_silence_wav(out_path: &Path, duration_ms: u32, sample_rate: u32) -
         .with_context(|| format!("Nie można utworzyć pliku ciszy: {:?}", tmp_path))?;
 
     let total_samples = (sample_rate as u64 * duration_ms as u64) / 1000;
+    let mut rng = SimpleNoiseRng::new(0x71e9_3a11_c001_cafe ^ (duration_ms as u64));
+    let mut lp_state = 0.0f32;
+
     for _ in 0..total_samples {
-        writer.write_sample(0i16)?;
+        let white = rng.next_f32();
+        // Warm lowpass around 800Hz for subtle room tone
+        lp_state += 0.15 * (white - lp_state);
+        let sample_val = (lp_state * 10.0).clamp(-32768.0, 32767.0) as i16;
+        writer.write_sample(sample_val)?;
     }
     writer.finalize()?;
 
@@ -79,22 +104,6 @@ impl BiquadFilter {
         self.y2 = self.y1;
         self.y1 = out;
         out
-    }
-}
-
-/// Fast XorShift64 PRNG for deterministic procedural audio noise
-struct SimpleNoiseRng(u64);
-
-impl SimpleNoiseRng {
-    fn new(seed: u64) -> Self {
-        Self(if seed == 0 { 0x853c_49e6_748f_ea9b } else { seed })
-    }
-
-    fn next_f32(&mut self) -> f32 {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 7;
-        self.0 ^= self.0 << 17;
-        ((self.0 as f32) / (u64::MAX as f32)) * 2.0 - 1.0
     }
 }
 
@@ -217,17 +226,17 @@ pub fn build_ffmpeg_filter_chain(filter: Option<&str>) -> String {
     if let Some(preset) = filter {
         match preset {
             "phone" => {
-                filters.push("highpass=f=350,lowpass=f=3200,volume=1.8".to_string());
+                filters.push("highpass=f=350,lowpass=f=3200,volume=1.2".to_string());
             }
             "radio" => {
-                filters.push("highpass=f=450,lowpass=f=2600,volume=2.0,acrusher=level_in=1:level_out=0.9:bits=8:mode=lin".to_string());
+                filters.push("highpass=f=450,lowpass=f=2600,volume=1.25,acrusher=level_in=1:level_out=0.9:bits=8:mode=lin".to_string());
             }
             "megaphone" => {
-                filters.push("highpass=f=550,lowpass=f=3500,equalizer=f=1800:t=q:w=2:g=8,volume=1.8,aecho=0.8:0.4:120:0.25".to_string());
+                filters.push("highpass=f=550,lowpass=f=3500,equalizer=f=1800:t=q:w=2:g=4,volume=1.2,aecho=0.8:0.35:100:0.2".to_string());
             }
             "cathedral" => {
-                // Vast stone cathedral acoustic space with long reverb tail
-                filters.push("apad=pad_dur=1.8,aecho=0.85:0.75:180|360|680:0.4|0.28|0.18".to_string());
+                // Balanced cathedral acoustic space: clean reflections without drowning spoken dialogue
+                filters.push("apad=pad_dur=0.6,aecho=0.8:0.45:90|210:0.28|0.16".to_string());
             }
             "dungeon" => {
                 // Dark subterranean damp vault with muffled reflections
@@ -237,8 +246,8 @@ pub fn build_ffmpeg_filter_chain(filter: Option<&str>) -> String {
                 filters.push("lowpass=f=3800,equalizer=f=300:t=q:w=1:g=3,volume=1.2,aecho=0.8:0.35:28:0.25".to_string());
             }
             "robot" => {
-                // Sinister combat drone / cyborg voice: pitch shift down + Dalek ring modulation (55Hz tremolo) + metallic chassis resonance + tight echo
-                filters.push("asetrate=24000*0.86,atempo=1.16,tremolo=f=55:d=0.88,equalizer=f=950:t=q:w=2.5:g=9,aecho=0.8:0.5:16|32:0.35|0.2".to_string());
+                // Sinister combat drone / cyborg voice: resample to 24kHz + pitch shift down + Dalek ring modulation (55Hz tremolo) + metallic chassis resonance + tight echo
+                filters.push("aresample=24000,asetrate=24000*0.86,aresample=24000,atempo=1.16,tremolo=f=55:d=0.88,equalizer=f=950:t=q:w=2.5:g=9,aecho=0.8:0.5:16|32:0.35|0.2".to_string());
             }
             "whisper" => {
                 // Intimate breathy whisper: eliminate chest vocal cord resonance below 480Hz,
@@ -499,13 +508,21 @@ impl SpeechSynthesizer for PiperBridge {
             }
         }
 
+        let actual_sr = match hound::WavReader::open(&temp_raw_wav) {
+            Ok(reader) => reader.spec().sample_rate,
+            Err(_) => 22050,
+        };
+
         let mut filter_chain = build_ffmpeg_filter_chain(segment.filter.as_deref());
 
         // Handle pitch modification for Piper via ffmpeg asetrate + atempo
         if segment.pitch_mod != 0 {
             let semitones = segment.pitch_mod as f32 / 3.0;
             let factor = 2f32.powf(semitones / 12.0);
-            let pitch_filter = format!("asetrate=24000*{:.3},atempo={:.3}", factor, 1.0 / factor);
+            let pitch_filter = format!(
+                "asetrate={:.0}*{:.4},aresample={},atempo={:.4}",
+                actual_sr, factor, DEFAULT_SAMPLE_RATE, 1.0 / factor
+            );
             filter_chain = format!("{},{}", filter_chain, pitch_filter);
         }
 
@@ -730,10 +747,18 @@ pub async fn export_to_m4b(
         .arg("1")
         .arg("-map")
         .arg("0:a")
+        .arg("-af")
+        .arg("loudnorm=I=-19:TP=-3.0:LRA=7,alimiter=limit=0.7:level=false")
         .arg("-c:a")
         .arg("aac")
         .arg("-b:a")
-        .arg("64k")
+        .arg("80k")
+        .arg("-metadata:s:a:0")
+        .arg("language=pol")
+        .arg("-f")
+        .arg("mp4")
+        .arg("-brand")
+        .arg("M4B ")
         .arg("-movflags")
         .arg("+faststart")
         .arg(&tmp_m4b)
@@ -799,10 +824,14 @@ pub async fn export_to_mp3(
         .arg(&meta_file)
         .arg("-map_metadata")
         .arg("1")
+        .arg("-af")
+        .arg("loudnorm=I=-19:TP=-3.0:LRA=7,alimiter=limit=0.7:level=false")
         .arg("-codec:a")
         .arg("libmp3lame")
         .arg("-qscale:a")
         .arg("2")
+        .arg("-id3v2_version")
+        .arg("3")
         .arg(&tmp_mp3)
         .status()
         .await
@@ -833,7 +862,9 @@ mod tests {
         assert_eq!(reader.spec().sample_rate, 24000);
         assert_eq!(reader.duration(), 4800); // 200ms * 24 samples/ms
         let samples: Vec<i16> = reader.into_samples::<i16>().map(|s| s.unwrap()).collect();
-        assert!(samples.iter().all(|&s| s == 0));
+        let max_amp = samples.iter().map(|&s| s.abs()).max().unwrap_or(0);
+        assert!(max_amp <= 50, "Silence should remain ultra subtle studio room tone: max={}", max_amp);
+        assert!(max_amp > 0, "Silence should provide room tone instead of digital zero vacuum");
         let _ = std::fs::remove_file(tmp);
     }
 

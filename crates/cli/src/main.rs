@@ -75,6 +75,10 @@ enum Commands {
         #[arg(long)]
         narrator: Option<String>,
 
+        /// Rok wydania (metadane M4B / MP3)
+        #[arg(long)]
+        year: Option<String>,
+
         /// Uruchamia wbudowaną scenę demonstracyjną Kijów (Styl: Achaja)
         #[arg(long)]
         demo: bool,
@@ -225,12 +229,13 @@ async fn main() -> Result<()> {
             title,
             author,
             narrator,
+            year,
             demo,
             demo_effects,
         } => {
             let script_text = match input {
-                Some(file_path) if !demo && !demo_effects => {
-                    std::fs::read_to_string(&file_path)
+                Some(ref file_path) if !demo && !demo_effects => {
+                    std::fs::read_to_string(file_path)
                         .with_context(|| format!("Nie można odczytać pliku: {:?}", file_path))?
                 }
                 _ => {
@@ -271,15 +276,35 @@ async fn main() -> Result<()> {
             let is_mp3 = ext == "mp3";
             let is_wav = ext == "wav";
 
-            let book_title = title.unwrap_or_else(|| "Archiwum Pyłu".to_string());
-            let book_author = author.unwrap_or_else(|| "Adam Richter".to_string());
+            if !is_m4b && !is_mp3 && !is_wav {
+                anyhow::bail!(
+                    "Nieobsługiwany format pliku wyjściowego: {:?}. Obsługiwane rozszerzenia: .m4b, .mp3, .wav",
+                    output
+                );
+            }
+
+            let book_title = title.unwrap_or_else(|| {
+                input
+                    .as_ref()
+                    .and_then(|p| p.file_stem().and_then(|s| s.to_str()))
+                    .unwrap_or("Audioticon Audiobook")
+                    .to_string()
+            });
+            let book_author = author.unwrap_or_else(|| "Jarosław Kuchta".to_string());
             let book_narrator = narrator.unwrap_or_else(|| synthesizer.voice_name().to_string());
+            let book_year = year.unwrap_or_else(|| {
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| (1970 + d.as_secs() / 31_557_600).to_string())
+                    .unwrap_or_else(|_| "2026".to_string())
+            });
 
             println!("============================================================");
             println!("🎧 AUDIOTICON — Renderowanie Scenariusza");
             println!("Tytuł:     {}", book_title);
             println!("Autor:     {}", book_author);
             println!("Lektor:    {}", book_narrator);
+            println!("Rok:       {}", book_year);
             println!("Provider:  {:?}", provider);
             println!("Cache dir: {:?}", cache_path);
             println!("Wyjście:   {:?}", output);
@@ -302,14 +327,22 @@ async fn main() -> Result<()> {
             };
 
             let start_time = std::time::Instant::now();
-            let render_result = engine.render(&script, &wav_target).await?;
+            let render_result = match engine.render(&script, &wav_target).await {
+                Ok(res) => res,
+                Err(err) => {
+                    if !is_wav {
+                        let _ = std::fs::remove_file(&wav_target);
+                    }
+                    return Err(err);
+                }
+            };
             let elapsed = start_time.elapsed();
 
             let metadata = AudiobookMetadata {
                 title: Some(book_title),
                 author: Some(book_author),
                 narrator: Some(book_narrator),
-                year: Some("2024".to_string()),
+                year: Some(book_year),
             };
 
             if is_m4b {

@@ -2,7 +2,7 @@ use sha2::{Digest, Sha256};
 use crate::types::TextSegment;
 use crate::audio::build_ffmpeg_filter_chain;
 
-pub const CACHE_VERSION: u32 = 3;
+pub const CACHE_VERSION: u32 = 4;
 
 /// Computes a unique SHA-256 fingerprint for a text segment.
 /// Incorporates expressive actor tags, acoustic filter chain, and CACHE_VERSION so

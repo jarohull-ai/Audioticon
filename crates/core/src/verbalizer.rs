@@ -52,6 +52,34 @@ const ORDINAL_HOURS: [&str; 25] = [
     "dwudziesta czwarta",
 ];
 
+const ORDINAL_HOURS_LOCATIVE: [&str; 25] = [
+    "północy",
+    "pierwszej",
+    "drugiej",
+    "trzeciej",
+    "czwartej",
+    "piątej",
+    "szóstej",
+    "siódmej",
+    "ósmej",
+    "dziewiątej",
+    "dziesiątej",
+    "jedenastej",
+    "dwunastej",
+    "trzynastej",
+    "czternastej",
+    "piętnastej",
+    "szesnastej",
+    "siedemnastej",
+    "osiemnastej",
+    "dziewiętnastej",
+    "dwudziestej",
+    "dwudziestej pierwszej",
+    "dwudziestej drugiej",
+    "dwudziestej trzeciej",
+    "dwudziestej czwartej",
+];
+
 const ORDINAL_DAYS_GENITIVE: [&str; 32] = [
     "",
     "pierwszego",
@@ -245,11 +273,12 @@ fn year_to_words_genitive(year: u32) -> String {
     }
 }
 
-/// Normalizuje daty w formacie DD.MM.YYYY lub DD-MM-YYYY
+/// Normalizuje daty w formacie DD.MM.YYYY lub DD-MM-YYYY (oraz zjada opcjonalne 'roku' lub 'r.' po dacie)
 fn normalize_dates(text: &str) -> String {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| {
-        Regex::new(r"\b([0-3]?[0-9])[.\-/]([0-1]?[0-9])[.\-/]([1-2][0-9]{3})\b").expect("Valid date regex")
+        Regex::new(r"\b([0-3]?[0-9])[.\-/]([0-1]?[0-9])[.\-/]([1-2][0-9]{3})(?:\s*(?:roku|r\.))?\b")
+            .expect("Valid date regex")
     });
 
     re.replace_all(text, |caps: &Captures| {
@@ -268,14 +297,45 @@ fn normalize_dates(text: &str) -> String {
     }).to_string()
 }
 
-/// Normalizuje godziny w formacie HH:MM (np. 15:47 -> "piętnasta czterdzieści siedem")
+/// Normalizuje godziny w formacie HH:MM (z uwzględnieniem przyimków miejscownika np. "o 15:47" -> "o piętnastej czterdzieści siedem")
 fn normalize_times(text: &str) -> String {
+    static RE_PREP: OnceLock<Regex> = OnceLock::new();
+    let re_prep = RE_PREP.get_or_init(|| {
+        Regex::new(r"(?i)\b(o|od|do|około|godz\.|godzinie)\s+([0-2]?[0-9]):([0-5][0-9])\b")
+            .expect("Valid time with preposition regex")
+    });
+
+    let with_prep = re_prep.replace_all(text, |caps: &Captures| {
+        let prep = &caps[1];
+        let hour: usize = caps[2].parse().unwrap_or(99);
+        let minute: u32 = caps[3].parse().unwrap_or(99);
+
+        if hour <= 24 && minute < 60 {
+            let hour_str = ORDINAL_HOURS_LOCATIVE[hour];
+            let min_str = if minute == 0 {
+                String::new()
+            } else if minute < 10 {
+                format!("zero {}", number_to_words(minute as u64))
+            } else {
+                number_to_words(minute as u64)
+            };
+
+            if min_str.is_empty() {
+                format!("{} {}", prep, hour_str)
+            } else {
+                format!("{} {} {}", prep, hour_str, min_str)
+            }
+        } else {
+            caps[0].to_string()
+        }
+    }).to_string();
+
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| {
         Regex::new(r"\b([0-2]?[0-9]):([0-5][0-9])\b").expect("Valid time regex")
     });
 
-    re.replace_all(text, |caps: &Captures| {
+    re.replace_all(&with_prep, |caps: &Captures| {
         let hour: usize = caps[1].parse().unwrap_or(99);
         let minute: u32 = caps[2].parse().unwrap_or(99);
 
@@ -346,8 +406,8 @@ mod tests {
     #[test]
     fn test_normalize_time() {
         assert_eq!(normalize_times("Godzina: 15:47."), "Godzina: piętnasta czterdzieści siedem.");
-        assert_eq!(normalize_times("O 08:05 rano."), "O ósma zero pięć rano.");
-        assert_eq!(normalize_times("Spotkanie o 12:00."), "Spotkanie o dwunasta.");
+        assert_eq!(normalize_times("O 08:05 rano."), "O ósmej zero pięć rano.");
+        assert_eq!(normalize_times("Spotkanie o 12:00."), "Spotkanie o dwunastej.");
     }
 
     #[test]
@@ -358,7 +418,7 @@ mod tests {
         );
         assert_eq!(
             normalize_dates("Dnia 15.03.2024 roku"),
-            "Dnia piętnastego marca dwa tysiące dwudziestego czwartego roku roku"
+            "Dnia piętnastego marca dwa tysiące dwudziestego czwartego roku"
         );
     }
 
