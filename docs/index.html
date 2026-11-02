@@ -282,6 +282,65 @@
       box-shadow: 0 8px 25px rgba(6, 182, 212, 0.5);
     }
 
+    .btn-render {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 0.75rem 1.4rem;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-render:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(16, 185, 129, 0.6);
+    }
+
+    .btn-render:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .engine-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 0.6rem 0.9rem;
+    }
+
+    .engine-bar select {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      color: #f1f5f9;
+      font-size: 0.85rem;
+      padding: 0.4rem 0.6rem;
+      outline: none;
+    }
+
+    .engine-status-badge {
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      background: rgba(59, 130, 246, 0.15);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
     .info-box {
       font-size: 0.85rem;
       color: var(--text-muted);
@@ -378,6 +437,26 @@
         </div>
       </div>
 
+      <!-- Controls: Engine & Language & Render -->
+      <div class="engine-bar">
+        <label style="font-size: 0.85rem; color: var(--text-muted);">Silnik TTS:</label>
+        <select id="tts-provider">
+          <option value="piper">Piper (100% Offline, ~20ms cache)</option>
+          <option value="edge">Edge Neural (Marek / Zofia)</option>
+        </select>
+
+        <label style="font-size: 0.85rem; color: var(--text-muted); margin-left: 0.5rem;">Język:</label>
+        <select id="tts-lang">
+          <option value="pl">Polski (PL)</option>
+          <option value="en">English (EN)</option>
+        </select>
+
+        <div style="flex: 1;"></div>
+        <button id="btn-render" onclick="renderCustomAudio()" class="btn-render">
+          ▶ Renderuj i odsłuchaj
+        </button>
+      </div>
+
       <!-- Emoji insertion bar -->
       <div class="emoji-toolbar">
         <button class="emoji-btn" onclick="insertEmoji('🛑')">🛑 <span>Koniec</span></button>
@@ -389,6 +468,9 @@
         <button class="emoji-btn" onclick="insertEmoji('🤖')">🤖 <span>Robot</span></button>
         <button class="emoji-btn" onclick="insertEmoji('💥')">💥 <span>Akcent</span></button>
         <button class="emoji-btn" onclick="insertEmoji('😮‍💨')">😮‍💨 <span>Oddech</span></button>
+        <button class="emoji-btn" onclick="insertEmoji('[pauza]')"><span>[pauza]</span></button>
+        <button class="emoji-btn" onclick="insertEmoji('[radio]')"><span>[radio]</span></button>
+        <button class="emoji-btn" onclick="insertEmoji('[katedra]')"><span>[katedra]</span></button>
       </div>
 
       <textarea id="script-input" spellcheck="false"></textarea>
@@ -398,7 +480,7 @@
         <div class="player-wrap">
           <audio id="audio-player" controls preload="auto"></audio>
         </div>
-        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
           <button onclick="downloadScriptTxt()" class="btn-download" style="background: rgba(255, 255, 255, 0.1); box-shadow: none; border: 1px solid rgba(255, 255, 255, 0.2);">
             📄 Pobierz scenariusz (.txt)
           </button>
@@ -408,8 +490,8 @@
         </div>
       </div>
 
-      <div class="info-box">
-        💡 <strong>Plik MP3 wyrenderowany bezpośrednio przez Audioticon z modelem Piper i masteringiem EBU R128 (-19 LUFS / -3.5 dBTP).</strong> Możesz go odtworzyć bezpośrednio powyżej lub pobrać na dysk i odsłuchać w VLC, słuchawkach lub na telefonie.
+      <div class="info-box" id="info-status-box">
+        💡 <strong>Plik MP3 wyrenderowany bezpośrednio przez Audioticon z masteringiem EBU R128 (-19 LUFS / -3.5 dBTP).</strong> Możesz go odtworzyć bezpośrednio powyżej lub pobrać na dysk i odsłuchać w VLC, słuchawkach lub na telefonie. Wpisz własny tekst i kliknij <strong>▶ Renderuj i odsłuchaj</strong>!
       </div>
 
       <!-- Export Tabs -->
@@ -529,10 +611,84 @@
       }).join(' ');
 
       // CLI
-      let cli = `# Renderowanie tego scenariusza w Audioticon CLI:\naudioticon render \\\n  --input scenariusz.txt \\\n  --output audiobook.m4b \\\n  --provider piper \\\n  --lang pl`;
+      const prov = document.getElementById('tts-provider')?.value || 'piper';
+      const lang = document.getElementById('tts-lang')?.value || 'pl';
+      let cli = `# Renderowanie tego scenariusza w Audioticon CLI:\naudioticon render \\\n  --input scenariusz.txt \\\n  --output audiobook.m4b \\\n  --provider ${prov} \\\n  --lang ${lang}`;
 
       window.exportData = { eleven, chattts, cli };
       showActiveTab();
+    }
+
+    async function renderCustomAudio() {
+      const text = document.getElementById('script-input').value.trim();
+      if (!text) {
+        alert("Wpisz tekst scenariusza do wyrenderowania!");
+        return;
+      }
+
+      const provider = document.getElementById('tts-provider').value;
+      const lang = document.getElementById('tts-lang').value;
+      const btn = document.getElementById('btn-render');
+      const infoBox = document.getElementById('info-status-box');
+
+      const originalBtnText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `⏳ Renderowanie EBU R128...`;
+      infoBox.innerHTML = `⏳ <strong>Trwa renderowanie...</strong> Silnik: <em>${provider}</em>, język: <em>${lang}</em>. Przetwarzanie filtrów DSP, normalizacja EBU R128 (-19 LUFS / -3.5 dBTP)...`;
+
+      // Try local server first (relative or 127.0.0.1:3000)
+      const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const endpoints = isLocalHost ? ['/api/render'] : ['http://127.0.0.1:3000/api/render', '/api/render'];
+
+      let success = false;
+      let lastErr = null;
+
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: text,
+              provider: provider,
+              lang: lang,
+              voice: lang === 'pl' ? 'pl-PL-MarekNeural' : 'en-US-ChristopherNeural'
+            })
+          });
+
+          if (res.ok) {
+            const blob = await res.blob();
+            const audioUrl = URL.createObjectURL(blob);
+
+            const player = document.getElementById('audio-player');
+            player.pause();
+            player.src = audioUrl;
+            player.load();
+            player.play();
+
+            const dl = document.getElementById('btn-download-mp3');
+            dl.href = audioUrl;
+            dl.download = `audioticon_${Date.now()}.mp3`;
+
+            infoBox.innerHTML = `✅ <strong>Sukces!</strong> Wyrenderowano własny tekst z masteringiem EBU R128 (-19 LUFS). Odtwarzanie rozpoczęte. Możesz pobrać plik MP3 przyciskiem powyżej.`;
+            document.querySelectorAll('.preset-chip').forEach(c => c.classList.remove('active'));
+            success = true;
+            break;
+          } else {
+            const errText = await res.text();
+            lastErr = `Błąd serwera (${res.status}): ${errText}`;
+          }
+        } catch (e) {
+          lastErr = e.message;
+        }
+      }
+
+      if (!success) {
+        infoBox.innerHTML = `ℹ️ <strong>Brak aktywnego silnika lokalnego.</strong> Aby renderować dowolny własny tekst offline z masteringiem EBU R128, uruchom w terminalu: <br><code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">audioticon studio</code> (lub <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">audioticon serve</code>).<br>W tej chwili możesz odtwarzać i pobierać 5 gotowych próbek demonstracyjnych powyżej!`;
+      }
+
+      btn.disabled = false;
+      btn.innerHTML = originalBtnText;
     }
 
     let currentTab = 'eleven';
@@ -553,6 +709,12 @@
       selectPreset('aurora');
       document.getElementById('script-input').addEventListener('input', (e) => {
         updateExports(e.target.value);
+      });
+      document.getElementById('tts-provider')?.addEventListener('change', () => {
+        updateExports(document.getElementById('script-input').value);
+      });
+      document.getElementById('tts-lang')?.addEventListener('change', () => {
+        updateExports(document.getElementById('script-input').value);
       });
     });
   </script>

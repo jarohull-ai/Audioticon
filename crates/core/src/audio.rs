@@ -294,6 +294,21 @@ impl EdgeTtsBridge {
     }
 
     fn find_edge_tts() -> PathBuf {
+        // 1. Check dedicated audioticon virtualenv (~/.local/share/audioticon/venv/bin/edge-tts)
+        if let Some(data_dir) = dirs::data_dir() {
+            let venv_edge = data_dir.join("audioticon/venv/bin/edge-tts");
+            if venv_edge.exists() {
+                return venv_edge;
+            }
+        }
+        // 2. Check active VIRTUAL_ENV
+        if let Ok(venv) = std::env::var("VIRTUAL_ENV") {
+            let p = PathBuf::from(venv).join("bin/edge-tts");
+            if p.exists() {
+                return p;
+            }
+        }
+        // 3. Fallbacks
         let candidates = [
             "/tmp/edge_env/bin/edge-tts",
             "/usr/local/bin/edge-tts",
@@ -450,7 +465,12 @@ impl PiperBridge {
             }
         }
         // 3. Fallbacks
-        let candidates = ["/tmp/edge_env/bin/python3", "/usr/bin/python3", "python3"];
+        let candidates = [
+            "/tmp/edge_env/bin/python3",
+            "/usr/local/bin/python3",
+            "/usr/bin/python3",
+            "python3",
+        ];
         for c in candidates {
             if Path::new(c).exists() {
                 return PathBuf::from(c);

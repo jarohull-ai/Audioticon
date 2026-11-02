@@ -162,36 +162,57 @@ cd Audioticon
 
 ---
 
-## 💻 Użycie CLI
+## 💻 Użycie CLI i Audioticon Studio
+
+### 🌐 Audioticon Studio (Workbench GUI)
+
+Możesz uruchomić wbudowany graficzny edytor scenariusza z odsłuchem na żywo jednym poleceniem:
+
+```bash
+audioticon studio
+# lub audioticon serve --port 3000
+```
+
+Audioticon automatycznie otwiera interfejs w przeglądarce (`http://localhost:3000`):
+- **Edytor reżyserski:** wklejaj tekst, klikaj emotikony lub wpisuj aliasy tekstowe `[pauza]`, `[radio]`, `[katedra]`, `[robot]`.
+- **Wybór silnika i języka:** Piper Offline (100% lokalny, ~20ms cache) lub Edge Neural (Marek / Zofia), język polski i angielski.
+- **Natychmiastowy render i odsłuch:** kliknij **▶ Renderuj i odsłuchaj**, aby zsyntetyzować scenę, nałożyć filtry DSP i zmasterować do **EBU R128 (-19 LUFS / -3.5 dBTP)**.
+- **Bezpośrednie pobieranie MP3:** odsłuchaj w przeglądarce lub pobierz gotowy plik na słuchawki / telefon.
+- **Wersja demonstracyjna online:** dostępna także na GitHub Pages: [https://jarohull-ai.github.io/Audioticon/](https://jarohull-ai.github.io/Audioticon/).
+
+### ⌨️ Polecenia CLI
 
 ```bash
 # Wyświetlenie pomocy
-cargo run --release --bin audioticon-cli -- --help
+audioticon --help
+
+# Uruchomienie graficznego studia Workbench w przeglądarce
+audioticon studio
 
 # Renderowanie audiobooka z rozdziałami do formatu Apple M4B (AAC + metadane)
-cargo run --release --bin audioticon-cli -- render -i ksiazka.txt -o audiobook.m4b --title "Przykładowa Książka" --author "Autor Książki"
+audioticon render -i ksiazka.txt -o audiobook.m4b --title "Przykładowa Książka" --author "Autor Książki"
 
 # Renderowanie w 100% OFFLINE (Piper TTS z modelem lokalnym)
-cargo run --release --bin audioticon-cli -- render -i ksiazka.txt --provider piper -o audiobook.m4b
+audioticon render -i ksiazka.txt --provider piper -o audiobook.m4b
 
 # Renderowanie w języku angielskim (z automatycznym doborem modelu en_US)
-cargo run --release --bin audioticon-cli -- render -i ksiazka_en.txt --lang en --provider piper -o audiobook_en.m4b
+audioticon render -i ksiazka_en.txt --lang en --provider piper -o audiobook_en.m4b
 
 # Eksport skryptu z tagami aktorskimi dla ElevenLabs v3 ([whispers], [sighs], [shouts])
-cargo run --release --bin audioticon-cli -- script -i ksiazka.txt -f elevenlabs
+audioticon script -i ksiazka.txt -f elevenlabs
 
 # Eksport skryptu dla ChatTTS ([whisper], [sigh], [fast])
-cargo run --release --bin audioticon-cli -- script -i ksiazka.txt -f chattts
+audioticon script -i ksiazka.txt -f chattts
 
 # Podgląd osi czasu reżyserii z analizą stylu i filtrów
-cargo run --release --bin audioticon-cli -- script --demo -f timeline
+audioticon script --demo -f timeline
 
 # Demonstracja efektów dźwiękowych (telefon, radio, katedra, robot)
-cargo run --release --bin audioticon-cli -- render --demo-effects -o efekty.mp3
+audioticon render --demo-effects -o efekty.mp3
 
 # Zarządzanie buforem pamięci podręcznej (cache)
-cargo run --release --bin audioticon-cli -- cache
-cargo run --release --bin audioticon-cli -- cache --clear
+audioticon cache
+audioticon cache --clear
 ```
 
 ---

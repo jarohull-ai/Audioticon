@@ -391,15 +391,16 @@ impl PresetRegistry {
         // Check if tag is in the form of "emoji:variant" or "base:variant"
         if let Some((base_key, variant)) = tag.split_once(':') {
             // First check if base_key itself matches a preset
-            let canonical_base = match base_key.trim() {
-                "📱" | "phone" => "phone",
+            let clean_base = base_key.trim().trim_start_matches('[').trim_end_matches(']');
+            let canonical_base = match clean_base {
+                "📱" | "phone" | "telefon" => "phone",
                 "📻" | "radio" => "radio",
-                "📢" | "megaphone" => "megaphone",
-                "🏛️" | "🏛" | "cathedral" => "cathedral",
-                "🏰" | "dungeon" => "dungeon",
-                "💭" | "thought" => "thought",
+                "📢" | "megaphone" | "megafon" | "shout" => "megaphone",
+                "🏛️" | "🏛" | "cathedral" | "katedra" => "cathedral",
+                "🏰" | "dungeon" | "lochy" => "dungeon",
+                "💭" | "thought" | "mysli" | "myśli" => "thought",
                 "🤖" | "robot" => "robot",
-                "🤫" | "whisper" => "whisper",
+                "🤫" | "whisper" | "szept" => "whisper",
                 other => other,
             };
 
@@ -420,15 +421,16 @@ impl PresetRegistry {
         }
 
         // Try canonical base mapping
-        let canonical = match tag.trim() {
-            "📱" => "phone",
-            "📻" => "radio",
-            "📢" => "megaphone",
-            "🏛️" | "🏛" => "cathedral",
-            "🏰" => "dungeon",
-            "💭" => "thought",
-            "🤖" => "robot",
-            "🤫" => "whisper",
+        let clean_tag = tag.trim().trim_start_matches('[').trim_end_matches(']');
+        let canonical = match clean_tag {
+            "📱" | "phone" | "telefon" => "phone",
+            "📻" | "radio" => "radio",
+            "📢" | "megaphone" | "megafon" | "shout" => "megaphone",
+            "🏛️" | "🏛" | "cathedral" | "katedra" => "cathedral",
+            "🏰" | "dungeon" | "lochy" => "dungeon",
+            "💭" | "thought" | "mysli" | "myśli" => "thought",
+            "🤖" | "robot" => "robot",
+            "🤫" | "whisper" | "szept" => "whisper",
             other => other,
         };
 
