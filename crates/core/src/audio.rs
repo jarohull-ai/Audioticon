@@ -35,6 +35,118 @@ pub fn create_silence_wav(out_path: &Path, duration_ms: u32, sample_rate: u32) -
     Ok(())
 }
 
+/// Biquad digital filter for formant modeling (Audio EQ Cookbook)
+struct BiquadFilter {
+    b0: f32,
+    b1: f32,
+    b2: f32,
+    a1: f32,
+    a2: f32,
+    x1: f32,
+    x2: f32,
+    y1: f32,
+    y2: f32,
+}
+
+impl BiquadFilter {
+    fn bandpass(sample_rate: f32, center_freq: f32, q: f32) -> Self {
+        let w0 = 2.0 * std::f32::consts::PI * center_freq / sample_rate;
+        let alpha = w0.sin() / (2.0 * q);
+        let b0 = alpha;
+        let b1 = 0.0;
+        let b2 = -alpha;
+        let a0 = 1.0 + alpha;
+        let a1 = -2.0 * w0.cos();
+        let a2 = 1.0 - alpha;
+
+        Self {
+            b0: b0 / a0,
+            b1: b1 / a0,
+            b2: b2 / a0,
+            a1: a1 / a0,
+            a2: a2 / a0,
+            x1: 0.0,
+            x2: 0.0,
+            y1: 0.0,
+            y2: 0.0,
+        }
+    }
+
+    fn process(&mut self, sample: f32) -> f32 {
+        let out = self.b0 * sample + self.b1 * self.x1 + self.b2 * self.x2 - self.a1 * self.y1 - self.a2 * self.y2;
+        self.x2 = self.x1;
+        self.x1 = sample;
+        self.y2 = self.y1;
+        self.y1 = out;
+        out
+    }
+}
+
+/// Fast XorShift64 PRNG for deterministic procedural audio noise
+struct SimpleNoiseRng(u64);
+
+impl SimpleNoiseRng {
+    fn new(seed: u64) -> Self {
+        Self(if seed == 0 { 0x853c_49e6_748f_ea9b } else { seed })
+    }
+
+    fn next_f32(&mut self) -> f32 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        ((self.0 as f32) / (u64::MAX as f32)) * 2.0 - 1.0
+    }
+}
+
+/// Generates an organic lektor breath / sigh WAV file.
+/// Uses a procedural acoustic model with vocal tract formants (750Hz and 1750Hz)
+/// shaped by an organic attack/decay respiratory envelope.
+pub fn create_breath_wav(out_path: &Path, duration_ms: u32, sample_rate: u32) -> Result<()> {
+    let tmp_path = out_path.with_extension("tmp.wav");
+    let spec = WavSpec {
+        channels: 1,
+        sample_rate,
+        bits_per_sample: 16,
+        sample_format: SampleFormat::Int,
+    };
+    let mut writer = WavWriter::create(&tmp_path, spec)
+        .with_context(|| format!("Nie można utworzyć pliku oddechu: {:?}", tmp_path))?;
+
+    let total_samples = (sample_rate as u64 * duration_ms as u64) / 1000;
+    let mut bp_pharynx = BiquadFilter::bandpass(sample_rate as f32, 750.0, 1.2);
+    let mut bp_oral = BiquadFilter::bandpass(sample_rate as f32, 1750.0, 1.5);
+    let mut rng = SimpleNoiseRng::new(0xa5a5_5a5a_1234_5678);
+
+    let attack_samples = ((total_samples as f32) * 0.22) as usize;
+    let decay_samples = (total_samples as usize).saturating_sub(attack_samples).max(1);
+
+    for i in 0..total_samples as usize {
+        let white_sample = rng.next_f32();
+        let f1 = bp_pharynx.process(white_sample);
+        let f2 = bp_oral.process(white_sample) * 0.55;
+        let colored_noise = f1 + f2;
+
+        let env = if i < attack_samples {
+            let t = i as f32 / attack_samples as f32;
+            (t * std::f32::consts::PI / 2.0).sin()
+        } else {
+            let t = (i - attack_samples) as f32 / decay_samples as f32;
+            ((1.0 - t).max(0.0) * std::f32::consts::PI / 2.0).sin().powi(2)
+        };
+
+        let gain = 0.042; // ~ -27.5 dBFS subtle lektor breath
+        let val = (colored_noise * env * gain * 32767.0).clamp(-32768.0, 32767.0) as i16;
+        writer.write_sample(val)?;
+    }
+    writer.finalize()?;
+
+    // Atomic move
+    std::fs::rename(&tmp_path, out_path)
+        .with_context(|| format!("Nie można przenieść pliku oddechu do: {:?}", out_path))?;
+
+    Ok(())
+}
+
 /// Pure Rust seamless sample-accurate stitching of multiple WAV files into one.
 /// Validates headers and supports mono downmixing if needed.
 pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -> Result<()> {
@@ -454,6 +566,13 @@ impl AudioDirectorEngine {
                     }
                     chunk_paths.push(silence_file);
                 }
+                DirectedItem::Breath(ms) => {
+                    let breath_file = self.cache_dir.join(format!("breath_{}ms.wav", ms));
+                    if !breath_file.exists() {
+                        create_breath_wav(&breath_file, *ms, DEFAULT_SAMPLE_RATE)?;
+                    }
+                    chunk_paths.push(breath_file);
+                }
                 DirectedItem::Speech(segment) => {
                     let hash = compute_segment_hash(segment, self.synthesizer.voice_name());
                     let cached_wav = self.cache_dir.join(format!("{}.wav", hash));
@@ -501,5 +620,37 @@ impl AudioDirectorEngine {
 
         println!("Zakończono! Cache hits: {}, Nowo wygenerowane: {}", cache_hits, chunk_paths.len() - cache_hits);
         Ok(chunk_paths.len())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_silence_wav() {
+        let tmp = std::env::temp_dir().join("test_silence.wav");
+        create_silence_wav(&tmp, 200, 24000).expect("Create silence");
+        let reader = WavReader::open(&tmp).expect("Read silence");
+        assert_eq!(reader.spec().sample_rate, 24000);
+        assert_eq!(reader.duration(), 4800); // 200ms * 24 samples/ms
+        let samples: Vec<i16> = reader.into_samples::<i16>().map(|s| s.unwrap()).collect();
+        assert!(samples.iter().all(|&s| s == 0));
+        let _ = std::fs::remove_file(tmp);
+    }
+
+    #[test]
+    fn test_create_breath_wav() {
+        let tmp = std::env::temp_dir().join("test_breath.wav");
+        create_breath_wav(&tmp, 350, 24000).expect("Create breath");
+        let reader = WavReader::open(&tmp).expect("Read breath");
+        assert_eq!(reader.spec().sample_rate, 24000);
+        assert_eq!(reader.duration(), 8400); // 350ms * 24 samples/ms
+        let samples: Vec<i16> = reader.into_samples::<i16>().map(|s| s.unwrap()).collect();
+        // Breath must not be silent, and must have smooth bounded amplitude
+        let max_amp = samples.iter().map(|&s| s.abs()).max().unwrap_or(0);
+        assert!(max_amp > 100, "Breath should not be dead silent: max={}", max_amp);
+        assert!(max_amp < 15000, "Breath should remain subtle and not clip: max={}", max_amp);
+        let _ = std::fs::remove_file(tmp);
     }
 }

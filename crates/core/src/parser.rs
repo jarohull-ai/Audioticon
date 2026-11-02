@@ -17,7 +17,7 @@ impl Default for EmojiDirector {
         m.insert("🛑".to_string(), EmojiAction::Pause(900));
         m.insert("⏸️".to_string(), EmojiAction::Pause(400));
         m.insert("⏸".to_string(), EmojiAction::Pause(400));
-        m.insert("😮‍💨".to_string(), EmojiAction::Pause(350));
+        m.insert("😮‍💨".to_string(), EmojiAction::Breath(380));
         
         // Dynamics & Tempo
         m.insert("🐢".to_string(), EmojiAction::RateMod(-14));
@@ -142,6 +142,9 @@ impl EmojiDirector {
                             current_segment = TextSegment::default();
                             pending_one_shot_volume = false;
                         }
+                    }
+                    EmojiAction::Breath(ms) => {
+                        script.items.push(DirectedItem::Breath(*ms));
                     }
                     EmojiAction::RateMod(rate) => {
                         current_segment.rate_mod = *rate;
