@@ -398,9 +398,14 @@
         <div class="player-wrap">
           <audio id="audio-player" controls preload="auto"></audio>
         </div>
-        <a id="btn-download-mp3" href="audio/aurora.mp3" download="audioticon_stacja_aurora.mp3" class="btn-download">
-          ⬇ Pobierz plik MP3
-        </a>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <button onclick="downloadScriptTxt()" class="btn-download" style="background: rgba(255, 255, 255, 0.1); box-shadow: none; border: 1px solid rgba(255, 255, 255, 0.2);">
+            📄 Pobierz scenariusz (.txt)
+          </button>
+          <a id="btn-download-mp3" href="audio/aurora.mp3" download="audioticon_stacja_aurora.mp3" class="btn-download">
+            ⬇ Pobierz plik MP3
+          </a>
+        </div>
       </div>
 
       <div class="info-box">
@@ -451,6 +456,19 @@
         text: `Z ciemnego korytarza wyłonił się syntetyczny głos autonomicznego mechanizmu: 🛑\n🤖 "Autodiagnostyka zakończona. 💥Cel zidentyfikowany. Rozpoczynam procedurę." 🛑\n\nI znowu zapadła lodowata cisza. 🛑`
       }
     };
+
+    function downloadScriptTxt() {
+      const text = document.getElementById('script-input').value;
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'scenariusz_audioticon.txt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
 
     function selectPreset(key) {
       document.querySelectorAll('.preset-chip').forEach(c => c.classList.remove('active'));
