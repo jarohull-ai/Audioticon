@@ -1,11 +1,11 @@
-use std::path::PathBuf;
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand, ValueEnum};
-use std::sync::Arc;
 use audioticon_core::{
-    export_to_m4b, export_to_mp3, presets, AudiobookMetadata, AudioDirectorEngine, DirectedItem,
+    export_to_m4b, export_to_mp3, presets, AudioDirectorEngine, AudiobookMetadata, DirectedItem,
     EdgeTtsBridge, EmojiDirector, PiperBridge, PresetRegistry, ProjectConfig, SpeechSynthesizer,
 };
+use clap::{Parser, Subcommand, ValueEnum};
+use std::path::PathBuf;
+use std::sync::Arc;
 
 #[derive(Parser)]
 #[command(name = "audioticon")]
@@ -144,7 +144,10 @@ fn get_default_piper_model(lang: &str) -> PathBuf {
     if let Some(data_dir) = dirs::data_dir() {
         data_dir.join("audioticon").join("models").join(filename)
     } else {
-        PathBuf::from(format!("/home/jaro/.local/share/audioticon/models/{}", filename))
+        PathBuf::from(format!(
+            "/home/jaro/.local/share/audioticon/models/{}",
+            filename
+        ))
     }
 }
 
@@ -230,7 +233,9 @@ async fn main() -> Result<()> {
                 }
             } else {
                 let count = if cache_path.exists() {
-                    std::fs::read_dir(&cache_path)?.filter_map(|e| e.ok()).count()
+                    std::fs::read_dir(&cache_path)?
+                        .filter_map(|e| e.ok())
+                        .count()
                 } else {
                     0
                 };
@@ -254,10 +259,8 @@ async fn main() -> Result<()> {
             demo_effects,
         } => {
             let script_text = match input {
-                Some(ref file_path) if !demo && !demo_effects => {
-                    std::fs::read_to_string(file_path)
-                        .with_context(|| format!("Nie można odczytać pliku: {:?}", file_path))?
-                }
+                Some(ref file_path) if !demo && !demo_effects => std::fs::read_to_string(file_path)
+                    .with_context(|| format!("Nie można odczytać pliku: {:?}", file_path))?,
                 _ => {
                     if demo_effects {
                         DEMO_EFFECTS_SCENE.to_string()
@@ -352,7 +355,10 @@ async fn main() -> Result<()> {
             println!("Cache dir: {:?}", cache_path);
             println!("Wyjście:   {:?}", output);
             if !project_cfg.presets.is_empty() {
-                println!("Presety:   zaimportowano {} wariantów z audioticon.toml", project_cfg.presets.len());
+                println!(
+                    "Presety:   zaimportowano {} wariantów z audioticon.toml",
+                    project_cfg.presets.len()
+                );
             }
             println!("============================================================");
 
@@ -403,7 +409,10 @@ async fn main() -> Result<()> {
             }
 
             if !render_result.chapters.is_empty() {
-                println!("\n📑 Wygenerowane rozdziały ({}):", render_result.chapters.len());
+                println!(
+                    "\n📑 Wygenerowane rozdziały ({}):",
+                    render_result.chapters.len()
+                );
                 for ch in &render_result.chapters {
                     let start_sec = ch.start_ms as f64 / 1000.0;
                     let end_sec = ch.end_ms as f64 / 1000.0;
@@ -429,7 +438,12 @@ async fn main() -> Result<()> {
             );
             println!("============================================================");
         }
-        Commands::Script { input, format, lang, demo } => {
+        Commands::Script {
+            input,
+            format,
+            lang,
+            demo,
+        } => {
             let clean_lang = lang.to_lowercase();
             if clean_lang != "pl" && clean_lang != "en" {
                 anyhow::bail!(
@@ -462,7 +476,9 @@ async fn main() -> Result<()> {
                             DirectedItem::Chapter(title) => {
                                 println!("\n[{:02}] 📖 ROZDZIAŁ: {}", idx, title)
                             }
-                            DirectedItem::Silence(ms) => println!("  [{:02}] ⏸️ PAUZA: {} ms", idx, ms),
+                            DirectedItem::Silence(ms) => {
+                                println!("  [{:02}] ⏸️ PAUZA: {} ms", idx, ms)
+                            }
                             DirectedItem::Breath(ms) => {
                                 println!("  [{:02}] 😮‍💨 ODDECH / WESTCHNIENIE: {} ms", idx, ms)
                             }
@@ -506,10 +522,16 @@ async fn main() -> Result<()> {
             println!("============================================================");
             println!("🎛️ AUDIOTICON — Rejestr Presetów Akustycznych");
             if !project_cfg.presets.is_empty() {
-                println!("Konfiguracja projektu: załadowano {} własnych wariantów", project_cfg.presets.len());
+                println!(
+                    "Konfiguracja projektu: załadowano {} własnych wariantów",
+                    project_cfg.presets.len()
+                );
             }
             println!("============================================================");
-            println!("{:<4} {:<22} {:<12} Kluczowe parametry", "Lp.", "Preset / Wariant", "Bazowy typ");
+            println!(
+                "{:<4} {:<22} {:<12} Kluczowe parametry",
+                "Lp.", "Preset / Wariant", "Bazowy typ"
+            );
             println!("------------------------------------------------------------");
             for (idx, (name, preset)) in registry.list_presets().iter().enumerate() {
                 let mut details = Vec::new();
@@ -537,8 +559,18 @@ async fn main() -> Result<()> {
                 if let Some(pitch) = preset.pitch {
                     details.push(format!("pitch={:+}Hz", pitch));
                 }
-                let details_str = if details.is_empty() { "domyślne".to_string() } else { details.join(", ") };
-                println!("{:02}.  {:<22} {:<12} {}", idx + 1, name, preset.base, details_str);
+                let details_str = if details.is_empty() {
+                    "domyślne".to_string()
+                } else {
+                    details.join(", ")
+                };
+                println!(
+                    "{:02}.  {:<22} {:<12} {}",
+                    idx + 1,
+                    name,
+                    preset.base,
+                    details_str
+                );
             }
             println!("============================================================");
         }

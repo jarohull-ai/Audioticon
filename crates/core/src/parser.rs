@@ -1,8 +1,8 @@
-use std::collections::HashMap;
-use regex::Regex;
 use crate::presets::PresetRegistry;
 use crate::types::{ActorTag, DirectedItem, DirectedScript, EmojiAction, TextSegment};
 use crate::verbalizer::normalize_polish_text;
+use regex::Regex;
+use std::collections::HashMap;
 
 /// Configurable Emoji Director Grammar
 #[derive(Debug, Clone)]
@@ -21,7 +21,7 @@ impl Default for EmojiDirector {
         m.insert("⏸️".to_string(), EmojiAction::Pause(400));
         m.insert("⏸".to_string(), EmojiAction::Pause(400));
         m.insert("😮‍💨".to_string(), EmojiAction::Breath(380));
-        
+
         // Dynamics & Tempo
         m.insert("🐢".to_string(), EmojiAction::RateMod(-14));
         m.insert("🐇".to_string(), EmojiAction::RateMod(15));
@@ -29,13 +29,22 @@ impl Default for EmojiDirector {
         m.insert("📈".to_string(), EmojiAction::PitchMod(6));
         m.insert("💥".to_string(), EmojiAction::VolumeMod(15));
         m.insert("🤫".to_string(), EmojiAction::VolumeMod(-25));
-        
+
         // DSP Filters & Acoustic Environments
         m.insert("📱".to_string(), EmojiAction::Filter("phone".to_string()));
         m.insert("📻".to_string(), EmojiAction::Filter("radio".to_string()));
-        m.insert("📢".to_string(), EmojiAction::Filter("megaphone".to_string()));
-        m.insert("🏛️".to_string(), EmojiAction::Filter("cathedral".to_string()));
-        m.insert("🏛".to_string(), EmojiAction::Filter("cathedral".to_string()));
+        m.insert(
+            "📢".to_string(),
+            EmojiAction::Filter("megaphone".to_string()),
+        );
+        m.insert(
+            "🏛️".to_string(),
+            EmojiAction::Filter("cathedral".to_string()),
+        );
+        m.insert(
+            "🏛".to_string(),
+            EmojiAction::Filter("cathedral".to_string()),
+        );
         m.insert("🏰".to_string(), EmojiAction::Filter("dungeon".to_string()));
         m.insert("💭".to_string(), EmojiAction::Filter("thought".to_string()));
         m.insert("🤖".to_string(), EmojiAction::Filter("robot".to_string()));
@@ -106,7 +115,10 @@ impl EmojiDirector {
                     .chars()
                     .take_while(|c| c.is_ascii_punctuation() && !c.is_whitespace())
                     .count();
-                return (&trimmed[..token_end + punc_len], trimmed[token_end + punc_len..].trim_start());
+                return (
+                    &trimmed[..token_end + punc_len],
+                    trimmed[token_end + punc_len..].trim_start(),
+                );
             }
         }
         match trimmed.find(char::is_whitespace) {
@@ -126,7 +138,11 @@ impl EmojiDirector {
         if remainder.starts_with('[') {
             if let Some(close_bracket) = remainder.find(']') {
                 let inside = &remainder[1..close_bracket];
-                if !inside.is_empty() && inside.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+                if !inside.is_empty()
+                    && inside
+                        .chars()
+                        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+                {
                     return (Some(inside), close_bracket + 1);
                 }
             }
@@ -189,7 +205,9 @@ impl EmojiDirector {
                     let (title, remainder) = Self::split_chapter_title(before);
                     if !title.is_empty() {
                         let clean_title = title.trim_end_matches(['.', ':', ';', ' ']).trim();
-                        script.items.push(DirectedItem::Chapter(clean_title.to_string()));
+                        script
+                            .items
+                            .push(DirectedItem::Chapter(clean_title.to_string()));
                         let mut title_seg = current_segment.clone();
                         title_seg.text = self.normalize_text(title);
                         script.items.push(DirectedItem::Speech(title_seg));
@@ -227,7 +245,9 @@ impl EmojiDirector {
                 let clean_text = text_buf.trim().to_string();
                 if !clean_text.is_empty() {
                     current_segment.text = self.normalize_text(&clean_text);
-                    script.items.push(DirectedItem::Speech(current_segment.clone()));
+                    script
+                        .items
+                        .push(DirectedItem::Speech(current_segment.clone()));
                     text_buf.clear();
                 }
 
@@ -314,7 +334,9 @@ impl EmojiDirector {
                 let (title, remainder) = Self::split_chapter_title(tail);
                 if !title.is_empty() {
                     let clean_title = title.trim_end_matches(['.', ':', ';', ' ']).trim();
-                    script.items.push(DirectedItem::Chapter(clean_title.to_string()));
+                    script
+                        .items
+                        .push(DirectedItem::Chapter(clean_title.to_string()));
                     let mut title_seg = current_segment.clone();
                     title_seg.text = self.normalize_text(title);
                     script.items.push(DirectedItem::Speech(title_seg));

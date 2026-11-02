@@ -22,12 +22,12 @@ pub enum EmojiAction {
 /// Expressive actor delivery and emotion tags for next-gen neural voice models.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ActorTag {
-    Whisper,     // 🤫 Szept
-    Sigh,        // 😮‍💨 Westchnienie
-    Shout,       // 💥 Emfaza / podniesiony głos
-    Laugh,       // 😂 Śmiech
-    Hesitant,    // 🐢 Wahanie / powolna ostrożność
-    Urgent,      // 🐇 Nerwowość / pośpiech
+    Whisper,  // 🤫 Szept
+    Sigh,     // 😮‍💨 Westchnienie
+    Shout,    // 💥 Emfaza / podniesiony głos
+    Laugh,    // 😂 Śmiech
+    Hesitant, // 🐢 Wahanie / powolna ostrożność
+    Urgent,   // 🐇 Nerwowość / pośpiech
     Custom(String),
 }
 

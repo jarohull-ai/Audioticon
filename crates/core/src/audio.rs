@@ -1,12 +1,14 @@
+use crate::cache::compute_segment_hash;
+use crate::types::{
+    AudiobookMetadata, ChapterMark, DirectedItem, DirectedScript, RenderResult, TextSegment,
+};
+use anyhow::{Context, Result};
+use hound::{SampleFormat, WavReader, WavSpec, WavWriter};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use anyhow::{Context, Result};
-use hound::{SampleFormat, WavReader, WavSpec, WavWriter};
 use tokio::sync::{Mutex, Semaphore};
-use crate::cache::compute_segment_hash;
-use crate::types::{AudiobookMetadata, ChapterMark, DirectedItem, DirectedScript, RenderResult, TextSegment};
 
 pub const DEFAULT_SAMPLE_RATE: u32 = 24000;
 
@@ -15,7 +17,11 @@ struct SimpleNoiseRng(u64);
 
 impl SimpleNoiseRng {
     fn new(seed: u64) -> Self {
-        Self(if seed == 0 { 0x853c_49e6_748f_ea9b } else { seed })
+        Self(if seed == 0 {
+            0x853c_49e6_748f_ea9b
+        } else {
+            seed
+        })
     }
 
     fn next_f32(&mut self) -> f32 {
@@ -98,7 +104,9 @@ impl BiquadFilter {
     }
 
     fn process(&mut self, sample: f32) -> f32 {
-        let out = self.b0 * sample + self.b1 * self.x1 + self.b2 * self.x2 - self.a1 * self.y1 - self.a2 * self.y2;
+        let out = self.b0 * sample + self.b1 * self.x1 + self.b2 * self.x2
+            - self.a1 * self.y1
+            - self.a2 * self.y2;
         self.x2 = self.x1;
         self.x1 = sample;
         self.y2 = self.y1;
@@ -127,7 +135,9 @@ pub fn create_breath_wav(out_path: &Path, duration_ms: u32, sample_rate: u32) ->
     let mut rng = SimpleNoiseRng::new(0xa5a5_5a5a_1234_5678);
 
     let attack_samples = ((total_samples as f32) * 0.22) as usize;
-    let decay_samples = (total_samples as usize).saturating_sub(attack_samples).max(1);
+    let decay_samples = (total_samples as usize)
+        .saturating_sub(attack_samples)
+        .max(1);
 
     for i in 0..total_samples as usize {
         let white_sample = rng.next_f32();
@@ -140,7 +150,9 @@ pub fn create_breath_wav(out_path: &Path, duration_ms: u32, sample_rate: u32) ->
             (t * std::f32::consts::PI / 2.0).sin()
         } else {
             let t = (i - attack_samples) as f32 / decay_samples as f32;
-            ((1.0 - t).max(0.0) * std::f32::consts::PI / 2.0).sin().powi(2)
+            ((1.0 - t).max(0.0) * std::f32::consts::PI / 2.0)
+                .sin()
+                .powi(2)
         };
 
         let gain = 0.042; // ~ -27.5 dBFS subtle lektor breath
@@ -201,7 +213,11 @@ pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -
                 }
             }
             other => {
-                anyhow::bail!("Nieobsługiwana liczba kanałów ({}) w pliku {:?}", other, in_file);
+                anyhow::bail!(
+                    "Nieobsługiwana liczba kanałów ({}) w pliku {:?}",
+                    other,
+                    in_file
+                );
             }
         }
     }
@@ -221,11 +237,16 @@ pub fn build_ffmpeg_filter_chain(filter: Option<&str>) -> String {
 }
 
 /// Constructs FFmpeg audio filter chain using an explicit preset registry.
-pub fn build_ffmpeg_filter_chain_with_registry(filter: Option<&str>, registry: &crate::presets::PresetRegistry) -> String {
+pub fn build_ffmpeg_filter_chain_with_registry(
+    filter: Option<&str>,
+    registry: &crate::presets::PresetRegistry,
+) -> String {
     let mut filters = vec![
-        "silenceremove=start_periods=1:start_duration=0.005:start_threshold=-45dB:detection=rms".to_string(),
+        "silenceremove=start_periods=1:start_duration=0.005:start_threshold=-45dB:detection=rms"
+            .to_string(),
         "areverse".to_string(),
-        "silenceremove=start_periods=1:start_duration=0.005:start_threshold=-45dB:detection=rms".to_string(),
+        "silenceremove=start_periods=1:start_duration=0.005:start_threshold=-45dB:detection=rms"
+            .to_string(),
         "areverse".to_string(),
     ];
 
@@ -396,11 +417,7 @@ impl PiperBridge {
     }
 
     fn find_python() -> PathBuf {
-        let candidates = [
-            "/tmp/edge_env/bin/python3",
-            "/usr/bin/python3",
-            "python3",
-        ];
+        let candidates = ["/tmp/edge_env/bin/python3", "/usr/bin/python3", "python3"];
         for c in candidates {
             if Path::new(c).exists() {
                 return PathBuf::from(c);
@@ -417,7 +434,12 @@ impl PiperBridge {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::inherit())
             .spawn()
-            .with_context(|| format!("Błąd startu procesu pomocniczego Piper: {:?}", self.worker_script))?;
+            .with_context(|| {
+                format!(
+                    "Błąd startu procesu pomocniczego Piper: {:?}",
+                    self.worker_script
+                )
+            })?;
 
         let stdin = child.stdin.take().expect("Child stdin open");
         let stdout = child.stdout.take().expect("Child stdout open");
@@ -500,7 +522,10 @@ impl SpeechSynthesizer for PiperBridge {
             let factor = 2f32.powf(semitones / 12.0);
             let pitch_filter = format!(
                 "asetrate={:.0}*{:.4},aresample={},atempo={:.4}",
-                actual_sr, factor, DEFAULT_SAMPLE_RATE, 1.0 / factor
+                actual_sr,
+                factor,
+                DEFAULT_SAMPLE_RATE,
+                1.0 / factor
             );
             filter_chain = format!("{},{}", filter_chain, pitch_filter);
         }
@@ -589,7 +614,12 @@ impl AudioDirectorEngine {
 
                     if cached_wav.exists() {
                         cache_hits += 1;
-                        println!("  [{:02}] ⚡ CACHE HIT (0ms): \"{}\" [{}]", idx, segment.text, &hash[0..8]);
+                        println!(
+                            "  [{:02}] ⚡ CACHE HIT (0ms): \"{}\" [{}]",
+                            idx,
+                            segment.text,
+                            &hash[0..8]
+                        );
                     } else {
                         missing_tasks.push((idx, segment.clone(), cached_wav.clone(), hash));
                     }
@@ -604,7 +634,10 @@ impl AudioDirectorEngine {
             let concurrency = self.synthesizer.max_concurrency();
             let semaphore = Arc::new(Semaphore::new(concurrency));
             let total_missing = missing_tasks.len();
-            println!("\n🚀 Generowanie {} segmentów równolegle (współbieżność: {})...", total_missing, concurrency);
+            println!(
+                "\n🚀 Generowanie {} segmentów równolegle (współbieżność: {})...",
+                total_missing, concurrency
+            );
 
             let mut join_set = tokio::task::JoinSet::new();
 
@@ -614,7 +647,12 @@ impl AudioDirectorEngine {
 
                 join_set.spawn(async move {
                     let _permit = sem.acquire().await.expect("Semaphore acquire");
-                    println!("  [{:02}] ⏳ GENEROWANIE: \"{}\" [{}]", idx, seg.text, &hash[0..8]);
+                    println!(
+                        "  [{:02}] ⏳ GENEROWANIE: \"{}\" [{}]",
+                        idx,
+                        seg.text,
+                        &hash[0..8]
+                    );
                     synth.synthesize(&seg, &out_path).await?;
                     Ok::<(), anyhow::Error>(())
                 });
@@ -666,10 +704,17 @@ impl AudioDirectorEngine {
         }
 
         // Phase 4: Stitching all verified segments into master WAV
-        println!("\nŁączenie {} segmentów audio w plik wynikowy...", chunk_paths.len());
+        println!(
+            "\nŁączenie {} segmentów audio w plik wynikowy...",
+            chunk_paths.len()
+        );
         stitch_wav_files(&chunk_paths, final_wav, DEFAULT_SAMPLE_RATE)?;
 
-        println!("Zakończono! Cache hits: {}, Nowo wygenerowane: {}", cache_hits, chunk_paths.len() - cache_hits);
+        println!(
+            "Zakończono! Cache hits: {}, Nowo wygenerowane: {}",
+            cache_hits,
+            chunk_paths.len() - cache_hits
+        );
         Ok(RenderResult {
             total_segments: chunk_paths.len(),
             duration_ms: current_ms,
@@ -731,7 +776,7 @@ pub async fn export_to_m4b(
         .arg("-map")
         .arg("0:a")
         .arg("-af")
-        .arg("aresample=44100,loudnorm=I=-19:TP=-3.5:LRA=7,alimiter=limit=0.65:level=false")
+        .arg("aresample=44100,loudnorm=I=-19:TP=-4.0:LRA=7,alimiter=limit=0.58:level=false")
         .arg("-ar")
         .arg("44100")
         .arg("-c:a")
@@ -755,7 +800,10 @@ pub async fn export_to_m4b(
 
     if !status.success() {
         let _ = std::fs::remove_file(&tmp_m4b);
-        anyhow::bail!("Konwersja do M4B zakończyła się niepowodzeniem: {:?}", status);
+        anyhow::bail!(
+            "Konwersja do M4B zakończyła się niepowodzeniem: {:?}",
+            status
+        );
     }
 
     std::fs::rename(&tmp_m4b, m4b_path)
@@ -810,7 +858,7 @@ pub async fn export_to_mp3(
         .arg("-map_metadata")
         .arg("1")
         .arg("-af")
-        .arg("aresample=44100,loudnorm=I=-19:TP=-3.5:LRA=7,alimiter=limit=0.65:level=false")
+        .arg("aresample=44100,loudnorm=I=-19:TP=-4.0:LRA=7,alimiter=limit=0.58:level=false")
         .arg("-ar")
         .arg("44100")
         .arg("-codec:a")
@@ -828,7 +876,10 @@ pub async fn export_to_mp3(
 
     if !status.success() {
         let _ = std::fs::remove_file(&tmp_mp3);
-        anyhow::bail!("Konwersja do MP3 zakończyła się niepowodzeniem: {:?}", status);
+        anyhow::bail!(
+            "Konwersja do MP3 zakończyła się niepowodzeniem: {:?}",
+            status
+        );
     }
 
     std::fs::rename(&tmp_mp3, mp3_path)
@@ -850,8 +901,15 @@ mod tests {
         assert_eq!(reader.duration(), 4800); // 200ms * 24 samples/ms
         let samples: Vec<i16> = reader.into_samples::<i16>().map(|s| s.unwrap()).collect();
         let max_amp = samples.iter().map(|&s| s.abs()).max().unwrap_or(0);
-        assert!(max_amp <= 50, "Silence should remain ultra subtle studio room tone: max={}", max_amp);
-        assert!(max_amp > 0, "Silence should provide room tone instead of digital zero vacuum");
+        assert!(
+            max_amp <= 50,
+            "Silence should remain ultra subtle studio room tone: max={}",
+            max_amp
+        );
+        assert!(
+            max_amp > 0,
+            "Silence should provide room tone instead of digital zero vacuum"
+        );
         let _ = std::fs::remove_file(tmp);
     }
 
@@ -865,8 +923,16 @@ mod tests {
         let samples: Vec<i16> = reader.into_samples::<i16>().map(|s| s.unwrap()).collect();
         // Breath must not be silent, and must have smooth bounded amplitude
         let max_amp = samples.iter().map(|&s| s.abs()).max().unwrap_or(0);
-        assert!(max_amp > 100, "Breath should not be dead silent: max={}", max_amp);
-        assert!(max_amp < 15000, "Breath should remain subtle and not clip: max={}", max_amp);
+        assert!(
+            max_amp > 100,
+            "Breath should not be dead silent: max={}",
+            max_amp
+        );
+        assert!(
+            max_amp < 15000,
+            "Breath should remain subtle and not clip: max={}",
+            max_amp
+        );
         let _ = std::fs::remove_file(tmp);
     }
 }

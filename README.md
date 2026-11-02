@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/jarohull-ai/Audioticon/actions"><img src="https://github.com/jarohull-ai/Audioticon/actions/workflows/ci.yml/badge.svg" alt="CI Build & Tests" /></a>
   <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/Rust-1.85%2B-DEA584.svg?logo=rust&logoColor=white" alt="Rust 1.85+" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT%20%2F%20Apache--2.0-blue.svg" alt="License: MIT/Apache-2.0" /></a>
-  <img src="https://img.shields.io/badge/Tests-17%2F17%20Passing-brightgreen.svg" alt="Tests 17/17 Passing" />
   <img src="https://img.shields.io/badge/RAM-~115%20MB%20Footprint-success.svg" alt="RAM Footprint" />
   <img src="https://img.shields.io/badge/i18n-Polish%20%2B%20English-informational.svg" alt="Languages: PL + EN" />
 </p>
@@ -65,7 +65,7 @@ Audioticon rozwiązuje fundamentalny problem syntezy audiobooków: **brak intuic
 
 ## 📊 Pomiary wydajności i Benchmarki (Real-World Telemetry)
 
-Testy przeprowadzono na procesorze wielordzeniowym CPU x86_64 na oryginalnym tekście powieści *„Archiwum Pyłu”* (plik EPUB):
+Pomiary telemetryczne przeprowadzono na wielordzeniowym procesorze CPU x86_64 na zróżnicowanym materiale prozatorskim:
 
 ### 1. Zestawienie czasów renderowania
 
@@ -73,17 +73,20 @@ Testy przeprowadzono na procesorze wielordzeniowym CPU x86_64 na oryginalnym tek
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Scena Showcase (DSP + Rozdziały)** | **1 min 23 s** (83 s) | 165 słów / 30 segm. | **Piper (Offline)** | **4,94 s** | **24 ms (0,024 s)** | **0,059** | **16,8×** (zimny) / **3450×** (cache) |
 | **Scena Showcase (DSP + Rozdziały)** | **1 min 23 s** (83 s) | 165 słów / 30 segm. | Edge-TTS (Cloud) | 12,09 s | 21 ms (0,021 s) | 0,145 | 6,8× (zimny) / 3900× (cache) |
-| **Prolog: Granica w Dorohusku** | **3 min 16 s** (196 s) | 361 słów / 28 akap. | **Piper (Offline)** | **7,68 s** | **54 ms (0,054 s)** | **0,039** | **25,5×** (zimny) / **3600×** (cache) |
-| **Rozdział 1: Cięcie** | **8 min 15 s** (495 s) | 1022 słów / 57 akap. | **Piper (Offline)** | **18,09 s** | **139 ms (0,139 s)** | **0,0365** | **27,4×** (zimny) / **3560×** (cache) |
+| **Prolog książki (Narracja ciągła)** | **3 min 16 s** (196 s) | 361 słów / 28 akap. | **Piper (Offline)** | **7,68 s** | **54 ms (0,054 s)** | **0,039** | **25,5×** (zimny) / **3600×** (cache) |
+| **Rozdział 1 (Scena z dialogami)** | **8 min 15 s** (495 s) | 1022 słów / 57 akap. | **Piper (Offline)** | **18,09 s** | **139 ms (0,139 s)** | **0,0365** | **27,4×** (zimny) / **3560×** (cache) |
 
 > 💡 **Kluczowa przewaga Cache:** Zmiana pojedynczego słowa lub emotikony w 8-minutowym rozdziale wymaga zsyntetyzowania tylko 1 segmentu (~120 ms). Cały plik audio M4B/MP3 zostaje złożony na nowo i zmasterowany w ułamku sekundy, podczas gdy w rozwiązaniach chmurowych (ElevenLabs) sam transport sieciowy trwa 300–800 ms.
+>
+> 🔬 **Uwaga metodologiczna:** Czasy Audioticonu obejmują **kompletny proces produkcyjny** (normalizacja językowa, parsing emotikonów, synteza TTS, filtry DSP, generowanie oddechów, 2-przebiegowy mastering radiowy EBU R128 i enkoding M4B z atomem `+faststart`). Zewnętrzne benchmarki modeli TTS (np. Kokoro, F5-TTS) podają zazwyczaj wyłącznie surowy czas inferencji neuronowej na drogich GPU bez miksowania i postprodukcji.
 
 ### 2. Zgodność ze standardami nadawczymi i ACX / Audible
 
-Pomiary filtra `ebur128` dla wygenerowanego pliku rozdziału powieści:
-- **Integrated Loudness ($I$):** **-19,2 LUFS** (Wymóg ACX: $-23$ do $-18$ LUFS $\rightarrow$ **Idealnie w celu**)
-- **True Peak (Szczyt absolutny):** **-3,0 dBFS** (Wymóg ACX: $\le -3,0$ dBTP $\rightarrow$ **Zero przesterowań, 0 clips**)
-- **Loudness Range (LRA):** **3,2 LU** (Wymóg lektorski: kontrolowany zakres dynamiki do odsłuchu w podróży/słuchawkach)
+Pomiary filtra `ebur128` dla wygenerowanych plików M4B i MP3:
+- **Integrated Loudness ($I$):** **-19,0 do -19,6 LUFS** (Wymóg ACX: $-23$ do $-18$ LUFS $\rightarrow$ **Idealnie w celu**).
+- **True Peak (Szczyt absolutny):** **-3,0 do -3,7 dBFS** (Wymóg ACX: $\le -3,0$ dBTP $\rightarrow$ **Zero przesterowań, 0 clips**).
+- **Częstotliwość próbkowania:** **44,1 kHz** mono (standard studyjny i dystrybucyjny).
+- **Loudness Range (LRA):** **3,2 do 5,2 LU** (Wymóg lektorski: kontrolowany zakres dynamiki do odsłuchu w podróży/słuchawkach).
 - **Zasobożerność RAM:** ~115 MB (proces roboczy Piper z modelem ONNX darkman: 63,2 MB).
 
 ---
@@ -134,19 +137,20 @@ cargo run --bin audioticon-cli -- presets
 
 ---
 
-## 📦 Instalacja i wymagania
+## 📦 Szybka instalacja (Quickstart)
 
-### Wymagania systemowe:
-- Rust 1.85+ (`cargo`)
-- `ffmpeg` w ścieżce systemowej (`sudo apt install ffmpeg`)
-- Python 3.10+ (z pakietami `edge-tts` oraz opcjonalnie `piper-tts`)
-
-### Budowanie:
+### Automatyczny skrypt instalacyjny (Linux):
+Pobiera wymagane modele ONNX (polski `darkman` i angielski `lessac`), sprawdza zależności (`ffmpeg`, `python3`) i kompiluje silnik:
 ```bash
 git clone https://github.com/jarohull-ai/Audioticon.git
 cd Audioticon
-cargo build --release
+./scripts/setup.sh
 ```
+
+### Wymagania manualne:
+- Rust 1.85+ (`cargo`)
+- `ffmpeg` w ścieżce systemowej (`sudo apt install ffmpeg`)
+- Python 3.10+ (opcjonalnie z pakietami `piper-tts` i `edge-tts`)
 
 ---
 
@@ -154,29 +158,32 @@ cargo build --release
 
 ```bash
 # Wyświetlenie pomocy
-cargo run --bin audioticon-cli -- --help
+cargo run --release --bin audioticon-cli -- --help
 
 # Renderowanie audiobooka z rozdziałami do formatu Apple M4B (AAC + metadane)
-cargo run --bin audioticon-cli -- render -i ksiazka.txt -o audiobook.m4b --title "Archiwum Pyłu" --author "Adam Richter"
+cargo run --release --bin audioticon-cli -- render -i ksiazka.txt -o audiobook.m4b --title "Przykładowa Książka" --author "Autor Książki"
 
 # Renderowanie w 100% OFFLINE (Piper TTS z modelem lokalnym)
-cargo run --bin audioticon-cli -- render -i ksiazka.txt --provider piper -o audiobook.m4b
+cargo run --release --bin audioticon-cli -- render -i ksiazka.txt --provider piper -o audiobook.m4b
+
+# Renderowanie w języku angielskim (z automatycznym doborem modelu en_US)
+cargo run --release --bin audioticon-cli -- render -i ksiazka_en.txt --lang en --provider piper -o audiobook_en.m4b
 
 # Eksport skryptu z tagami aktorskimi dla ElevenLabs v3 ([whispers], [sighs], [shouts])
-cargo run --bin audioticon-cli -- script -i ksiazka.txt -f elevenlabs
+cargo run --release --bin audioticon-cli -- script -i ksiazka.txt -f elevenlabs
 
 # Eksport skryptu dla ChatTTS ([whisper], [sigh], [fast])
-cargo run --bin audioticon-cli -- script -i ksiazka.txt -f chattts
+cargo run --release --bin audioticon-cli -- script -i ksiazka.txt -f chattts
 
 # Podgląd osi czasu reżyserii z analizą stylu i filtrów
-cargo run --bin audioticon-cli -- script --demo -f timeline
+cargo run --release --bin audioticon-cli -- script --demo -f timeline
 
 # Demonstracja efektów dźwiękowych (telefon, radio, katedra, robot)
-cargo run --bin audioticon-cli -- render --demo-effects -o efekty.mp3
+cargo run --release --bin audioticon-cli -- render --demo-effects -o efekty.mp3
 
 # Zarządzanie buforem pamięci podręcznej (cache)
-cargo run --bin audioticon-cli -- cache
-cargo run --bin audioticon-cli -- cache --clear
+cargo run --release --bin audioticon-cli -- cache
+cargo run --release --bin audioticon-cli -- cache --clear
 ```
 
 ---
@@ -184,38 +191,37 @@ cargo run --bin audioticon-cli -- cache --clear
 ## 📝 Przykładowy scenariusz reżyserski
 
 ```text
-Kijów, dwudziesty czwarty lutego dwa tysiące dwudziestego czwartego roku. 🛑
+📖 Rozdział 1: Sygnał z Północy 🛑
 
-Adam Richter siedział przy biurku w mieszkaniu na Obołoni w Kijowie. ⏸️
-Za oknem było szaro, jak przez większość dni tej zimy. 🛑
-Na parapecie stał wyschnięty aloes, 😮‍💨 którego nie podlewał od tygodni. 🛑
+Stacja Polarna Alfa, dwudziesty czwarty lutego dwa tysiące dwudziestego czwartego roku. 🛑
+Wiatr uderzał o metalowe poszycie hangaru z prędkością stu dwudziestu kilometrów na godzinę. ⏸️
+Za oknem panowała polarna noc. 🛑
+Na stole leżał stary odbiornik radiowy. 🛑
 
-Na biurku leżał 💥notes. 🛑
+🐢 Zniszczony przez mróz... 😮‍💨 pokryty cienką warstwą szronu. 🛑
+W słuchawkach rozległ się nagły szum. 🛑
 
-🐢 Zniszczony od wilgoci... 😮‍💨 od dotyku... od noszenia w plecaku, który mokł w deszczu i leżał w błocie. 🛑
-Okładka wyblakła, rogi starte, grzbiet pęknięty w trzech miejscach. 🛑
+📻:wojskowe Baza Główna, zgłaszam odbiór! Wykryliśmy anomalie w sektorze czwartym. Odbiór. 🛑
 
-W środku... tysiące zapisanych zdarzeń. 🛑
-📉Nazwisk. ⏸️
-📉Godzin. ⏸️
-📉Współrzędnych. 🛑
+🐇 Centrala, powtórzcie meldunek! Czy potwierdzacie kontakt wzrokowy? 🛑
 
-Nazwał to: 💥Archiwum Pyłu. 🛑
+🤖 System obronny został aktywowany. Trwa analiza zagrożenia. 🛑
 
-Otworzył notes na stronie z granicy. 🛑
-Dwudziesty czwarty lutego dwa tysiące dwudziestego drugiego roku. ⏸️
-Godzina piętnasta czterdzieści siedem. ⏸️
-Dorohusk. 🛑
+Cisza powróciła do hangaru. 🛑
+🏛️ Kroki niosły się głuchym echem po pustej hali stacji. 🛑
 
-Przez chwilę patrzył na te cyfry. 🛑
-Potem zamknął notes. 🛑
-Nie musiał czytać dalej. 🛑
-🤫 Pamiętał zapach. 🛑
+📱 Połączenie jest zakłócane... ledwo słyszę dyspozytora. 🛑
+
+Wtedy usłyszał cichy trzask tuż za ścianą. 🛑
+Wstrzymał oddech. 🛑
+🤫 Ktoś stoi tuż za drzwiami. 🛑
 ```
 
 ---
 
-## 📄 Licencja
+## 📄 Licencja i Prawa Autorskie
 
-Projekt objęty podwójną licencją: MIT lub Apache-2.0.
-Autor: **Jarosław Kuchta** (<jarohull@gmail.com>)
+Projekt objęty podwójną licencją open-source: **MIT** lub **Apache-2.0** (zobacz pliki [LICENSE-MIT](LICENSE-MIT) oraz [LICENSE-APACHE](LICENSE-APACHE)).
+
+Autor: **Jarosław Kuchta** ([GitHub Profile](https://github.com/jarohull-ai))  
+Zgłoszenia błędów i propozycji: [GitHub Issues](https://github.com/jarohull-ai/Audioticon/issues)

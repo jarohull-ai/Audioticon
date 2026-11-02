@@ -6,22 +6,55 @@ use regex::{Captures, Regex};
 use std::sync::OnceLock;
 
 const ONES: [&str; 10] = [
-    "", "jeden", "dwa", "trzy", "cztery", "pięć", "sześć", "siedem", "osiem", "dziewięć",
+    "",
+    "jeden",
+    "dwa",
+    "trzy",
+    "cztery",
+    "pięć",
+    "sześć",
+    "siedem",
+    "osiem",
+    "dziewięć",
 ];
 
 const TEENS: [&str; 10] = [
-    "dziesięć", "jedenaście", "dwanaście", "trzynaście", "czternaście", "piętnaście",
-    "szesnaście", "siedemnaście", "osiemnaście", "dziewiętnaście",
+    "dziesięć",
+    "jedenaście",
+    "dwanaście",
+    "trzynaście",
+    "czternaście",
+    "piętnaście",
+    "szesnaście",
+    "siedemnaście",
+    "osiemnaście",
+    "dziewiętnaście",
 ];
 
 const TENS: [&str; 10] = [
-    "", "dziesięć", "dwadzieścia", "trzydzieści", "czterdzieści", "pięćdziesiąt",
-    "sześćdziesiąt", "siedemdziesiąt", "osiemdziesiąt", "dziewięćdziesiąt",
+    "",
+    "dziesięć",
+    "dwadzieścia",
+    "trzydzieści",
+    "czterdzieści",
+    "pięćdziesiąt",
+    "sześćdziesiąt",
+    "siedemdziesiąt",
+    "osiemdziesiąt",
+    "dziewięćdziesiąt",
 ];
 
 const HUNDREDS: [&str; 10] = [
-    "", "sto", "dwieście", "trzysta", "czterysta", "pięćset", "sześćset", "siedemset",
-    "osiemset", "dziewięćset",
+    "",
+    "sto",
+    "dwieście",
+    "trzysta",
+    "czterysta",
+    "pięćset",
+    "sześćset",
+    "siedemset",
+    "osiemset",
+    "dziewięćset",
 ];
 
 const ORDINAL_HOURS: [&str; 25] = [
@@ -221,7 +254,10 @@ fn year_to_words_genitive(year: u32) -> String {
         if remainder == 0 {
             "dwa tysiące roku".to_string()
         } else if remainder <= 31 {
-            format!("dwa tysiące {} roku", ORDINAL_DAYS_GENITIVE[remainder as usize])
+            format!(
+                "dwa tysiące {} roku",
+                ORDINAL_DAYS_GENITIVE[remainder as usize]
+            )
         } else {
             // np. 2045 -> dwa tysiące czterdziestego piątego roku
             let t = (remainder / 10) as usize;
@@ -247,7 +283,10 @@ fn year_to_words_genitive(year: u32) -> String {
     } else if (1900..2000).contains(&year) {
         let remainder = year - 1900;
         if remainder <= 31 {
-            format!("tysiąc dziewięćset {} roku", ORDINAL_DAYS_GENITIVE[remainder as usize])
+            format!(
+                "tysiąc dziewięćset {} roku",
+                ORDINAL_DAYS_GENITIVE[remainder as usize]
+            )
         } else {
             let t = (remainder / 10) as usize;
             let o = (remainder % 10) as usize;
@@ -294,7 +333,8 @@ fn normalize_dates(text: &str) -> String {
         } else {
             caps[0].to_string()
         }
-    }).to_string()
+    })
+    .to_string()
 }
 
 /// Normalizuje godziny w formacie HH:MM (z uwzględnieniem przyimków miejscownika np. "o 15:47" -> "o piętnastej czterdzieści siedem")
@@ -305,35 +345,36 @@ fn normalize_times(text: &str) -> String {
             .expect("Valid time with preposition regex")
     });
 
-    let with_prep = re_prep.replace_all(text, |caps: &Captures| {
-        let prep = &caps[1];
-        let hour: usize = caps[2].parse().unwrap_or(99);
-        let minute: u32 = caps[3].parse().unwrap_or(99);
+    let with_prep = re_prep
+        .replace_all(text, |caps: &Captures| {
+            let prep = &caps[1];
+            let hour: usize = caps[2].parse().unwrap_or(99);
+            let minute: u32 = caps[3].parse().unwrap_or(99);
 
-        if hour <= 24 && minute < 60 {
-            let hour_str = ORDINAL_HOURS_LOCATIVE[hour];
-            let min_str = if minute == 0 {
-                String::new()
-            } else if minute < 10 {
-                format!("zero {}", number_to_words(minute as u64))
-            } else {
-                number_to_words(minute as u64)
-            };
+            if hour <= 24 && minute < 60 {
+                let hour_str = ORDINAL_HOURS_LOCATIVE[hour];
+                let min_str = if minute == 0 {
+                    String::new()
+                } else if minute < 10 {
+                    format!("zero {}", number_to_words(minute as u64))
+                } else {
+                    number_to_words(minute as u64)
+                };
 
-            if min_str.is_empty() {
-                format!("{} {}", prep, hour_str)
+                if min_str.is_empty() {
+                    format!("{} {}", prep, hour_str)
+                } else {
+                    format!("{} {} {}", prep, hour_str, min_str)
+                }
             } else {
-                format!("{} {} {}", prep, hour_str, min_str)
+                caps[0].to_string()
             }
-        } else {
-            caps[0].to_string()
-        }
-    }).to_string();
+        })
+        .to_string();
 
     static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| {
-        Regex::new(r"\b([0-2]?[0-9]):([0-5][0-9])\b").expect("Valid time regex")
-    });
+    let re =
+        RE.get_or_init(|| Regex::new(r"\b([0-2]?[0-9]):([0-5][0-9])\b").expect("Valid time regex"));
 
     re.replace_all(&with_prep, |caps: &Captures| {
         let hour: usize = caps[1].parse().unwrap_or(99);
@@ -357,15 +398,14 @@ fn normalize_times(text: &str) -> String {
         } else {
             caps[0].to_string()
         }
-    }).to_string()
+    })
+    .to_string()
 }
 
 /// Normalizuje wolnostojące liczby całkowite
 fn normalize_standalone_numbers(text: &str) -> String {
     static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| {
-        Regex::new(r"\b\d+\b").expect("Valid number regex")
-    });
+    let re = RE.get_or_init(|| Regex::new(r"\b\d+\b").expect("Valid number regex"));
 
     re.replace_all(text, |caps: &Captures| {
         if let Ok(n) = caps[0].parse::<u64>() {
@@ -373,7 +413,8 @@ fn normalize_standalone_numbers(text: &str) -> String {
         } else {
             caps[0].to_string()
         }
-    }).to_string()
+    })
+    .to_string()
 }
 
 /// Główna funkcja normalizująca tekst w języku polskim:
@@ -405,9 +446,15 @@ mod tests {
 
     #[test]
     fn test_normalize_time() {
-        assert_eq!(normalize_times("Godzina: 15:47."), "Godzina: piętnasta czterdzieści siedem.");
+        assert_eq!(
+            normalize_times("Godzina: 15:47."),
+            "Godzina: piętnasta czterdzieści siedem."
+        );
         assert_eq!(normalize_times("O 08:05 rano."), "O ósmej zero pięć rano.");
-        assert_eq!(normalize_times("Spotkanie o 12:00."), "Spotkanie o dwunastej.");
+        assert_eq!(
+            normalize_times("Spotkanie o 12:00."),
+            "Spotkanie o dwunastej."
+        );
     }
 
     #[test]

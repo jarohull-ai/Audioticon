@@ -1,6 +1,6 @@
-use sha2::{Digest, Sha256};
-use crate::types::TextSegment;
 use crate::audio::build_ffmpeg_filter_chain;
+use crate::types::TextSegment;
+use sha2::{Digest, Sha256};
 
 pub const CACHE_VERSION: u32 = 4;
 
@@ -14,7 +14,7 @@ pub fn compute_segment_hash(segment: &TextSegment, voice: &str) -> String {
     hasher.update(segment.rate_mod.to_le_bytes());
     hasher.update(segment.pitch_mod.to_le_bytes());
     hasher.update(segment.volume_mod.to_le_bytes());
-    
+
     // Hash sorted actor tags
     let mut tags = segment.actor_tags.clone();
     tags.sort();
@@ -46,7 +46,10 @@ mod tests {
             actor_tags: vec![ActorTag::Whisper],
         };
         let seg2 = seg1.clone();
-        assert_eq!(compute_segment_hash(&seg1, "pl-PL-MarekNeural"), compute_segment_hash(&seg2, "pl-PL-MarekNeural"));
+        assert_eq!(
+            compute_segment_hash(&seg1, "pl-PL-MarekNeural"),
+            compute_segment_hash(&seg2, "pl-PL-MarekNeural")
+        );
     }
 
     #[test]
@@ -69,10 +72,16 @@ mod tests {
 
         let mut seg3 = seg1.clone();
         seg3.rate_mod = -14;
-        assert_ne!(compute_segment_hash(&seg1, "pl-PL-MarekNeural"), compute_segment_hash(&seg3, "pl-PL-MarekNeural"));
+        assert_ne!(
+            compute_segment_hash(&seg1, "pl-PL-MarekNeural"),
+            compute_segment_hash(&seg3, "pl-PL-MarekNeural")
+        );
 
         let mut seg4 = seg1.clone();
         seg4.filter = Some("cathedral".to_string());
-        assert_ne!(compute_segment_hash(&seg1, "pl-PL-MarekNeural"), compute_segment_hash(&seg4, "pl-PL-MarekNeural"));
+        assert_ne!(
+            compute_segment_hash(&seg1, "pl-PL-MarekNeural"),
+            compute_segment_hash(&seg4, "pl-PL-MarekNeural")
+        );
     }
 }

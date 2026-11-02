@@ -1,8 +1,8 @@
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::RwLock;
-use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
 
 static ACTIVE_REGISTRY: std::sync::OnceLock<RwLock<PresetRegistry>> = std::sync::OnceLock::new();
 
@@ -112,7 +112,10 @@ impl EffectPreset {
                 let mut filter = format!("highpass=f={},lowpass=f={},volume={:.2}", hp, lp, vol);
                 if let Some(dist) = self.distortion {
                     let bits = (14.0 - dist.clamp(0.0, 1.0) * 8.0) as u32; // 14 bits down to 6 bits
-                    filter.push_str(&format!(",acrusher=level_in=1:level_out=0.9:bits={}:mode=lin", bits));
+                    filter.push_str(&format!(
+                        ",acrusher=level_in=1:level_out=0.9:bits={}:mode=lin",
+                        bits
+                    ));
                 }
                 filter
             }
@@ -250,7 +253,7 @@ impl ProjectConfig {
 
         let content = std::fs::read_to_string(&file_path)
             .with_context(|| format!("Nie można odczytać pliku konfiguracji: {:?}", file_path))?;
-        
+
         let config: ProjectConfig = toml::from_str(&content)
             .with_context(|| format!("Błąd składni TOML w pliku: {:?}", file_path))?;
 
@@ -301,50 +304,74 @@ impl PresetRegistry {
     }
 
     fn register_factory_defaults(&mut self) {
-        self.presets.insert("phone".to_string(), EffectPreset {
-            base: "phone".to_string(),
-            volume: Some(1.2),
-            ..Default::default()
-        });
-        self.presets.insert("radio".to_string(), EffectPreset {
-            base: "radio".to_string(),
-            volume: Some(1.25),
-            distortion: Some(0.35),
-            ..Default::default()
-        });
-        self.presets.insert("megaphone".to_string(), EffectPreset {
-            base: "megaphone".to_string(),
-            volume: Some(1.2),
-            ..Default::default()
-        });
-        self.presets.insert("cathedral".to_string(), EffectPreset {
-            base: "cathedral".to_string(),
-            room_size: Some(0.4),
-            reverb_tail: Some(0.35),
-            ..Default::default()
-        });
-        self.presets.insert("dungeon".to_string(), EffectPreset {
-            base: "dungeon".to_string(),
-            room_size: Some(0.7),
-            reverb_tail: Some(0.6),
-            ..Default::default()
-        });
-        self.presets.insert("thought".to_string(), EffectPreset {
-            base: "thought".to_string(),
-            volume: Some(1.2),
-            ..Default::default()
-        });
-        self.presets.insert("robot".to_string(), EffectPreset {
-            base: "robot".to_string(),
-            modulation: Some(0.5),
-            ..Default::default()
-        });
-        self.presets.insert("whisper".to_string(), EffectPreset {
-            base: "whisper".to_string(),
-            volume: Some(1.8),
-            air: Some(0.7),
-            ..Default::default()
-        });
+        self.presets.insert(
+            "phone".to_string(),
+            EffectPreset {
+                base: "phone".to_string(),
+                volume: Some(1.2),
+                ..Default::default()
+            },
+        );
+        self.presets.insert(
+            "radio".to_string(),
+            EffectPreset {
+                base: "radio".to_string(),
+                volume: Some(1.25),
+                distortion: Some(0.35),
+                ..Default::default()
+            },
+        );
+        self.presets.insert(
+            "megaphone".to_string(),
+            EffectPreset {
+                base: "megaphone".to_string(),
+                volume: Some(1.2),
+                ..Default::default()
+            },
+        );
+        self.presets.insert(
+            "cathedral".to_string(),
+            EffectPreset {
+                base: "cathedral".to_string(),
+                room_size: Some(0.4),
+                reverb_tail: Some(0.35),
+                ..Default::default()
+            },
+        );
+        self.presets.insert(
+            "dungeon".to_string(),
+            EffectPreset {
+                base: "dungeon".to_string(),
+                room_size: Some(0.7),
+                reverb_tail: Some(0.6),
+                ..Default::default()
+            },
+        );
+        self.presets.insert(
+            "thought".to_string(),
+            EffectPreset {
+                base: "thought".to_string(),
+                volume: Some(1.2),
+                ..Default::default()
+            },
+        );
+        self.presets.insert(
+            "robot".to_string(),
+            EffectPreset {
+                base: "robot".to_string(),
+                modulation: Some(0.5),
+                ..Default::default()
+            },
+        );
+        self.presets.insert(
+            "whisper".to_string(),
+            EffectPreset {
+                base: "whisper".to_string(),
+                volume: Some(1.8),
+                air: Some(0.7),
+                ..Default::default()
+            },
+        );
     }
 
     /// Loads custom presets from project config
@@ -409,7 +436,10 @@ impl PresetRegistry {
             return (p.clone(), None);
         }
 
-        (EffectPreset::default(), Some(format!("Nieznany efekt: '{}'", tag)))
+        (
+            EffectPreset::default(),
+            Some(format!("Nieznany efekt: '{}'", tag)),
+        )
     }
 
     /// Returns list of all currently registered presets
