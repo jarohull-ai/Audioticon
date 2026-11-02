@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build Release Binary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Release
+        run: cargo build --release
+
+      - name: Package Tarball
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          PKG_NAME="Audioticon-${VERSION}-linux-x86_64"
+          mkdir -p "dist/${PKG_NAME}"
+          cp target/release/audioticon-cli "dist/${PKG_NAME}/audioticon"
+          cp audioticon.example.toml "dist/${PKG_NAME}/"
+          cp scripts/setup.sh "dist/${PKG_NAME}/"
+          cp LICENSE-MIT LICENSE-APACHE README.md "dist/${PKG_NAME}/"
+          cd dist
+          tar -czvf "${PKG_NAME}.tar.gz" "${PKG_NAME}"
+          sha256sum "${PKG_NAME}.tar.gz" > "${PKG_NAME}.tar.gz.sha256"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/Audioticon-*.tar.gz
+            dist/Audioticon-*.tar.gz.sha256
+          draft: false
+          prerelease: false
+          generate_release_notes: true

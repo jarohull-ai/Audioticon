@@ -1,6 +1,8 @@
 target/
+dist/
 *.wav
 *.mp3
+*.m4b
 *.onnx
 *.onnx.json
 cache/
