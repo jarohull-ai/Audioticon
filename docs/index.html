@@ -390,6 +390,290 @@
       border: 1px solid rgba(255, 255, 255, 0.05);
     }
 
+    /* View Switcher */
+    .view-switcher {
+      display: inline-flex;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      padding: 3px;
+      gap: 3px;
+    }
+
+    .btn-toggle {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.35rem 0.85rem;
+      border-radius: 7px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .btn-toggle.active {
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(59, 130, 246, 0.3));
+      color: #fff;
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      box-shadow: 0 2px 10px rgba(6, 182, 212, 0.2);
+    }
+
+    /* 3D Orbit Cylinder Showcase */
+    #view-3d {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 540px;
+      position: relative;
+      user-select: none;
+      perspective: 1200px;
+      overflow: hidden;
+      padding: 1.5rem 0;
+    }
+
+    .orbit-stage {
+      width: 100%;
+      height: 420px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      transform-style: preserve-3d;
+      cursor: grab;
+    }
+
+    .orbit-stage:active {
+      cursor: grabbing;
+    }
+
+    .orbit-cylinder {
+      width: 250px;
+      height: 350px;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .orbit-cylinder.dragging {
+      transition: none;
+    }
+
+    /* Glassmorphic 3D Card (Architecture of Clarity Style) */
+    .orbit-card {
+      position: absolute;
+      width: 250px;
+      height: 350px;
+      left: 0;
+      top: 0;
+      border-radius: 18px;
+      background: linear-gradient(145deg, rgba(30, 41, 59, 0.72) 0%, rgba(15, 23, 42, 0.88) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+      backdrop-filter: blur(14px);
+      padding: 1.5rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      color: #fff;
+      cursor: pointer;
+      transition: border-color 0.3s, box-shadow 0.3s, filter 0.3s, transform 0.3s;
+      backface-visibility: hidden;
+    }
+
+    .orbit-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+      border-top-left-radius: 18px;
+      border-top-right-radius: 18px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0.6;
+    }
+
+    .orbit-card.active {
+      border: 1px solid rgba(6, 182, 212, 0.8);
+      box-shadow: 0 0 40px rgba(6, 182, 212, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.4);
+      filter: brightness(1.15);
+    }
+
+    .orbit-card:not(.active) {
+      filter: brightness(0.65) blur(0.5px);
+      opacity: 0.85;
+    }
+
+    .card-badge {
+      align-self: flex-start;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 0.25rem 0.55rem;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .orbit-card.active .card-badge {
+      background: rgba(6, 182, 212, 0.2);
+      color: #38bdf8;
+      border-color: rgba(6, 182, 212, 0.4);
+    }
+
+    .card-icon {
+      font-size: 2.8rem;
+      margin: 0.75rem 0 0.25rem 0;
+      filter: drop-shadow(0 4px 10px rgba(0,0,0,0.4));
+    }
+
+    .card-title-3d {
+      font-size: 1.15rem;
+      font-weight: 800;
+      line-height: 1.25;
+      color: #ffffff;
+    }
+
+    .card-desc-3d {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      line-height: 1.4;
+      margin-top: 0.35rem;
+    }
+
+    .card-open-btn {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      padding: 0.65rem;
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      transition: all 0.2s;
+    }
+
+    .orbit-card.active .card-open-btn {
+      background: linear-gradient(135deg, var(--accent), #3b82f6);
+      box-shadow: 0 4px 15px var(--accent-glow);
+      border-color: transparent;
+    }
+
+    .orbit-hint {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(0,0,0,0.3);
+      padding: 0.4rem 0.9rem;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .orbit-dock {
+      display: flex;
+      gap: 0.4rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 900px;
+    }
+
+    .dock-pill {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 0.35rem 0.7rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .dock-pill:hover, .dock-pill.active {
+      background: rgba(6, 182, 212, 0.2);
+      border-color: rgba(6, 182, 212, 0.4);
+      color: #fff;
+    }
+
+    /* Modal for Expanded Card View */
+    .card-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(10px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    .card-modal-overlay.open {
+      display: flex;
+      opacity: 1;
+    }
+
+    .card-modal-content {
+      background: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 20px;
+      max-width: 760px;
+      width: 100%;
+      padding: 2rem;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 40px var(--accent-glow);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      animation: modalPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modalPop {
+      from { transform: scale(0.9) translateY(20px); opacity: 0; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
+    }
+
+    .btn-close-modal {
+      position: absolute;
+      top: 1.25rem;
+      right: 1.25rem;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 1.1rem;
+      transition: all 0.2s;
+    }
+
+    .btn-close-modal:hover {
+      background: rgba(239, 68, 68, 0.3);
+      border-color: rgba(239, 68, 68, 0.6);
+    }
+
     footer {
       text-align: center;
       padding: 1.5rem;
@@ -414,6 +698,11 @@
       </div>
     </a>
     <div class="header-links">
+      <!-- 3D Orbit / Classic Switcher -->
+      <div class="view-switcher">
+        <button id="btn-view-3d" class="btn-toggle active" onclick="setViewMode('3d')">🪐 Bęben 3D</button>
+        <button id="btn-view-classic" class="btn-toggle" onclick="setViewMode('classic')">📋 Warsztat</button>
+      </div>
       <span class="badge-pill">Mastering: EBU R128 (-19 LUFS)</span>
       <a href="https://github.com/jarohull-ai/Audioticon" target="_blank" class="btn-github">
         <svg height="15" width="15" viewBox="0 0 16 16" fill="currentColor">
@@ -425,7 +714,122 @@
   </header>
 
   <main>
-    <section class="studio-card">
+    <!-- ========================================== -->
+    <!-- 1. ORBITAL 3D CYLINDER VIEW                -->
+    <!-- ========================================== -->
+    <section id="view-3d">
+      <div class="orbit-stage" id="orbit-stage">
+        <div class="orbit-cylinder" id="orbit-cylinder">
+          <!-- Card 0: Tekst & Scenopis -->
+          <div class="orbit-card active" data-index="0" onclick="openCard(0)">
+            <span class="card-badge">Warstwa 01</span>
+            <div>
+              <div class="card-icon">📝</div>
+              <div class="card-title-3d">Tekst & Scenopis</div>
+              <div class="card-desc-3d">Edytor narracji ze znacznikami emoji i aliasami [pauza] [radio].</div>
+            </div>
+            <button class="card-open-btn">Otwórz panel ↗</button>
+          </div>
+
+          <!-- Card 1: Rozdziały -->
+          <div class="orbit-card" data-index="1" onclick="openCard(1)">
+            <span class="card-badge">Warstwa 02</span>
+            <div>
+              <div class="card-icon">📖</div>
+              <div class="card-title-3d">Rozdziały & Spis</div>
+              <div class="card-desc-3d">Znaczniki rozdziałów 📖, struktura książki i automatyczny podział.</div>
+            </div>
+            <button class="card-open-btn">Otwórz panel ↗</button>
+          </div>
+
+          <!-- Card 2: Głosy & Silnik -->
+          <div class="orbit-card" data-index="2" onclick="openCard(2)">
+            <span class="card-badge">Warstwa 03</span>
+            <div>
+              <div class="card-icon">🗣️</div>
+              <div class="card-title-3d">Głosy & Silnik</div>
+              <div class="card-desc-3d">Piper TTS (100% offline w RAM) oraz Edge Neural (Marek / Zofia).</div>
+            </div>
+            <button class="card-open-btn">Otwórz panel ↗</button>
+          </div>
+
+          <!-- Card 3: Efekty DSP -->
+          <div class="orbit-card" data-index="3" onclick="openCard(3)">
+            <span class="card-badge">Warstwa 04</span>
+            <div>
+              <div class="card-icon">🎛️</div>
+              <div class="card-title-3d">Efekty DSP</div>
+              <div class="card-desc-3d">Plany akustyczne: Radio 📻, Telefon 📱, Katedra 🏛️, Robot 🤖, Oddech 😮‍💨.</div>
+            </div>
+            <button class="card-open-btn">Otwórz panel ↗</button>
+          </div>
+
+          <!-- Card 4: Presety -->
+          <div class="orbit-card" data-index="4" onclick="openCard(4)">
+            <span class="card-badge">Warstwa 05</span>
+            <div>
+              <div class="card-icon">⚙️</div>
+              <div class="card-title-3d">Presety Projektu</div>
+              <div class="card-desc-3d">Własne warianty akustyczne i konfiguracja audioticon.toml.</div>
+            </div>
+            <button class="card-open-btn">Otwórz panel ↗</button>
+          </div>
+
+          <!-- Card 5: Cache & Oś Czasu -->
+          <div class="orbit-card" data-index="5" onclick="openCard(5)">
+            <span class="card-badge">Warstwa 06</span>
+            <div>
+              <div class="card-icon">⚡</div>
+              <div class="card-title-3d">Pamięć Cache</div>
+              <div class="card-desc-3d">Bezstratny cache zdań SHA-256. Re-render w ~20 ms na CPU.</div>
+            </div>
+            <button class="card-open-btn">Otwórz panel ↗</button>
+          </div>
+
+          <!-- Card 6: Odsłuch & Mastering -->
+          <div class="orbit-card" data-index="6" onclick="openCard(6)">
+            <span class="card-badge">Warstwa 07</span>
+            <div>
+              <div class="card-icon">🎧</div>
+              <div class="card-title-3d">Mastering EBU R128</div>
+              <div class="card-desc-3d">Norma ACX / Audible: -19 LUFS, True-Peak -3.5 dBTP, pobieranie MP3.</div>
+            </div>
+            <button class="card-open-btn">Otwórz panel ↗</button>
+          </div>
+
+          <!-- Card 7: Eksport -->
+          <div class="orbit-card" data-index="7" onclick="openCard(7)">
+            <span class="card-badge">Warstwa 08</span>
+            <div>
+              <div class="card-icon">📦</div>
+              <div class="card-title-3d">Eksport & CLI</div>
+              <div class="card-desc-3d">Generowanie Apple M4B, skryptów ElevenLabs v3 oraz ChatTTS.</div>
+            </div>
+            <button class="card-open-btn">Otwórz panel ↗</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="orbit-hint">
+        <span>🖱️ Przeciągnij lewym przyciskiem myszy, aby obrócić bęben • Strzałki ← / → • Enter otwiera</span>
+      </div>
+
+      <div class="orbit-dock">
+        <button class="dock-pill active" onclick="rotateToCard(0)">📝 Tekst</button>
+        <button class="dock-pill" onclick="rotateToCard(1)">📖 Rozdziały</button>
+        <button class="dock-pill" onclick="rotateToCard(2)">🗣️ Głosy</button>
+        <button class="dock-pill" onclick="rotateToCard(3)">🎛️ Efekty</button>
+        <button class="dock-pill" onclick="rotateToCard(4)">⚙️ Presety</button>
+        <button class="dock-pill" onclick="rotateToCard(5)">⚡ Cache</button>
+        <button class="dock-pill" onclick="rotateToCard(6)">🎧 Mastering</button>
+        <button class="dock-pill" onclick="rotateToCard(7)">📦 Eksport</button>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 2. CLASSIC WORKBENCH VIEW                  -->
+    <!-- ========================================== -->
+    <section class="studio-card" id="view-classic" style="display: none;">
       <div class="card-header">
         <div class="card-title">📖 Scenariusz z emotikonami</div>
         <div class="preset-chips">
@@ -504,6 +908,16 @@
         <div class="tab-content" id="export-box"></div>
       </div>
     </section>
+
+    <!-- ========================================== -->
+    <!-- 3. INTERACTIVE GLASS MODAL FOR 3D CARDS    -->
+    <!-- ========================================== -->
+    <div class="card-modal-overlay" id="card-modal-overlay" onclick="closeModalOnBackdrop(event)">
+      <div class="card-modal-content" id="card-modal-content">
+        <button class="btn-close-modal" onclick="closeCardModal()">✕</button>
+        <div id="modal-body"></div>
+      </div>
+    </div>
   </main>
 
   <footer>
@@ -705,7 +1119,362 @@
       }
     }
 
+    // ========================================================
+    // 🪐 3D ORBIT CYLINDER & REVOLVER DRUM ENGINE
+    // ========================================================
+    const CARD_COUNT = 8;
+    const CARD_RADIUS = 390; // px
+    let currentOrbitAngle = 0;
+    let targetOrbitAngle = 0;
+    let currentActiveCard = 0;
+    let isDragging = false;
+    let startX = 0;
+    let baseAngle = 0;
+    let dragDistance = 0;
+
+    function initOrbitCylinder() {
+      const cards = document.querySelectorAll('.orbit-card');
+      const angleStep = 360 / CARD_COUNT;
+
+      cards.forEach((card, idx) => {
+        const theta = idx * angleStep;
+        card.style.transform = `rotateY(${theta}deg) translateZ(${CARD_RADIUS}px)`;
+      });
+
+      const stage = document.getElementById('orbit-stage');
+      const cylinder = document.getElementById('orbit-cylinder');
+
+      // Pointer drag interaction
+      stage.addEventListener('pointerdown', (e) => {
+        isDragging = true;
+        startX = e.clientX;
+        baseAngle = currentOrbitAngle;
+        dragDistance = 0;
+        cylinder.classList.add('dragging');
+        stage.setPointerCapture(e.pointerId);
+      });
+
+      stage.addEventListener('pointermove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        dragDistance = Math.abs(dx);
+        // Drag sensitivity: 0.35 deg per px
+        currentOrbitAngle = baseAngle + dx * 0.35;
+        applyOrbitAngle(currentOrbitAngle);
+        updateActiveCardStatus(currentOrbitAngle);
+      });
+
+      const stopDrag = (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        cylinder.classList.remove('dragging');
+
+        // Snap to nearest 45 deg step
+        const step = 360 / CARD_COUNT;
+        targetOrbitAngle = Math.round(currentOrbitAngle / step) * step;
+        currentOrbitAngle = targetOrbitAngle;
+        applyOrbitAngle(currentOrbitAngle);
+        updateActiveCardStatus(currentOrbitAngle);
+      };
+
+      stage.addEventListener('pointerup', stopDrag);
+      stage.addEventListener('pointercancel', stopDrag);
+
+      // Mouse Wheel Rotation
+      stage.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const step = 360 / CARD_COUNT;
+        const dir = Math.sign(e.deltaY);
+        targetOrbitAngle += dir * step;
+        currentOrbitAngle = targetOrbitAngle;
+        applyOrbitAngle(currentOrbitAngle);
+        updateActiveCardStatus(currentOrbitAngle);
+      }, { passive: false });
+
+      // Keyboard navigation
+      window.addEventListener('keydown', (e) => {
+        const modal = document.getElementById('card-modal-overlay');
+        const isModalOpen = modal.classList.contains('open');
+
+        if (e.key === 'Escape' && isModalOpen) {
+          closeCardModal();
+          return;
+        }
+
+        if (isModalOpen) return; // Don't rotate drum while modal is open
+
+        const step = 360 / CARD_COUNT;
+        if (e.key === 'ArrowRight') {
+          targetOrbitAngle -= step;
+          currentOrbitAngle = targetOrbitAngle;
+          applyOrbitAngle(currentOrbitAngle);
+          updateActiveCardStatus(currentOrbitAngle);
+        } else if (e.key === 'ArrowLeft') {
+          targetOrbitAngle += step;
+          currentOrbitAngle = targetOrbitAngle;
+          applyOrbitAngle(currentOrbitAngle);
+          updateActiveCardStatus(currentOrbitAngle);
+        } else if (e.key === 'Enter') {
+          openCard(currentActiveCard);
+        } else if (e.key >= '1' && e.key <= '8') {
+          rotateToCard(parseInt(e.key) - 1);
+        }
+      });
+
+      applyOrbitAngle(0);
+      updateActiveCardStatus(0);
+    }
+
+    function applyOrbitAngle(angleDeg) {
+      const cylinder = document.getElementById('orbit-cylinder');
+      // rotateX(-10deg) gives an elegant isometric bird-eye tilt
+      cylinder.style.transform = `rotateX(-10deg) rotateY(${angleDeg}deg)`;
+    }
+
+    function updateActiveCardStatus(angleDeg) {
+      const step = 360 / CARD_COUNT;
+      // Calculate normalized index facing front
+      let rawIdx = Math.round(-angleDeg / step) % CARD_COUNT;
+      if (rawIdx < 0) rawIdx += CARD_COUNT;
+      currentActiveCard = rawIdx;
+
+      document.querySelectorAll('.orbit-card').forEach((card, idx) => {
+        if (idx === currentActiveCard) {
+          card.classList.add('active');
+        } else {
+          card.classList.remove('active');
+        }
+      });
+
+      document.querySelectorAll('.dock-pill').forEach((pill, idx) => {
+        if (idx === currentActiveCard) {
+          pill.classList.add('active');
+        } else {
+          pill.classList.remove('active');
+        }
+      });
+    }
+
+    function rotateToCard(idx) {
+      const step = 360 / CARD_COUNT;
+      let targetForCard = -idx * step;
+      
+      // Find nearest rotational equivalent
+      const diff = (targetForCard - currentOrbitAngle) % 360;
+      let shortestDiff = diff;
+      if (diff > 180) shortestDiff = diff - 360;
+      if (diff < -180) shortestDiff = diff + 360;
+
+      targetOrbitAngle = currentOrbitAngle + shortestDiff;
+      currentOrbitAngle = targetOrbitAngle;
+      applyOrbitAngle(currentOrbitAngle);
+      updateActiveCardStatus(currentOrbitAngle);
+    }
+
+    function openCard(idx) {
+      // If user clicked a card that is not yet in front, first rotate to it
+      if (idx !== currentActiveCard) {
+        rotateToCard(idx);
+        return;
+      }
+
+      const modal = document.getElementById('card-modal-overlay');
+      const body = document.getElementById('modal-body');
+
+      const cardData = [
+        {
+          title: "📝 Tekst & Scenopis",
+          desc: "Wpisuj narrację i reżyseruj tempo, pauzy oraz emocje emotikonami lub aliasami.",
+          html: `
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <p style="color: var(--text-muted); font-size: 0.9rem;">
+                Wstawiaj bezpośrednio w tekst znaczniki: <code>🛑</code> (koniec/stop), <code>⏸️</code> (pauza 500ms), <code>📱</code> (telefon), <code>📻</code> (radio), <code>🏛️</code> (katedra), <code>🤫</code> (szept), <code>🤖</code> (robot), <code>😮‍💨</code> (oddech) lub tagi <code>[pauza]</code>, <code>[radio:wojskowe]</code>.
+              </p>
+              <div style="display: flex; gap: 0.75rem;">
+                <button onclick="setViewMode('classic'); closeCardModal();" class="btn-download" style="flex: 1; justify-content: center;">
+                  📋 Przejdź do pełnego edytora Warsztatu
+                </button>
+              </div>
+            </div>
+          `
+        },
+        {
+          title: "📖 Rozdziały & Struktura Książki",
+          desc: "Twórz rozdziały jednym znacznikiem 📖 i eksportuj strukturę spisu treści.",
+          html: `
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <p style="color: var(--text-muted); font-size: 0.9rem;">
+                Każde wystąpienie <code>📖 Tytuł Rozdziału 🛑</code> tworzy precyzyjny punkt rozdziałowy w pliku Apple M4B i MP3 z dokładnością do milisekundy.
+              </p>
+              <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); font-family: 'Fira Code', monospace; font-size: 0.85rem;">
+                • Rozdział 1: Prolog: Stacja Aurora [00:00.00 - 01:23.00]<br>
+                • Rozdział 2: Sygnał z Północy [01:23.00 - 04:45.00]
+              </div>
+              <button onclick="setViewMode('classic'); closeCardModal();" class="btn-download" style="justify-content: center;">
+                📋 Otwórz edytor rozdziałów w Warsztacie
+              </button>
+            </div>
+          `
+        },
+        {
+          title: "🗣️ Głosy & Silnik Syntezy",
+          desc: "Wybieraj pomiędzy pracą 100% offline a jakością chmurową Microsoftu.",
+          html: `
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(6,182,212,0.3); border-radius: 12px; padding: 1rem;">
+                  <h4 style="color: #38bdf8; margin-bottom: 0.5rem;">Piper Neural TTS (Offline)</h4>
+                  <p style="font-size: 0.8rem; color: #94a3b8; line-height: 1.4;">
+                    Działa w 100% lokalnie na procesorze CPU. Model <code>pl_PL-darkman</code> oraz <code>en_US-lessac</code> wczytany do RAM. Zero kosztów API, pełna prywatność.
+                  </p>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(59,130,246,0.3); border-radius: 12px; padding: 1rem;">
+                  <h4 style="color: #60a5fa; margin-bottom: 0.5rem;">Edge Neural (Online)</h4>
+                  <p style="font-size: 0.8rem; color: #94a3b8; line-height: 1.4;">
+                    Wielogłosowa synteza lektorska wysokiej rozdzielczości (głosy Marek, Zofia, Christopher).
+                  </p>
+                </div>
+              </div>
+              <button onclick="setViewMode('classic'); closeCardModal();" class="btn-download" style="justify-content: center;">
+                ⚙️ Zarządzaj silnikiem w Warsztacie
+              </button>
+            </div>
+          `
+        },
+        {
+          title: "🎛️ Efekty Akustyczne DSP",
+          desc: "Zintegrowane plany akustyczne z filtrami pasmowymi, splotowymi i nieliniowymi.",
+          html: `
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.5rem;">
+                <div style="background: rgba(255,255,255,0.05); padding: 0.6rem; border-radius: 8px; text-align: center;">📻 Radio</div>
+                <div style="background: rgba(255,255,255,0.05); padding: 0.6rem; border-radius: 8px; text-align: center;">📱 Telefon</div>
+                <div style="background: rgba(255,255,255,0.05); padding: 0.6rem; border-radius: 8px; text-align: center;">🏛️ Katedra</div>
+                <div style="background: rgba(255,255,255,0.05); padding: 0.6rem; border-radius: 8px; text-align: center;">📢 Megafon</div>
+                <div style="background: rgba(255,255,255,0.05); padding: 0.6rem; border-radius: 8px; text-align: center;">🤖 Robot</div>
+                <div style="background: rgba(255,255,255,0.05); padding: 0.6rem; border-radius: 8px; text-align: center;">😮‍💨 Oddech</div>
+              </div>
+              <button onclick="setViewMode('classic'); selectPreset('effects'); closeCardModal();" class="btn-download" style="justify-content: center;">
+                ▶ Odsłuchaj demonstrację efektów w Warsztacie
+              </button>
+            </div>
+          `
+        },
+        {
+          title: "⚙️ Presety Akustyczne (audioticon.toml)",
+          desc: "Projektowy system wariantów inline i parametrów brzmieniowych.",
+          html: `
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <p style="color: var(--text-muted); font-size: 0.9rem;">
+                Definiuj warianty w pliku projektu <code>audioticon.toml</code>:
+              </p>
+              <pre style="background: rgba(0,0,0,0.4); padding: 0.75rem; border-radius: 8px; font-size: 0.8rem; color: #a5f3fc;">[presets."radio:wojskowe"]
+base = "radio"
+distortion = 0.45
+bandwidth = 0.55
+volume = 0.95</pre>
+              <button onclick="setViewMode('classic'); closeCardModal();" class="btn-download" style="justify-content: center;">
+                📋 Dostosuj presety w Warsztacie
+              </button>
+            </div>
+          `
+        },
+        {
+          title: "⚡ Pamięć Cache Zdań (SHA-256)",
+          desc: "Bezstratny cache eliminujący powtórną syntezę i drastycznie skracający render.",
+          html: `
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <p style="color: var(--text-muted); font-size: 0.9rem;">
+                Audioticon hashuje każde zdanie, tempo, filtr i ton algorytmem <strong>SHA-256</strong>. Zmiana jednego przecinka re-renderuje tylko ten jeden segment, a reszta rozdziału składana jest w <strong>~20 ms</strong>!
+              </p>
+              <div style="background: rgba(6,182,212,0.1); border: 1px solid rgba(6,182,212,0.3); border-radius: 8px; padding: 0.75rem; font-size: 0.85rem; color: #38bdf8;">
+                ⚡ Średni czas dostępu do segmentu z cache: <strong>21 ms</strong> na dysku SSD.
+              </div>
+            </div>
+          `
+        },
+        {
+          title: "🎧 Studio Odsłuchu & Mastering EBU R128",
+          desc: "Zgodność z normami ACX / Audible: -19 LUFS, True-Peak -3.5 dBTP.",
+          html: `
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <p style="color: var(--text-muted); font-size: 0.9rem;">
+                Wbudowany 2-przebiegowy procesor dynamiki EBU R128 i szum tła studia eliminują efekt bramki szumów.
+              </p>
+              <button onclick="setViewMode('classic'); closeCardModal();" class="btn-download" style="justify-content: center;">
+                ▶ Odtwórz i pobierz MP3 w Warsztacie
+              </button>
+            </div>
+          `
+        },
+        {
+          title: "📦 Eksport Audiobooka",
+          desc: "Gotowe pliki M4B, skrypty ElevenLabs v3 oraz ChatTTS.",
+          html: `
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <p style="color: var(--text-muted); font-size: 0.9rem;">
+                Eksportuj jednym kliknięciem do Apple M4B z rozdziałami lub pobierz wygenerowany skrypt z tagami aktorskimi.
+              </p>
+              <button onclick="setViewMode('classic'); closeCardModal();" class="btn-download" style="justify-content: center;">
+                ⬇ Otwórz opcje eksportu w Warsztacie
+              </button>
+            </div>
+          `
+        }
+      ];
+
+      const data = cardData[idx];
+      body.innerHTML = `
+        <h2 style="font-size: 1.4rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
+          ${data.title}
+        </h2>
+        <p style="color: #94a3b8; font-size: 0.9rem; margin-top: -0.5rem;">
+          ${data.desc}
+        </p>
+        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 0.25rem 0;">
+        ${data.html}
+      `;
+
+      modal.classList.add('open');
+    }
+
+    function closeCardModal() {
+      const modal = document.getElementById('card-modal-overlay');
+      modal.classList.remove('open');
+    }
+
+    function closeModalOnBackdrop(e) {
+      if (e.target.id === 'card-modal-overlay') {
+        closeCardModal();
+      }
+    }
+
+    // ========================================================
+    // 🔀 VIEW MODE TOGGLE (3D ORBIT <-> CLASSIC WORKBENCH)
+    // ========================================================
+    function setViewMode(mode) {
+      const v3d = document.getElementById('view-3d');
+      const vClassic = document.getElementById('view-classic');
+      const btn3d = document.getElementById('btn-view-3d');
+      const btnClassic = document.getElementById('btn-view-classic');
+
+      if (mode === '3d') {
+        v3d.style.display = 'flex';
+        vClassic.style.display = 'none';
+        btn3d.classList.add('active');
+        btnClassic.classList.remove('active');
+        // trigger recalculation
+        applyOrbitAngle(currentOrbitAngle);
+      } else {
+        v3d.style.display = 'none';
+        vClassic.style.display = 'flex';
+        btn3d.classList.remove('active');
+        btnClassic.classList.add('active');
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
+      initOrbitCylinder();
       selectPreset('aurora');
       document.getElementById('script-input').addEventListener('input', (e) => {
         updateExports(e.target.value);
