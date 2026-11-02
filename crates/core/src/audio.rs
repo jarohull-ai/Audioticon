@@ -216,6 +216,12 @@ pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -
 
 /// Constructs FFmpeg audio filter chain with silence trimming and DSP acoustic presets.
 pub fn build_ffmpeg_filter_chain(filter: Option<&str>) -> String {
+    let registry = crate::presets::get_active_registry();
+    build_ffmpeg_filter_chain_with_registry(filter, &registry)
+}
+
+/// Constructs FFmpeg audio filter chain using an explicit preset registry.
+pub fn build_ffmpeg_filter_chain_with_registry(filter: Option<&str>, registry: &crate::presets::PresetRegistry) -> String {
     let mut filters = vec![
         "silenceremove=start_periods=1:start_duration=0.005:start_threshold=-45dB:detection=rms".to_string(),
         "areverse".to_string(),
@@ -223,38 +229,11 @@ pub fn build_ffmpeg_filter_chain(filter: Option<&str>) -> String {
         "areverse".to_string(),
     ];
 
-    if let Some(preset) = filter {
-        match preset {
-            "phone" => {
-                filters.push("highpass=f=350,lowpass=f=3200,volume=1.2".to_string());
-            }
-            "radio" => {
-                filters.push("highpass=f=450,lowpass=f=2600,volume=1.25,acrusher=level_in=1:level_out=0.9:bits=8:mode=lin".to_string());
-            }
-            "megaphone" => {
-                filters.push("highpass=f=550,lowpass=f=3500,equalizer=f=1800:t=q:w=2:g=4,volume=1.2,aecho=0.8:0.35:100:0.2".to_string());
-            }
-            "cathedral" => {
-                // Balanced cathedral acoustic space: clean reflections without drowning spoken dialogue
-                filters.push("apad=pad_dur=0.6,aecho=0.8:0.45:90|210:0.28|0.16".to_string());
-            }
-            "dungeon" => {
-                // Dark subterranean damp vault with muffled reflections
-                filters.push("apad=pad_dur=1.2,lowpass=f=3600,aecho=0.8:0.65:120|260:0.35|0.22".to_string());
-            }
-            "thought" => {
-                filters.push("lowpass=f=3800,equalizer=f=300:t=q:w=1:g=3,volume=1.2,aecho=0.8:0.35:28:0.25".to_string());
-            }
-            "robot" => {
-                // Sinister combat drone / cyborg voice: resample to 24kHz + pitch shift down + Dalek ring modulation (55Hz tremolo) + metallic chassis resonance + tight echo
-                filters.push("aresample=24000,asetrate=24000*0.86,aresample=24000,atempo=1.16,tremolo=f=55:d=0.88,equalizer=f=950:t=q:w=2.5:g=9,aecho=0.8:0.5:16|32:0.35|0.2".to_string());
-            }
-            "whisper" => {
-                // Intimate breathy whisper: eliminate chest vocal cord resonance below 480Hz,
-                // boost air friction band (3.2kHz - 6kHz), and balance level
-                filters.push("highpass=f=480,lowpass=f=6000,equalizer=f=3200:t=q:w=1.5:g=7,volume=2.4".to_string());
-            }
-            _ => {}
+    if let Some(preset_tag) = filter {
+        let (preset, _warn) = registry.resolve(preset_tag);
+        let dsp_filter = preset.to_ffmpeg_filter();
+        if !dsp_filter.is_empty() {
+            filters.push(dsp_filter);
         }
     }
 

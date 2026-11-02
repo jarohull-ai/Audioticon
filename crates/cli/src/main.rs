@@ -3,8 +3,8 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
 use std::sync::Arc;
 use audioticon_core::{
-    export_to_m4b, export_to_mp3, AudiobookMetadata, AudioDirectorEngine, DirectedItem,
-    EdgeTtsBridge, EmojiDirector, PiperBridge, SpeechSynthesizer,
+    export_to_m4b, export_to_mp3, presets, AudiobookMetadata, AudioDirectorEngine, DirectedItem,
+    EdgeTtsBridge, EmojiDirector, PiperBridge, PresetRegistry, ProjectConfig, SpeechSynthesizer,
 };
 
 #[derive(Parser)]
@@ -110,6 +110,12 @@ enum Commands {
         /// Uruchamia wbudowaną scenę demonstracyjną Kijów
         #[arg(long)]
         demo: bool,
+    },
+    /// Wyświetla listę dostępnych presetów akustycznych (systemowych i z audioticon.toml)
+    Presets {
+        /// Ścieżka do pliku projektu audioticon.toml
+        #[arg(short, long)]
+        config: Option<PathBuf>,
     },
 }
 
@@ -283,21 +289,36 @@ async fn main() -> Result<()> {
                 );
             }
 
-            let book_title = title.unwrap_or_else(|| {
-                input
-                    .as_ref()
-                    .and_then(|p| p.file_stem().and_then(|s| s.to_str()))
-                    .unwrap_or("Audioticon Audiobook")
-                    .to_string()
-            });
-            let book_author = author.unwrap_or_else(|| "Jarosław Kuchta".to_string());
-            let book_narrator = narrator.unwrap_or_else(|| synthesizer.voice_name().to_string());
-            let book_year = year.unwrap_or_else(|| {
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| (1970 + d.as_secs() / 31_557_600).to_string())
-                    .unwrap_or_else(|_| "2026".to_string())
-            });
+            // Discover and load project config (audioticon.toml)
+            let project_cfg = ProjectConfig::discover(input.as_deref());
+            let mut registry = PresetRegistry::default();
+            registry.load_project_config(&project_cfg);
+            presets::set_active_registry(registry.clone());
+
+            let project_meta = project_cfg.project.as_ref();
+            let book_title = title
+                .or_else(|| project_meta.and_then(|p| p.title.clone()))
+                .unwrap_or_else(|| {
+                    input
+                        .as_ref()
+                        .and_then(|p| p.file_stem().and_then(|s| s.to_str()))
+                        .unwrap_or("Audioticon Audiobook")
+                        .to_string()
+                });
+            let book_author = author
+                .or_else(|| project_meta.and_then(|p| p.author.clone()))
+                .unwrap_or_else(|| "Jarosław Kuchta".to_string());
+            let book_narrator = narrator
+                .or_else(|| project_meta.and_then(|p| p.narrator.clone()))
+                .unwrap_or_else(|| synthesizer.voice_name().to_string());
+            let book_year = year
+                .or_else(|| project_meta.and_then(|p| p.year.clone()))
+                .unwrap_or_else(|| {
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| (1970 + d.as_secs() / 31_557_600).to_string())
+                        .unwrap_or_else(|_| "2026".to_string())
+                });
 
             println!("============================================================");
             println!("🎧 AUDIOTICON — Renderowanie Scenariusza");
@@ -308,9 +329,12 @@ async fn main() -> Result<()> {
             println!("Provider:  {:?}", provider);
             println!("Cache dir: {:?}", cache_path);
             println!("Wyjście:   {:?}", output);
+            if !project_cfg.presets.is_empty() {
+                println!("Presety:   zaimportowano {} wariantów z audioticon.toml", project_cfg.presets.len());
+            }
             println!("============================================================");
 
-            let director = EmojiDirector::default();
+            let director = EmojiDirector::with_registry(registry);
             let script = director.parse(&script_text);
             println!(
                 "Oś czasu:  {} segmentów. Łączny czas pauz: {} ms",
@@ -437,6 +461,55 @@ async fn main() -> Result<()> {
                     println!("\n============================================================");
                 }
             }
+        }
+        Commands::Presets { config } => {
+            let project_cfg = if let Some(cfg_path) = config {
+                ProjectConfig::load_from_path(&cfg_path)?
+            } else {
+                ProjectConfig::discover(None)
+            };
+
+            let mut registry = PresetRegistry::default();
+            registry.load_project_config(&project_cfg);
+
+            println!("============================================================");
+            println!("🎛️ AUDIOTICON — Rejestr Presetów Akustycznych");
+            if !project_cfg.presets.is_empty() {
+                println!("Konfiguracja projektu: załadowano {} własnych wariantów", project_cfg.presets.len());
+            }
+            println!("============================================================");
+            println!("{:<4} {:<22} {:<12} Kluczowe parametry", "Lp.", "Preset / Wariant", "Bazowy typ");
+            println!("------------------------------------------------------------");
+            for (idx, (name, preset)) in registry.list_presets().iter().enumerate() {
+                let mut details = Vec::new();
+                if let Some(vol) = preset.volume {
+                    details.push(format!("vol={:.2}", vol));
+                }
+                if let Some(dist) = preset.distortion {
+                    details.push(format!("dist={:.2}", dist));
+                }
+                if let Some(bw) = preset.bandwidth {
+                    details.push(format!("bw={:.2}", bw));
+                }
+                if let Some(size) = preset.room_size {
+                    details.push(format!("size={:.2}", size));
+                }
+                if let Some(tail) = preset.reverb_tail {
+                    details.push(format!("tail={:.2}", tail));
+                }
+                if let Some(air) = preset.air {
+                    details.push(format!("air={:.2}", air));
+                }
+                if let Some(rate) = preset.rate {
+                    details.push(format!("rate={:+}%", rate));
+                }
+                if let Some(pitch) = preset.pitch {
+                    details.push(format!("pitch={:+}Hz", pitch));
+                }
+                let details_str = if details.is_empty() { "domyślne".to_string() } else { details.join(", ") };
+                println!("{:02}.  {:<22} {:<12} {}", idx + 1, name, preset.base, details_str);
+            }
+            println!("============================================================");
         }
     }
 

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use regex::Regex;
+use crate::presets::PresetRegistry;
 use crate::types::{ActorTag, DirectedItem, DirectedScript, EmojiAction, TextSegment};
 use crate::verbalizer::normalize_polish_text;
 
@@ -8,6 +9,7 @@ use crate::verbalizer::normalize_polish_text;
 pub struct EmojiDirector {
     actions: HashMap<String, EmojiAction>,
     compiled_regex: Regex,
+    pub registry: PresetRegistry,
 }
 
 impl Default for EmojiDirector {
@@ -42,13 +44,24 @@ impl Default for EmojiDirector {
         m.insert("📑".to_string(), EmojiAction::Chapter);
 
         let compiled = Self::build_regex(&m);
-        Self { actions: m, compiled_regex: compiled }
+        Self {
+            actions: m,
+            compiled_regex: compiled,
+            registry: PresetRegistry::default(),
+        }
     }
 }
 
 impl EmojiDirector {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_registry(registry: PresetRegistry) -> Self {
+        Self {
+            registry,
+            ..Default::default()
+        }
     }
 
     fn build_regex(actions: &HashMap<String, EmojiAction>) -> Regex {
@@ -87,6 +100,39 @@ impl EmojiDirector {
         }
     }
 
+    /// Extracts optional suffix like ":wojskowe" or "[wojskowe]" following an emoji.
+    /// Returns (Option<variant_name>, bytes_consumed).
+    fn extract_variant_suffix(remainder: &str) -> (Option<&str>, usize) {
+        if remainder.is_empty() {
+            return (None, 0);
+        }
+
+        // Check for [variant_name]
+        if remainder.starts_with('[') {
+            if let Some(close_bracket) = remainder.find(']') {
+                let inside = &remainder[1..close_bracket];
+                if !inside.is_empty() && inside.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+                    return (Some(inside), close_bracket + 1);
+                }
+            }
+        }
+
+        // Check for :variant_name (ensure followed by alphanumeric, NOT space or regular dialogue colon)
+        if let Some(after_colon) = remainder.strip_prefix(':') {
+            let name_len = after_colon
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+                .map(|c| c.len_utf8())
+                .sum::<usize>();
+
+            if name_len > 0 {
+                return (Some(&after_colon[..name_len]), 1 + name_len);
+            }
+        }
+
+        (None, 0)
+    }
+
     /// Splits text at newline or sentence boundary to isolate a chapter title.
     fn split_chapter_title(s: &str) -> (&str, &str) {
         let trimmed = s.trim_start();
@@ -118,8 +164,11 @@ impl EmojiDirector {
         let mut pending_chapter = false;
 
         for mat in self.compiled_regex.find_iter(raw_script) {
+            let emoji_start = mat.start();
+            let emoji_end = mat.end();
+
             // Process text before the emoji
-            let before = &raw_script[last_end..mat.start()];
+            let before = &raw_script[last_end..emoji_start];
             if !before.is_empty() {
                 if pending_chapter {
                     let (title, remainder) = Self::split_chapter_title(before);
@@ -154,6 +203,10 @@ impl EmojiDirector {
             }
 
             let emoji_str = mat.as_str();
+            let after_emoji = &raw_script[emoji_end..];
+            let (variant, variant_bytes) = Self::extract_variant_suffix(after_emoji);
+            let effective_end = emoji_end + variant_bytes;
+
             if let Some(action) = self.actions.get(emoji_str) {
                 // If we have buffered text, flush it before the action
                 let clean_text = text_buf.trim().to_string();
@@ -162,6 +215,11 @@ impl EmojiDirector {
                     script.items.push(DirectedItem::Speech(current_segment.clone()));
                     text_buf.clear();
                 }
+
+                let full_tag = match variant {
+                    Some(v) => format!("{}:{}", emoji_str, v),
+                    None => emoji_str.to_string(),
+                };
 
                 // Apply action
                 match action {
@@ -177,15 +235,17 @@ impl EmojiDirector {
                         script.items.push(DirectedItem::Breath(*ms));
                     }
                     EmojiAction::RateMod(rate) => {
-                        current_segment.rate_mod = *rate;
-                        if *rate < 0 {
+                        let (preset, _) = self.registry.resolve(&full_tag);
+                        current_segment.rate_mod = preset.rate.unwrap_or(*rate);
+                        if current_segment.rate_mod < 0 {
                             current_segment.actor_tags.push(ActorTag::Hesitant);
-                        } else if *rate > 0 {
+                        } else if current_segment.rate_mod > 0 {
                             current_segment.actor_tags.push(ActorTag::Urgent);
                         }
                     }
                     EmojiAction::PitchMod(pitch) => {
-                        current_segment.pitch_mod = *pitch;
+                        let (preset, _) = self.registry.resolve(&full_tag);
+                        current_segment.pitch_mod = preset.pitch.unwrap_or(*pitch);
                     }
                     EmojiAction::VolumeMod(vol) => {
                         current_segment.volume_mod = *vol;
@@ -193,20 +253,43 @@ impl EmojiDirector {
                             pending_one_shot_volume = true;
                         } else if *vol == -25 {
                             // 🤫 whisper also slows down slightly, adds Whisper actor tag, and activates the whisper DSP acoustic filter
-                            current_segment.rate_mod = -10;
+                            let (preset, warn) = self.registry.resolve(&full_tag);
+                            if let Some(w) = warn {
+                                eprintln!("⚠️ {}", w);
+                            }
+                            current_segment.rate_mod = preset.rate.unwrap_or(-10);
+                            if let Some(p) = preset.pitch {
+                                current_segment.pitch_mod = p;
+                            }
+                            if let Some(v) = preset.volume {
+                                current_segment.volume_mod = ((v - 1.0) * 100.0) as i32;
+                            }
                             current_segment.actor_tags.push(ActorTag::Whisper);
-                            current_segment.filter = Some("whisper".to_string());
+                            current_segment.filter = Some(full_tag);
                         }
                     }
-                    EmojiAction::Filter(filter_name) => {
-                        current_segment.filter = Some(filter_name.clone());
+                    EmojiAction::Filter(_base_name) => {
+                        let (preset, warn) = self.registry.resolve(&full_tag);
+                        if let Some(w) = warn {
+                            eprintln!("⚠️ {}", w);
+                        }
+                        if let Some(v) = preset.volume {
+                            current_segment.volume_mod = ((v - 1.0) * 100.0) as i32;
+                        }
+                        if let Some(rate) = preset.rate {
+                            current_segment.rate_mod = rate;
+                        }
+                        if let Some(pitch) = preset.pitch {
+                            current_segment.pitch_mod = pitch;
+                        }
+                        current_segment.filter = Some(full_tag);
                     }
                     EmojiAction::Chapter => {
                         pending_chapter = true;
                     }
                 }
             }
-            last_end = mat.end();
+            last_end = effective_end;
         }
 
         // Process remaining text
@@ -332,5 +415,47 @@ mod tests {
         assert!(chat.contains("[shout] budzik."));
         assert!(chat.contains("[whisper] Cicho, dziecko śpi."));
         assert!(chat.contains("[sigh]"));
+    }
+
+    #[test]
+    fn test_emoji_variants() {
+        let director = EmojiDirector::default();
+        let input = "Komunikat: 📻:wojskowe Uwaga patrol! 🛑 A przez komórkę 📱[stary] Odbiór. 🛑";
+        let script = director.parse(input);
+
+        let speeches: Vec<&TextSegment> = script
+            .items
+            .iter()
+            .filter_map(|it| match it {
+                DirectedItem::Speech(seg) => Some(seg),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(speeches[1].text, "Uwaga patrol!");
+        assert_eq!(speeches[1].filter.as_deref(), Some("📻:wojskowe"));
+
+        assert_eq!(speeches[3].text, "Odbiór.");
+        assert_eq!(speeches[3].filter.as_deref(), Some("📱:stary"));
+    }
+
+    #[test]
+    fn test_dialogue_colon_not_treated_as_variant() {
+        let director = EmojiDirector::default();
+        let input = "Powiedział 🤫: Nie budź ich.";
+        let script = director.parse(input);
+
+        let speeches: Vec<&TextSegment> = script
+            .items
+            .iter()
+            .filter_map(|it| match it {
+                DirectedItem::Speech(seg) => Some(seg),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(speeches[0].text, "Powiedział");
+        assert_eq!(speeches[1].text, ": Nie budź ich.");
+        assert_eq!(speeches[1].filter.as_deref(), Some("🤫"));
     }
 }

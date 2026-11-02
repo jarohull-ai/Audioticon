@@ -1,0 +1,28 @@
+[project]
+title = "Archiwum Pyłu"
+author = "Jarosław Kuchta"
+narrator = "Lektor Polski"
+year = "2026"
+
+[presets."📻:wojskowe"]
+base = "radio"
+distortion = 0.55
+bandwidth = 0.25
+volume = 1.3
+
+[presets."🏛️:kaplica"]
+base = "cathedral"
+room_size = 0.25
+reverb_tail = 0.25
+damping = 0.7
+
+[presets."🤫:intymny"]
+base = "whisper"
+volume = 2.0
+air = 0.95
+rate = -12
+
+[presets."🤖:ciezki"]
+base = "robot"
+distortion = 0.8
+modulation = 0.7
