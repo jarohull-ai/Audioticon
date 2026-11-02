@@ -217,26 +217,33 @@ pub fn build_ffmpeg_filter_chain(filter: Option<&str>) -> String {
     if let Some(preset) = filter {
         match preset {
             "phone" => {
-                filters.push("highpass=f=300,lowpass=f=3400,volume=2.2,acrusher=level_in=1:level_out=0.9:bits=10:mode=lin".to_string());
+                filters.push("highpass=f=350,lowpass=f=3200,volume=1.8".to_string());
             }
             "radio" => {
-                filters.push("highpass=f=400,lowpass=f=2800,volume=2.2,treble=g=-2".to_string());
+                filters.push("highpass=f=450,lowpass=f=2600,volume=2.0,acrusher=level_in=1:level_out=0.9:bits=8:mode=lin".to_string());
             }
             "megaphone" => {
-                filters.push("highpass=f=500,lowpass=f=3800,volume=2.0,acrusher=level_in=1:level_out=1:bits=12:mode=lin".to_string());
+                filters.push("highpass=f=550,lowpass=f=3500,equalizer=f=1800:t=q:w=2:g=8,volume=1.8,aecho=0.8:0.4:120:0.25".to_string());
             }
             "cathedral" => {
-                // Add pad duration before aecho so the reverb tail naturally decays without harsh cutoff
-                filters.push("apad=pad_dur=0.8,aecho=0.8:0.88:60|120:0.4|0.25".to_string());
+                // Vast stone cathedral acoustic space with long reverb tail
+                filters.push("apad=pad_dur=1.8,aecho=0.85:0.75:180|360|680:0.4|0.28|0.18".to_string());
             }
             "dungeon" => {
-                filters.push("apad=pad_dur=0.6,aecho=0.8:0.75:30|60:0.3|0.2".to_string());
+                // Dark subterranean damp vault with muffled reflections
+                filters.push("apad=pad_dur=1.2,lowpass=f=3600,aecho=0.8:0.65:120|260:0.35|0.22".to_string());
             }
             "thought" => {
-                filters.push("lowpass=f=4500,aecho=0.8:0.6:20:0.2".to_string());
+                filters.push("lowpass=f=3800,equalizer=f=300:t=q:w=1:g=3,volume=1.2,aecho=0.8:0.35:28:0.25".to_string());
             }
             "robot" => {
-                filters.push("flanger=delay=5:depth=2:regen=50:width=80:speed=2,acrusher=bits=12:mode=lin".to_string());
+                // Sinister combat drone / cyborg voice: pitch shift down + Dalek ring modulation (55Hz tremolo) + metallic chassis resonance + tight echo
+                filters.push("asetrate=24000*0.86,atempo=1.16,tremolo=f=55:d=0.88,equalizer=f=950:t=q:w=2.5:g=9,aecho=0.8:0.5:16|32:0.35|0.2".to_string());
+            }
+            "whisper" => {
+                // Intimate breathy whisper: eliminate chest vocal cord resonance below 480Hz,
+                // boost air friction band (3.2kHz - 6kHz), and balance level
+                filters.push("highpass=f=480,lowpass=f=6000,equalizer=f=3200:t=q:w=1.5:g=7,volume=2.4".to_string());
             }
             _ => {}
         }

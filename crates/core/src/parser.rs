@@ -192,9 +192,10 @@ impl EmojiDirector {
                         if *vol > 0 {
                             pending_one_shot_volume = true;
                         } else if *vol == -25 {
-                            // 🤫 whisper also slows down slightly and adds Whisper actor tag
+                            // 🤫 whisper also slows down slightly, adds Whisper actor tag, and activates the whisper DSP acoustic filter
                             current_segment.rate_mod = -10;
                             current_segment.actor_tags.push(ActorTag::Whisper);
+                            current_segment.filter = Some("whisper".to_string());
                         }
                     }
                     EmojiAction::Filter(filter_name) => {
