@@ -55,6 +55,10 @@ enum Commands {
         #[arg(short, long, default_value = "pl-PL-MarekNeural")]
         voice: String,
 
+        /// Język tekstu (pl lub en - wyłącza polską normalizację liczb dla języka angielskiego)
+        #[arg(long, default_value = "pl")]
+        lang: String,
+
         /// Ścieżka do lokalnego modelu ONNX dla Piper (domyślnie: ~/.cache/audioticon/models/pl_PL-darkman-medium.onnx)
         #[arg(long)]
         model: Option<PathBuf>,
@@ -106,6 +110,10 @@ enum Commands {
         /// Format wyjściowy tagów aktorskich
         #[arg(short, long, value_enum, default_value_t = ScriptFormat::Elevenlabs)]
         format: ScriptFormat,
+
+        /// Język tekstu (pl lub en)
+        #[arg(long, default_value = "pl")]
+        lang: String,
 
         /// Uruchamia wbudowaną scenę demonstracyjną Kijów
         #[arg(long)]
@@ -230,6 +238,7 @@ async fn main() -> Result<()> {
             output,
             provider,
             voice,
+            lang,
             model,
             cache_dir,
             title,
@@ -334,7 +343,7 @@ async fn main() -> Result<()> {
             }
             println!("============================================================");
 
-            let director = EmojiDirector::with_registry(registry);
+            let director = EmojiDirector::with_registry(registry).with_lang(&lang);
             let script = director.parse(&script_text);
             println!(
                 "Oś czasu:  {} segmentów. Łączny czas pauz: {} ms",
@@ -406,13 +415,13 @@ async fn main() -> Result<()> {
             );
             println!("============================================================");
         }
-        Commands::Script { input, format, demo } => {
+        Commands::Script { input, format, lang, demo } => {
             let script_text = match input {
                 Some(file_path) if !demo => std::fs::read_to_string(&file_path)
                     .with_context(|| format!("Nie można odczytać pliku: {:?}", file_path))?,
                 _ => DEMO_SCENE.to_string(),
             };
-            let director = EmojiDirector::default();
+            let director = EmojiDirector::default().with_lang(&lang);
             let script = director.parse(&script_text);
 
             match format {

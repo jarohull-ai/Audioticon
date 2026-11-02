@@ -10,6 +10,7 @@ pub struct EmojiDirector {
     actions: HashMap<String, EmojiAction>,
     compiled_regex: Regex,
     pub registry: PresetRegistry,
+    pub lang: String,
 }
 
 impl Default for EmojiDirector {
@@ -48,6 +49,7 @@ impl Default for EmojiDirector {
             actions: m,
             compiled_regex: compiled,
             registry: PresetRegistry::default(),
+            lang: "pl".to_string(),
         }
     }
 }
@@ -61,6 +63,19 @@ impl EmojiDirector {
         Self {
             registry,
             ..Default::default()
+        }
+    }
+
+    pub fn with_lang(mut self, lang: impl Into<String>) -> Self {
+        self.lang = lang.into();
+        self
+    }
+
+    fn normalize_text(&self, text: &str) -> String {
+        if self.lang.starts_with("en") {
+            text.to_string()
+        } else {
+            normalize_polish_text(text)
         }
     }
 
@@ -176,7 +191,7 @@ impl EmojiDirector {
                         let clean_title = title.trim_end_matches(['.', ':', ';', ' ']).trim();
                         script.items.push(DirectedItem::Chapter(clean_title.to_string()));
                         let mut title_seg = current_segment.clone();
-                        title_seg.text = normalize_polish_text(title);
+                        title_seg.text = self.normalize_text(title);
                         script.items.push(DirectedItem::Speech(title_seg));
                         pending_chapter = false;
                     }
@@ -187,7 +202,7 @@ impl EmojiDirector {
                     let (token, remainder) = Self::split_first_token(before);
                     if !token.is_empty() {
                         let mut emphasized = current_segment.clone();
-                        emphasized.text = normalize_polish_text(token.trim());
+                        emphasized.text = self.normalize_text(token.trim());
                         emphasized.actor_tags.push(ActorTag::Shout);
                         script.items.push(DirectedItem::Speech(emphasized));
                         // Immediately reset volume for rest of sentence
@@ -211,7 +226,7 @@ impl EmojiDirector {
                 // If we have buffered text, flush it before the action
                 let clean_text = text_buf.trim().to_string();
                 if !clean_text.is_empty() {
-                    current_segment.text = normalize_polish_text(&clean_text);
+                    current_segment.text = self.normalize_text(&clean_text);
                     script.items.push(DirectedItem::Speech(current_segment.clone()));
                     text_buf.clear();
                 }
@@ -301,7 +316,7 @@ impl EmojiDirector {
                     let clean_title = title.trim_end_matches(['.', ':', ';', ' ']).trim();
                     script.items.push(DirectedItem::Chapter(clean_title.to_string()));
                     let mut title_seg = current_segment.clone();
-                    title_seg.text = normalize_polish_text(title);
+                    title_seg.text = self.normalize_text(title);
                     script.items.push(DirectedItem::Speech(title_seg));
                 }
                 if !remainder.is_empty() {
@@ -311,7 +326,7 @@ impl EmojiDirector {
                 let (token, remainder) = Self::split_first_token(tail);
                 if !token.is_empty() {
                     let mut emphasized = current_segment.clone();
-                    emphasized.text = normalize_polish_text(token.trim());
+                    emphasized.text = self.normalize_text(token.trim());
                     emphasized.actor_tags.push(ActorTag::Shout);
                     script.items.push(DirectedItem::Speech(emphasized));
                     current_segment.volume_mod = 0;
@@ -326,7 +341,7 @@ impl EmojiDirector {
 
         let clean_text = text_buf.trim().to_string();
         if !clean_text.is_empty() {
-            current_segment.text = normalize_polish_text(&clean_text);
+            current_segment.text = self.normalize_text(&clean_text);
             script.items.push(DirectedItem::Speech(current_segment));
         }
 
