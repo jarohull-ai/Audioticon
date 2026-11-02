@@ -391,7 +391,10 @@ impl PresetRegistry {
         // Check if tag is in the form of "emoji:variant" or "base:variant"
         if let Some((base_key, variant)) = tag.split_once(':') {
             // First check if base_key itself matches a preset
-            let clean_base = base_key.trim().trim_start_matches('[').trim_end_matches(']');
+            let clean_base = base_key
+                .trim()
+                .trim_start_matches('[')
+                .trim_end_matches(']');
             let canonical_base = match clean_base {
                 "📱" | "phone" | "telefon" => "phone",
                 "📻" | "radio" => "radio",

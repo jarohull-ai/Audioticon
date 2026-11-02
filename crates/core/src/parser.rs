@@ -47,10 +47,19 @@ impl Default for EmojiDirector {
 
         // DSP Filters & Acoustic Environments
         m.insert("📱".to_string(), EmojiAction::Filter("phone".to_string()));
-        m.insert("[telefon]".to_string(), EmojiAction::Filter("phone".to_string()));
-        m.insert("[phone]".to_string(), EmojiAction::Filter("phone".to_string()));
+        m.insert(
+            "[telefon]".to_string(),
+            EmojiAction::Filter("phone".to_string()),
+        );
+        m.insert(
+            "[phone]".to_string(),
+            EmojiAction::Filter("phone".to_string()),
+        );
         m.insert("📻".to_string(), EmojiAction::Filter("radio".to_string()));
-        m.insert("[radio]".to_string(), EmojiAction::Filter("radio".to_string()));
+        m.insert(
+            "[radio]".to_string(),
+            EmojiAction::Filter("radio".to_string()),
+        );
         m.insert(
             "📢".to_string(),
             EmojiAction::Filter("megaphone".to_string()),
@@ -76,13 +85,28 @@ impl Default for EmojiDirector {
             EmojiAction::Filter("cathedral".to_string()),
         );
         m.insert("🏰".to_string(), EmojiAction::Filter("dungeon".to_string()));
-        m.insert("[lochy]".to_string(), EmojiAction::Filter("dungeon".to_string()));
-        m.insert("[dungeon]".to_string(), EmojiAction::Filter("dungeon".to_string()));
+        m.insert(
+            "[lochy]".to_string(),
+            EmojiAction::Filter("dungeon".to_string()),
+        );
+        m.insert(
+            "[dungeon]".to_string(),
+            EmojiAction::Filter("dungeon".to_string()),
+        );
         m.insert("💭".to_string(), EmojiAction::Filter("thought".to_string()));
-        m.insert("[mysli]".to_string(), EmojiAction::Filter("thought".to_string()));
-        m.insert("[myśli]".to_string(), EmojiAction::Filter("thought".to_string()));
+        m.insert(
+            "[mysli]".to_string(),
+            EmojiAction::Filter("thought".to_string()),
+        );
+        m.insert(
+            "[myśli]".to_string(),
+            EmojiAction::Filter("thought".to_string()),
+        );
         m.insert("🤖".to_string(), EmojiAction::Filter("robot".to_string()));
-        m.insert("[robot]".to_string(), EmojiAction::Filter("robot".to_string()));
+        m.insert(
+            "[robot]".to_string(),
+            EmojiAction::Filter("robot".to_string()),
+        );
 
         // Structure & Chapter markers
         m.insert("📖".to_string(), EmojiAction::Chapter);
@@ -134,7 +158,10 @@ impl EmojiDirector {
         let mut keys: Vec<&String> = actions.keys().collect();
         keys.sort_by_key(|k| std::cmp::Reverse(k.len()));
         let emojis_pattern: Vec<String> = keys.into_iter().map(|e| regex::escape(e)).collect();
-        let re_str = format!("(\\[[a-zA-Ząćęłńóśźż_]+(?::[a-zA-Ząćęłńóśźż0-9_-]+)?\\]|{})", emojis_pattern.join("|"));
+        let re_str = format!(
+            "(\\[[a-zA-Ząćęłńóśźż_]+(?::[a-zA-Ząćęłńóśźż0-9_-]+)?\\]|{})",
+            emojis_pattern.join("|")
+        );
         Regex::new(&re_str).expect("Valid emoji regex")
     }
 
@@ -195,8 +222,15 @@ impl EmojiDirector {
                 .sum::<usize>();
 
             if name_len > 0 {
-                let trailing_bracket = if after_colon[name_len..].starts_with(']') { 1 } else { 0 };
-                return (Some(&after_colon[..name_len]), 1 + name_len + trailing_bracket);
+                let trailing_bracket = if after_colon[name_len..].starts_with(']') {
+                    1
+                } else {
+                    0
+                };
+                return (
+                    Some(&after_colon[..name_len]),
+                    1 + name_len + trailing_bracket,
+                );
             }
         }
 
@@ -279,18 +313,19 @@ impl EmojiDirector {
             }
 
             let matched_str = mat.as_str();
-            let (lookup_key, variant, effective_end) = if matched_str.starts_with('[') && matched_str.ends_with(']') {
-                let inside = &matched_str[1..matched_str.len() - 1];
-                if let Some((base, var)) = inside.split_once(':') {
-                    (format!("[{}]", base), Some(var), emoji_end)
+            let (lookup_key, variant, effective_end) =
+                if matched_str.starts_with('[') && matched_str.ends_with(']') {
+                    let inside = &matched_str[1..matched_str.len() - 1];
+                    if let Some((base, var)) = inside.split_once(':') {
+                        (format!("[{}]", base), Some(var), emoji_end)
+                    } else {
+                        (matched_str.to_string(), None, emoji_end)
+                    }
                 } else {
-                    (matched_str.to_string(), None, emoji_end)
-                }
-            } else {
-                let after_emoji = &raw_script[emoji_end..];
-                let (v, v_bytes) = Self::extract_variant_suffix(after_emoji);
-                (matched_str.to_string(), v, emoji_end + v_bytes)
-            };
+                    let after_emoji = &raw_script[emoji_end..];
+                    let (v, v_bytes) = Self::extract_variant_suffix(after_emoji);
+                    (matched_str.to_string(), v, emoji_end + v_bytes)
+                };
 
             if let Some(action) = self.actions.get(&lookup_key) {
                 // If we have buffered text, flush it before the action
@@ -555,7 +590,7 @@ mod tests {
         let script = director.parse(input);
 
         assert!(matches!(&script.items[0], DirectedItem::Chapter(c) if c == "Wstęp"));
-        
+
         let speeches: Vec<&TextSegment> = script
             .items
             .iter()
