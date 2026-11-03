@@ -1,8 +1,9 @@
 use anyhow::{Context, Result};
 use audioticon_core::{
-    download_model, export_to_m4b, export_to_mp3, find_model, list_models, models_dir, presets,
-    remove_model, AudioDirectorEngine, AudiobookMetadata, DirectedItem, EdgeTtsBridge,
-    EmojiDirector, PiperBridge, PresetRegistry, ProjectConfig, SpeechSynthesizer,
+    base64_decode, download_model, export_to_m4b, export_to_mp3, find_model, list_models,
+    models_dir, presets, remove_model, AudioDirectorEngine, AudiobookMetadata, DirectedItem,
+    EdgeTtsBridge, EmojiDirector, ImportedBook, PiperBridge, PresetRegistry, ProjectConfig,
+    SpeechSynthesizer,
 };
 use clap::{Parser, Subcommand, ValueEnum};
 use std::collections::HashMap;
@@ -165,6 +166,32 @@ enum Commands {
         #[command(subcommand)]
         action: Option<ModelsAction>,
     },
+    /// Importuje całą książkę (.epub, .docx, .txt, .md) z autodetekcją rozdziałów i konwersją do scenariusza
+    Import {
+        /// Ścieżka do pliku książki (.epub, .docx, .txt, .md)
+        #[arg(short, long)]
+        input: PathBuf,
+
+        /// Ścieżka do wyjściowego pliku ze scenariuszem (.txt)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Nadpisz tytuł książki
+        #[arg(long)]
+        title: Option<String>,
+
+        /// Nadpisz autora książki
+        #[arg(long)]
+        author: Option<String>,
+
+        /// Wyświetl tylko strukturę rozdziałów i statystyki bez zapisu pliku
+        #[arg(long)]
+        preview: bool,
+
+        /// Podziel i zapisz rozdziały do osobnych plików w podanym katalogu
+        #[arg(long)]
+        split_dir: Option<PathBuf>,
+    },
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -317,17 +344,44 @@ async fn main() -> Result<()> {
             demo,
             demo_effects,
         } => {
-            let script_text = match input {
-                Some(ref file_path) if !demo && !demo_effects => std::fs::read_to_string(file_path)
-                    .with_context(|| format!("Nie można odczytać pliku: {:?}", file_path))?,
+            let (script_text, imported_title, imported_author) = match input {
+                Some(ref file_path) if !demo && !demo_effects => {
+                    let ext = file_path
+                        .extension()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("")
+                        .to_lowercase();
+                    if ext == "epub" || ext == "docx" {
+                        println!(
+                            "📚 Wykryto plik książki ({}). Automatyczne importowanie rozdziałów...",
+                            ext.to_uppercase()
+                        );
+                        let book = ImportedBook::from_file(file_path)?;
+                        let total_words = book.total_words();
+                        let total_min = book.total_estimated_seconds() / 60;
+                        println!(
+                            "   Znaleziono {} rozdziałów (łącznie {} słów, ~{} min)\n",
+                            book.chapters.len(),
+                            total_words,
+                            total_min
+                        );
+                        let script = book.to_script();
+                        (script, book.title, book.author)
+                    } else {
+                        let text = std::fs::read_to_string(file_path).with_context(|| {
+                            format!("Nie można odczytać pliku: {:?}", file_path)
+                        })?;
+                        (text, None, None)
+                    }
+                }
                 _ => {
                     if demo_effects {
-                        DEMO_EFFECTS_SCENE.to_string()
+                        (DEMO_EFFECTS_SCENE.to_string(), None, None)
                     } else {
                         if !demo {
                             println!("ℹ️ Nie podano pliku wejściowego. Uruchamiam scenę demonstracyjną (--demo).\n");
                         }
-                        DEMO_SCENE.to_string()
+                        (DEMO_SCENE.to_string(), None, None)
                     }
                 }
             };
@@ -396,6 +450,7 @@ async fn main() -> Result<()> {
 
             let project_meta = project_cfg.project.as_ref();
             let book_title = title
+                .or(imported_title)
                 .or_else(|| project_meta.and_then(|p| p.title.clone()))
                 .unwrap_or_else(|| {
                     input
@@ -405,6 +460,7 @@ async fn main() -> Result<()> {
                         .to_string()
                 });
             let book_author = author
+                .or(imported_author)
                 .or_else(|| project_meta.and_then(|p| p.author.clone()))
                 .unwrap_or_else(|| "Jarosław Kuchta".to_string());
             let book_narrator = narrator
@@ -726,6 +782,93 @@ async fn main() -> Result<()> {
                 },
             }
         }
+        Commands::Import {
+            input,
+            output,
+            title,
+            author,
+            preview,
+            split_dir,
+        } => {
+            println!("=========================================================================================");
+            println!("📚 AUDIOTICON — Importer Książek (.epub, .docx, .txt, .md)");
+            println!("Plik źródłowy: {:?}", input);
+            println!("=========================================================================================");
+
+            let mut book = ImportedBook::from_file(&input)?;
+
+            if let Some(t) = title {
+                book.title = Some(t);
+            }
+            if let Some(a) = author {
+                book.author = Some(a);
+            }
+
+            let title_str = book.title.as_deref().unwrap_or("Bez tytułu");
+            let author_str = book.author.as_deref().unwrap_or("Nieznany autor");
+            let total_words = book.total_words();
+            let total_sec = book.total_estimated_seconds();
+            let total_min = total_sec / 60;
+
+            println!("Tytuł:   {}", title_str);
+            println!("Autor:   {}", author_str);
+            println!(
+                "Rozmiar: {} rozdziałów • {} słów • szacowany czas czytania: ~{} min ({:02}:{:02}h)",
+                book.chapters.len(),
+                total_words,
+                total_min,
+                total_sec / 3600,
+                (total_sec % 3600) / 60
+            );
+            println!("-----------------------------------------------------------------------------------------");
+            println!(
+                "{:<4} {:<40} {:<12} Szacowany czas",
+                "Nr", "Tytuł rozdziału", "Liczba słów"
+            );
+            println!("-----------------------------------------------------------------------------------------");
+
+            for ch in &book.chapters {
+                let min = ch.estimated_seconds / 60;
+                let sec = ch.estimated_seconds % 60;
+                println!(
+                    "{:02}.  {:<40} {:<12} ~{:02}:{:02}",
+                    ch.index,
+                    ch.title.chars().take(38).collect::<String>(),
+                    format!("{} słów", ch.word_count),
+                    min,
+                    sec
+                );
+            }
+            println!("=========================================================================================");
+
+            if let Some(ref dir) = split_dir {
+                std::fs::create_dir_all(dir)?;
+                for ch in &book.chapters {
+                    let file_name = format!("rozdzial_{:02}.txt", ch.index);
+                    let file_path = dir.join(file_name);
+                    let ch_script = format!("📖 {} 🛑\n\n{}", ch.title, ch.content);
+                    std::fs::write(&file_path, ch_script)?;
+                }
+                println!(
+                    "✅ Zapisano {} rozdziałów w katalogu: {:?}",
+                    book.chapters.len(),
+                    dir
+                );
+            }
+
+            if !preview {
+                let script = book.to_script();
+                let out_path = output.unwrap_or_else(|| input.with_extension("scenariusz.txt"));
+                std::fs::write(&out_path, &script)?;
+                println!("✅ Wygenerowano pełny scenariusz Audioticon:");
+                println!("   {:?}", out_path);
+                println!("💡 Możesz go teraz wyrenderować poleceniem:");
+                println!(
+                    "   audioticon render --input {:?} --output audiobook.m4b",
+                    out_path
+                );
+            }
+        }
     }
 
     Ok(())
@@ -1012,6 +1155,127 @@ async fn handle_studio_request(
                 resp.add_header(h.clone());
             }
             let _ = request.respond(resp);
+        }
+        return;
+    }
+
+    // Route: POST /api/import
+    if method == tiny_http::Method::Post && url == "/api/import" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(50 * 1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Błąd odczytu danych książki\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct ImportReq {
+            filename: String,
+            #[serde(default)]
+            content_base64: Option<String>,
+            #[serde(default)]
+            text: Option<String>,
+        }
+
+        let i_req = match serde_json::from_str::<ImportReq>(&body_str) {
+            Ok(r) => r,
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": "Nieprawidłowy JSON",
+                    "details": e.to_string()
+                });
+                let json_header =
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(json_header);
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let ext = PathBuf::from(&i_req.filename)
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        let title_hint = PathBuf::from(&i_req.filename)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string());
+
+        let book_res = if let Some(ref b64) = i_req.content_base64 {
+            match base64_decode(b64) {
+                Ok(bytes) => match ext.as_str() {
+                    "epub" => ImportedBook::from_epub_bytes(&bytes, title_hint.as_deref()),
+                    "docx" => ImportedBook::from_docx_bytes(&bytes, title_hint.as_deref()),
+                    _ => {
+                        let text = String::from_utf8_lossy(&bytes);
+                        Ok(ImportedBook::from_text_str(&text, title_hint.as_deref()))
+                    }
+                },
+                Err(err) => Err(anyhow::anyhow!("Błąd dekodowania base64: {}", err)),
+            }
+        } else if let Some(ref txt) = i_req.text {
+            Ok(ImportedBook::from_text_str(txt, title_hint.as_deref()))
+        } else {
+            Err(anyhow::anyhow!(
+                "Brak treści książki (text lub content_base64)"
+            ))
+        };
+
+        match book_res {
+            Ok(book) => {
+                let script = book.to_script();
+                let res_json = serde_json::json!({
+                    "title": book.title,
+                    "author": book.author,
+                    "language": book.language,
+                    "total_words": book.total_words(),
+                    "total_estimated_seconds": book.total_estimated_seconds(),
+                    "chapters": book.chapters,
+                    "script": script,
+                });
+                let json_header = Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap();
+                let mut resp = tiny_http::Response::from_string(res_json.to_string());
+                resp.add_header(json_header);
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+            }
+            Err(err) => {
+                let err_json = serde_json::json!({
+                    "error": "Błąd importu książki",
+                    "details": err.to_string()
+                });
+                let json_header = Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap();
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(json_header);
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+            }
         }
         return;
     }

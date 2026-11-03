@@ -81,3 +81,29 @@ fn test_cli_models_list() {
     assert!(stdout.contains("pl_PL-gosia-medium"));
     assert!(stdout.contains("en_US-lessac-medium"));
 }
+
+#[test]
+fn test_cli_import_text() {
+    let tmp_dir = std::env::temp_dir();
+    let sample_file = tmp_dir.join("test_book_sample.txt");
+    let sample_content = "Rozdział 1: Świt nad Arktyką\nZimny wiatr wiał od bieguna.\n\nRozdział 2: Lądowanie\nStatek dotknął pokrywy lodowej.";
+    std::fs::write(&sample_file, sample_content).expect("Write test sample");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_audioticon-cli"))
+        .args([
+            "import",
+            "--input",
+            sample_file.to_str().unwrap(),
+            "--preview",
+        ])
+        .output()
+        .expect("Failed to execute audioticon import");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Importer Książek"));
+    assert!(stdout.contains("Świt nad Arktyką"));
+    assert!(stdout.contains("Lądowanie"));
+
+    let _ = std::fs::remove_file(sample_file);
+}

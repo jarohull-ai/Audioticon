@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod cache;
+pub mod importer;
 pub mod models;
 pub mod parser;
 pub mod presets;
@@ -11,6 +12,9 @@ pub use audio::{
     AudioDirectorEngine, EdgeTtsBridge, PiperBridge, SpeechSynthesizer, DEFAULT_SAMPLE_RATE,
 };
 pub use cache::compute_segment_hash;
+pub use importer::{
+    base64_decode, decode_html_entities, strip_html_tags, ImportedBook, ImportedChapter,
+};
 pub use models::{
     download_model, find_model, list_models, models_dir, remove_model, ModelCatalogItem,
 };

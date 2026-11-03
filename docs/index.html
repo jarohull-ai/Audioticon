@@ -1482,6 +1482,8 @@
         <button class="emoji-btn" onclick="insertEmoji('[pauza]')"><span>[pauza]</span></button>
         <button class="emoji-btn" onclick="insertEmoji('[radio]')"><span>[radio]</span></button>
         <button class="emoji-btn" onclick="insertEmoji('[katedra]')"><span>[katedra]</span></button>
+        <button class="emoji-btn" onclick="triggerBookImportDialog()" style="background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.35); color: #38bdf8;">📚 <span>Importuj książkę</span></button>
+        <input type="file" id="book-file-input" accept=".epub,.docx,.txt,.md" style="display: none;" onchange="handleBookFileSelected(this.files[0])">
       </div>
 
       <textarea id="script-input" spellcheck="false"></textarea>
@@ -2018,6 +2020,16 @@
 
           contentHtml = `
             <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <!-- Sekcja importu całej książki -->
+              <div style="background: rgba(15, 23, 42, 0.7); border: 2px dashed rgba(56, 189, 248, 0.35); border-radius: 12px; padding: 1.1rem; text-align: center; cursor: pointer; transition: all 0.2s;" onclick="triggerBookImportDialog()" ondragover="event.preventDefault()" ondrop="event.preventDefault(); handleBookFileSelected(event.dataTransfer.files[0])">
+                <div style="font-size: 1.6rem; margin-bottom: 0.2rem;">📚</div>
+                <div style="font-weight: 700; color: #fff; font-size: 0.92rem;">Importuj całą książkę (.epub, .docx, .txt, .md)</div>
+                <div style="font-size: 0.76rem; color: #94a3b8; margin-top: 0.2rem;">
+                  Kliknij lub upuść plik tutaj. Automatycznie wykryjemy rozdziały i przygotujemy scenariusz lektorski.
+                </div>
+              </div>
+              <div id="book-import-status" style="display: none; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.82rem; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); color: #38bdf8;"></div>
+
               <div class="segment-list">
                 ${chListHtml}
               </div>
@@ -2387,6 +2399,161 @@ air = 0.70</pre>
         whisper: "🤫 "
       };
       insertEmoji(tags[activeFxKey] || "📻 ");
+    }
+
+    function triggerBookImportDialog() {
+      const input = document.getElementById('book-file-input');
+      if (input) {
+        input.value = '';
+        input.click();
+      }
+    }
+
+    async function handleBookFileSelected(file) {
+      if (!file) return;
+
+      const statusBox = document.getElementById('book-import-status') || document.getElementById('info-status-box');
+      if (statusBox) {
+        statusBox.style.display = 'block';
+        statusBox.innerHTML = `⏳ <strong>Wczytywanie i analiza książki:</strong> ${file.name} (${(file.size / 1024).toFixed(1)} KB)...`;
+      }
+
+      const ext = file.name.split('.').pop().toLowerCase();
+
+      if (ext === 'txt' || ext === 'md') {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const text = e.target.result;
+          await sendImportRequest(file.name, { text: text });
+        };
+        reader.readAsText(file, 'utf-8');
+      } else if (ext === 'epub' || ext === 'docx') {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const arrayBuffer = e.target.result;
+          const bytes = new Uint8Array(arrayBuffer);
+          let binary = '';
+          const len = bytes.byteLength;
+          for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          const base64 = window.btoa(binary);
+          await sendImportRequest(file.name, { content_base64: base64 });
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        alert("Nieobsługiwany format! Wybierz plik .epub, .docx, .txt lub .md");
+      }
+    }
+
+    async function sendImportRequest(filename, payload) {
+      const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const endpoints = isLocalHost ? ['/api/import'] : ['http://127.0.0.1:3000/api/import', '/api/import'];
+
+      let result = null;
+      let lastErr = null;
+
+      for (const ep of endpoints) {
+        try {
+          const res = await fetch(ep, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              filename: filename,
+              ...payload
+            })
+          });
+          if (res.ok) {
+            result = await res.json();
+            break;
+          } else {
+            lastErr = await res.text();
+          }
+        } catch (e) {
+          lastErr = e.message;
+        }
+      }
+
+      const statusBox = document.getElementById('book-import-status') || document.getElementById('info-status-box');
+
+      if (result && result.script) {
+        const textarea = document.getElementById('script-input');
+        textarea.value = result.script;
+        updateExports(result.script);
+
+        if (document.getElementById('card-modal-overlay')?.classList.contains('open')) {
+          openCard(1);
+        }
+
+        const title = result.title || filename;
+        const chCount = result.chapters ? result.chapters.length : 1;
+        const totalWords = result.total_words || 0;
+        const min = Math.ceil((result.total_estimated_seconds || 0) / 60);
+
+        if (statusBox) {
+          statusBox.style.display = 'block';
+          statusBox.innerHTML = `✅ <strong>Zaimportowano książkę!</strong> <em>${title}</em> • ${chCount} rozdziałów • ${totalWords} słów (~${min} min lektury). Scenariusz gotowy do odsłuchu.`;
+        }
+      } else {
+        if (payload.text) {
+          parseTextClientSideFallback(filename, payload.text);
+        } else {
+          if (statusBox) {
+            statusBox.style.display = 'block';
+            statusBox.innerHTML = `❌ <strong>Błąd importu:</strong> Uruchom lokalny serwer <code style="color: #38bdf8;">audioticon serve</code> w terminalu, aby importować pliki binarne EPUB i DOCX (${lastErr || 'brak połączenia'}).`;
+          }
+        }
+      }
+    }
+
+    function parseTextClientSideFallback(filename, rawText) {
+      const lines = rawText.split('\n');
+      const headingRe = /^(?:#+\s*)?(?:rozdzia[łl]|rozdz\.|chapter|ch\.|akt|cz[ęe][śs][ćc]|prolog|epilog)\b/i;
+
+      let chapters = [];
+      let currentTitle = '';
+      let currentLines = [];
+
+      function flush() {
+        const body = currentLines.join('\n').trim();
+        if (body || currentTitle) {
+          chapters.push({
+            title: currentTitle || `Rozdział ${chapters.length + 1}`,
+            content: body
+          });
+        }
+        currentTitle = '';
+        currentLines = [];
+      }
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if ((trimmed.startsWith('# ') || trimmed.startsWith('## ') || headingRe.test(trimmed)) && trimmed.length < 100) {
+          flush();
+          currentTitle = trimmed.replace(/^#+\s*/, '');
+        } else {
+          currentLines.push(line);
+        }
+      }
+      flush();
+
+      if (chapters.length === 0) {
+        chapters.push({ title: 'Rozdział 1', content: rawText.trim() });
+      }
+
+      const script = chapters.map(ch => `📖 ${ch.title} 🛑\n\n${ch.content}`).join('\n\n');
+      document.getElementById('script-input').value = script;
+      updateExports(script);
+
+      if (document.getElementById('card-modal-overlay')?.classList.contains('open')) {
+        openCard(1);
+      }
+
+      const statusBox = document.getElementById('book-import-status') || document.getElementById('info-status-box');
+      if (statusBox) {
+        statusBox.style.display = 'block';
+        statusBox.innerHTML = `✅ <strong>Zaimportowano plik tekstowy:</strong> ${filename} (${chapters.length} rozdziałów).`;
+      }
     }
 
     const CURATED_MODELS = [
