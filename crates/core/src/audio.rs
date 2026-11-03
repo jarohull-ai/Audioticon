@@ -806,9 +806,15 @@ pub struct ElevenLabsBridge {
 
 impl ElevenLabsBridge {
     pub fn new(api_key: impl Into<String>, voice: impl Into<String>) -> Self {
+        let v = voice.into();
+        let default_v = if v.is_empty() || v == "default" || v == "pl-PL-MarekNeural" {
+            "adam".to_string()
+        } else {
+            v
+        };
         Self {
             api_key: api_key.into(),
-            voice: voice.into(),
+            voice: default_v,
             model_id: "eleven_multilingual_v2".to_string(),
         }
     }
@@ -818,15 +824,23 @@ impl ElevenLabsBridge {
         voice: impl Into<String>,
         model_id: impl Into<String>,
     ) -> Self {
+        let v = voice.into();
+        let default_v = if v.is_empty() || v == "default" || v == "pl-PL-MarekNeural" {
+            "adam".to_string()
+        } else {
+            v
+        };
         Self {
             api_key: api_key.into(),
-            voice: voice.into(),
+            voice: default_v,
             model_id: model_id.into(),
         }
     }
 
+    /// Maps voice aliases, character roles, or foreign Edge neural voice names to valid ElevenLabs voice IDs
     pub fn map_voice_alias(alias_or_id: &str) -> &str {
-        match alias_or_id.trim().to_lowercase().as_str() {
+        let clean = alias_or_id.trim().to_lowercase();
+        match clean.as_str() {
             "antoni" => "ErXwobaYiN019PkySvjV",
             "adam" => "pNInz6obpgDQGcFmaJgB",
             "rachel" => "21m00Tcm4TlvDq8ikWAM",
@@ -834,7 +848,37 @@ impl ElevenLabsBridge {
             "bella" => "EXAVITQu4vr4xnSDxMaL",
             "josh" => "TxGEqnHWrfWFTfGW9XjX",
             "elli" => "MF3mGyEYCl7XYWbV9V6O",
-            _ => alias_or_id.trim(),
+            _ => {
+                // If the parser or script assigned a female role (👩, Zofia, Gosia)
+                if clean.contains("zofia")
+                    || clean.contains("kobieta")
+                    || clean.contains("female")
+                    || clean.contains("gosia")
+                    || clean.contains("ona")
+                    || clean.contains("woman")
+                    || clean.contains("agnieszka")
+                {
+                    "21m00Tcm4TlvDq8ikWAM" // Rachel (female)
+                }
+                // If the parser or script assigned a male character role (👨, Marek, Darkman, MC Speech, strażnik)
+                else if clean.contains("marek")
+                    || clean.contains("mezczyzna")
+                    || clean.contains("mężczyzna")
+                    || clean.contains("male")
+                    || clean.contains("darkman")
+                    || clean.contains("mc_speech")
+                    || clean.contains("guard")
+                    || clean.contains("straznik")
+                {
+                    "TxGEqnHWrfWFTfGW9XjX" // Josh (male character contrast against narrator Adam)
+                }
+                // Default narrator fallback
+                else if clean == "default" || clean == "narrator" || clean == "lektor" {
+                    "pNInz6obpgDQGcFmaJgB" // Adam (narrator)
+                } else {
+                    alias_or_id.trim()
+                }
+            }
         }
     }
 }
@@ -850,10 +894,14 @@ impl SpeechSynthesizer for ElevenLabsBridge {
     }
 
     fn resolve_voice_label(&self, requested: Option<&str>) -> String {
-        let v = match requested {
+        let raw = match requested {
             Some(r) if !r.trim().is_empty() && r != "default" => {
                 let trimmed = r.trim();
                 if let Some(stripped) = trimmed.strip_prefix("elevenlabs:") {
+                    stripped.trim()
+                } else if let Some(stripped) = trimmed.strip_prefix("edge:") {
+                    stripped.trim()
+                } else if let Some(stripped) = trimmed.strip_prefix("piper:") {
                     stripped.trim()
                 } else {
                     trimmed
@@ -862,10 +910,21 @@ impl SpeechSynthesizer for ElevenLabsBridge {
             _ => &self.voice,
         };
 
-        if v.starts_with("elevenlabs-") {
-            v.to_string()
+        // If raw is generic Edge default like pl-PL-MarekNeural and caller is narrator, map to self.voice
+        let voice_to_map = if raw == "pl-PL-MarekNeural"
+            && self.voice != "pl-PL-MarekNeural"
+            && requested.is_none()
+        {
+            &self.voice
         } else {
-            format!("elevenlabs-{}", v)
+            raw
+        };
+
+        let mapped = Self::map_voice_alias(voice_to_map);
+        if mapped.starts_with("elevenlabs-") {
+            mapped.to_string()
+        } else {
+            format!("elevenlabs-{}", mapped)
         }
     }
 
@@ -881,6 +940,7 @@ impl SpeechSynthesizer for ElevenLabsBridge {
         let temp_json = out_path.with_extension("req.json");
         let temp_mp3 = out_path.with_extension("temp.mp3");
         let temp_wav = out_path.with_extension("temp.wav");
+        let tmp_cfg = out_path.with_extension("curl_cfg.tmp");
 
         let body = serde_json::json!({
             "text": formatted_text,
@@ -893,6 +953,25 @@ impl SpeechSynthesizer for ElevenLabsBridge {
 
         tokio::fs::write(&temp_json, serde_json::to_vec(&body)?).await?;
 
+        // Securely pass API key via 0600 curl config file so key is never visible in ps / proc
+        #[cfg(unix)]
+        {
+            use std::io::Write;
+            use std::os::unix::fs::OpenOptionsExt;
+            let mut opts = std::fs::OpenOptions::new();
+            opts.write(true).create(true).truncate(true).mode(0o600);
+            if let Ok(mut f) = opts.open(&tmp_cfg) {
+                let _ = writeln!(f, "header = \"xi-api-key: {}\"", self.api_key.trim());
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = std::fs::write(
+                &tmp_cfg,
+                format!("header = \"xi-api-key: {}\"\n", self.api_key.trim()),
+            );
+        }
+
         let url = format!(
             "https://api.elevenlabs.io/v1/text-to-speech/{}",
             actual_voice_id
@@ -903,8 +982,8 @@ impl SpeechSynthesizer for ElevenLabsBridge {
             .arg("-X")
             .arg("POST")
             .arg(&url)
-            .arg("-H")
-            .arg(format!("xi-api-key: {}", self.api_key.trim()))
+            .arg("-K")
+            .arg(&tmp_cfg)
             .arg("-H")
             .arg("Content-Type: application/json")
             .arg("-H")
@@ -914,12 +993,15 @@ impl SpeechSynthesizer for ElevenLabsBridge {
             .arg("-o")
             .arg(&temp_mp3)
             .output()
-            .await?;
+            .await;
 
+        let _ = tokio::fs::remove_file(&tmp_cfg).await;
         let _ = tokio::fs::remove_file(&temp_json).await;
 
-        if !curl_res.status.success() {
-            let stderr = String::from_utf8_lossy(&curl_res.stderr);
+        let curl_output = curl_res.context("Nie udało się uruchomić procesu curl")?;
+
+        if !curl_output.status.success() {
+            let stderr = String::from_utf8_lossy(&curl_output.stderr);
             let _ = tokio::fs::remove_file(&temp_mp3).await;
             anyhow::bail!("ElevenLabs API call failed: {}", stderr.trim());
         }
@@ -1419,6 +1501,45 @@ mod tests {
         assert!(
             m4b_bytes.windows(4).any(|w| w == b"M4B "),
             "M4B must contain M4B brand atom"
+        );
+    }
+
+    #[test]
+    fn test_elevenlabs_voice_resolution_and_aliases() {
+        let bridge = ElevenLabsBridge::new("sk_test_mock", "adam");
+
+        // 1. Narrator (requested = None)
+        assert_eq!(
+            bridge.resolve_voice_label(None),
+            "elevenlabs-pNInz6obpgDQGcFmaJgB"
+        );
+
+        // 2. Character 👨 (parser maps to "pl-PL-MarekNeural") -> mapped to distinct male character (Josh)
+        assert_eq!(
+            bridge.resolve_voice_label(Some("pl-PL-MarekNeural")),
+            "elevenlabs-TxGEqnHWrfWFTfGW9XjX"
+        );
+
+        // 3. Character 👩 (parser maps to "pl-PL-ZofiaNeural") -> mapped to female voice (Rachel)
+        assert_eq!(
+            bridge.resolve_voice_label(Some("pl-PL-ZofiaNeural")),
+            "elevenlabs-21m00Tcm4TlvDq8ikWAM"
+        );
+
+        // 4. Named ElevenLabs alias
+        assert_eq!(
+            bridge.resolve_voice_label(Some("domi")),
+            "elevenlabs-AZnzlk1XvdvUeBnXmlld"
+        );
+        assert_eq!(
+            bridge.resolve_voice_label(Some("elevenlabs:antoni")),
+            "elevenlabs-ErXwobaYiN019PkySvjV"
+        );
+
+        // 5. Custom 20-char raw ID preserved
+        assert_eq!(
+            bridge.resolve_voice_label(Some("custom_voice_id_9999")),
+            "elevenlabs-custom_voice_id_9999"
         );
     }
 }

@@ -461,13 +461,26 @@ async fn main() -> Result<()> {
             let cache_path = cache_dir.unwrap_or_else(get_default_cache_dir);
             std::fs::create_dir_all(&cache_path)?;
 
+            let creds = credentials::load_credentials();
+
             if estimate {
-                let prov_str = match provider {
-                    TtsProvider::Edge => "edge",
-                    TtsProvider::Piper => "piper",
-                    TtsProvider::Elevenlabs => "elevenlabs",
+                let (prov_str, est_voice) = match provider {
+                    TtsProvider::Edge => ("edge", voice.as_str()),
+                    TtsProvider::Piper => ("piper", voice.as_str()),
+                    TtsProvider::Elevenlabs => {
+                        let v = if voice == "pl-PL-MarekNeural" || voice == "default" {
+                            creds
+                                .providers
+                                .get("elevenlabs")
+                                .and_then(|p| p.voice_id.as_deref())
+                                .unwrap_or("adam")
+                        } else {
+                            &voice
+                        };
+                        ("elevenlabs", v)
+                    }
                 };
-                let est = estimate_cost(&script_text, prov_str, &voice, &cache_path);
+                let est = estimate_cost(&script_text, prov_str, est_voice, &cache_path);
                 print_estimate_report(&est);
                 return Ok(());
             }
@@ -480,7 +493,25 @@ async fn main() -> Result<()> {
                             "Nie znaleziono klucza API dla ElevenLabs.\nSkonfiguruj klucz za pomocą:\n   audioticon providers set elevenlabs --key <TWÓJ_KLUCZ>\nlub ustaw zmienną środowiskową:\n   export ELEVENLABS_API_KEY=\"twój-klucz\""
                         )
                     })?;
-                    Arc::new(ElevenLabsBridge::new(api_key, &voice))
+                    let creds = credentials::load_credentials();
+                    let el_config = creds.providers.get("elevenlabs");
+                    let configured_voice = el_config
+                        .and_then(|p| p.voice_id.as_deref())
+                        .unwrap_or("adam");
+                    let configured_model = el_config
+                        .and_then(|p| p.model_id.as_deref())
+                        .unwrap_or("eleven_multilingual_v2");
+
+                    let effective_voice = if voice == "pl-PL-MarekNeural" || voice == "default" {
+                        configured_voice
+                    } else {
+                        &voice
+                    };
+                    Arc::new(ElevenLabsBridge::with_model(
+                        api_key,
+                        effective_voice,
+                        configured_model,
+                    ))
                 }
                 TtsProvider::Piper => {
                     let m_path = if let Some(ref custom_m) = model {
@@ -1247,7 +1278,26 @@ async fn resolve_synthesizer(
         let api_key = credentials::get_api_key("elevenlabs").ok_or_else(|| {
             "Brak skonfigurowanego klucza API dla ElevenLabs. Skonfiguruj klucz w ustawieniach dostawców API.".to_string()
         })?;
-        Ok(Arc::new(ElevenLabsBridge::new(api_key, voice)))
+        let creds = credentials::load_credentials();
+        let el_config = creds.providers.get("elevenlabs");
+        let configured_voice = el_config
+            .and_then(|p| p.voice_id.as_deref())
+            .unwrap_or("adam");
+        let configured_model = el_config
+            .and_then(|p| p.model_id.as_deref())
+            .unwrap_or("eleven_multilingual_v2");
+
+        let effective_voice =
+            if voice == "pl-PL-MarekNeural" || voice == "default" || voice.is_empty() {
+                configured_voice
+            } else {
+                voice
+            };
+        Ok(Arc::new(ElevenLabsBridge::with_model(
+            api_key,
+            effective_voice,
+            configured_model,
+        )))
     } else {
         let m_path = if let Some(custom_m) = model {
             if let Some(item) = find_model(custom_m) {
@@ -1288,6 +1338,19 @@ async fn resolve_synthesizer(
     }
 }
 
+fn is_allowed_origin(origin: &str) -> bool {
+    let clean = origin.trim().trim_end_matches('/');
+    clean == "https://jarohull-ai.github.io"
+        || clean == "http://localhost"
+        || clean.starts_with("http://localhost:")
+        || clean == "http://127.0.0.1"
+        || clean.starts_with("http://127.0.0.1:")
+        || clean == "https://localhost"
+        || clean.starts_with("https://localhost:")
+        || clean == "https://127.0.0.1"
+        || clean.starts_with("https://127.0.0.1:")
+}
+
 fn get_cors_header(request: &tiny_http::Request) -> Option<Header> {
     for header in request.headers() {
         if header
@@ -1297,18 +1360,28 @@ fn get_cors_header(request: &tiny_http::Request) -> Option<Header> {
             .eq_ignore_ascii_case("origin")
         {
             let origin = header.value.as_str();
-            if origin == "https://jarohull-ai.github.io"
-                || origin.starts_with("http://localhost")
-                || origin.starts_with("http://127.0.0.1")
-                || origin.starts_with("https://localhost")
-                || origin.starts_with("https://127.0.0.1")
-            {
+            if is_allowed_origin(origin) {
                 return Header::from_bytes(&b"Access-Control-Allow-Origin"[..], origin.as_bytes())
                     .ok();
             }
         }
     }
     None
+}
+
+fn has_json_content_type(request: &tiny_http::Request) -> bool {
+    for header in request.headers() {
+        if header
+            .field
+            .as_str()
+            .as_str()
+            .eq_ignore_ascii_case("content-type")
+        {
+            let val = header.value.as_str().to_lowercase();
+            return val.contains("application/json");
+        }
+    }
+    false
 }
 
 async fn handle_studio_request(
@@ -1320,10 +1393,38 @@ async fn handle_studio_request(
     let url = request.url().to_string();
     let cors_header = get_cors_header(&request);
 
-    // Handle OPTIONS
+    // CSRF & Cross-Origin Protection: reject untrusted Origin
+    for header in request.headers() {
+        if header
+            .field
+            .as_str()
+            .as_str()
+            .eq_ignore_ascii_case("origin")
+        {
+            let origin = header.value.as_str();
+            if !is_allowed_origin(origin) {
+                let err_json = serde_json::json!({
+                    "error": "403 Forbidden: Nieautoryzowane źródło żądania (Untrusted Origin rejected)",
+                    "origin": origin
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
+                );
+                let _ = request.respond(resp.with_status_code(403));
+                return;
+            }
+        }
+    }
+
+    // Handle OPTIONS preflight
     if method == tiny_http::Method::Options {
-        let mut resp = tiny_http::Response::from_string("");
         if let Some(ref h) = cors_header {
+            let mut resp = tiny_http::Response::from_string("");
             resp.add_header(h.clone());
             if let Ok(vary) = Header::from_bytes(&b"Vary"[..], &b"Origin"[..]) {
                 resp.add_header(vary);
@@ -1338,8 +1439,47 @@ async fn handle_studio_request(
                     .unwrap();
             resp.add_header(cors_methods);
             resp.add_header(cors_headers);
+            let _ = request.respond(resp.with_status_code(204));
+        } else {
+            let mut resp = tiny_http::Response::from_string("{\"error\": \"403 Forbidden\"}");
+            resp.add_header(
+                Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap(),
+            );
+            let _ = request.respond(resp.with_status_code(403));
         }
-        let _ = request.respond(resp);
+        return;
+    }
+
+    // Enforce Content-Type: application/json on all JSON API endpoints to prevent CSRF simple requests
+    if method == tiny_http::Method::Post
+        && (url.starts_with("/api/providers")
+            || url.starts_with("/api/models")
+            || url.starts_with("/api/render")
+            || url.starts_with("/api/estimate")
+            || url.starts_with("/api/import")
+            || url.starts_with("/api/parse")
+            || url.starts_with("/api/cache"))
+        && !has_json_content_type(&request)
+    {
+        let err_json = serde_json::json!({
+            "error": "415 Unsupported Media Type: Wymagany nagłówek Content-Type: application/json"
+        });
+        let mut resp = tiny_http::Response::from_string(err_json.to_string());
+        resp.add_header(
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp.with_status_code(415));
         return;
     }
 

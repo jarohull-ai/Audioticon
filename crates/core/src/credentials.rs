@@ -32,19 +32,24 @@ pub fn credentials_path() -> PathBuf {
     }
 }
 
-/// Loads credentials from credentials.toml
+/// Loads credentials from credentials.toml, returning default on missing file
 pub fn load_credentials() -> CredentialsConfig {
-    let path = credentials_path();
-    if !path.exists() {
-        return CredentialsConfig::default();
-    }
-    match fs::read_to_string(&path) {
-        Ok(content) => toml::from_str(&content).unwrap_or_default(),
-        Err(_) => CredentialsConfig::default(),
-    }
+    load_credentials_result().unwrap_or_default()
 }
 
-/// Saves credentials to credentials.toml with secure file permissions (0600 on Unix)
+/// Loads credentials strictly, preserving file errors to prevent accidental overwrite of corrupted configs
+pub fn load_credentials_result() -> Result<CredentialsConfig> {
+    let path = credentials_path();
+    if !path.exists() {
+        return Ok(CredentialsConfig::default());
+    }
+    let content = fs::read_to_string(&path)
+        .with_context(|| format!("Nie można odczytać pliku credentials: {:?}", path))?;
+    toml::from_str(&content)
+        .with_context(|| format!("Błąd składni TOML w pliku credentials: {:?}", path))
+}
+
+/// Saves credentials to credentials.toml with atomic secure file permissions (0600 on Unix)
 pub fn save_credentials(config: &CredentialsConfig) -> Result<()> {
     let path = credentials_path();
     if let Some(parent) = path.parent() {
@@ -52,13 +57,23 @@ pub fn save_credentials(config: &CredentialsConfig) -> Result<()> {
             .with_context(|| format!("Nie udało się utworzyć folderu: {:?}", parent))?;
     }
     let toml_str = toml::to_string_pretty(config).context("Błąd serializacji credentials.toml")?;
-    fs::write(&path, toml_str)
-        .with_context(|| format!("Błąd zapisu pliku credentials: {:?}", path))?;
 
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut options = fs::OpenOptions::new();
+        options.write(true).create(true).truncate(true).mode(0o600);
+        let mut file = options
+            .open(&path)
+            .with_context(|| format!("Błąd otwarcia pliku credentials: {:?}", path))?;
+        file.write_all(toml_str.as_bytes())
+            .with_context(|| format!("Błąd zapisu pliku credentials: {:?}", path))?;
+    }
+    #[cfg(not(unix))]
+    {
+        fs::write(&path, toml_str)
+            .with_context(|| format!("Błąd zapisu pliku credentials: {:?}", path))?;
     }
 
     Ok(())
@@ -109,7 +124,7 @@ pub fn set_api_key(
         bail!("Klucz API nie może być pusty");
     }
 
-    let mut creds = load_credentials();
+    let mut creds = load_credentials_result()?;
     let entry = creds.providers.entry(clean).or_default();
     entry.api_key = Some(api_key.trim().to_string());
     if let Some(m) = model_id {
@@ -129,7 +144,7 @@ pub fn set_api_key(
 /// Removes provider from credentials.toml
 pub fn remove_api_key(provider: &str) -> Result<bool> {
     let clean = provider.trim().to_lowercase();
-    let mut creds = load_credentials();
+    let mut creds = load_credentials_result()?;
     let removed = creds.providers.remove(&clean).is_some();
     if removed {
         save_credentials(&creds)?;
@@ -169,16 +184,49 @@ pub fn verify_elevenlabs_key(api_key: &str) -> Result<ElevenLabsAccountInfo> {
         bail!("Klucz ElevenLabs jest pusty");
     }
 
+    // Write API key to temporary curl config file (mode 0600) to keep secret off process list / argv
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let tmp_cfg = std::env::temp_dir().join(format!(
+        "audioticon_curl_cfg_{}_{}.tmp",
+        std::process::id(),
+        nonce
+    ));
+
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut opts = fs::OpenOptions::new();
+        opts.write(true).create(true).truncate(true).mode(0o600);
+        let mut f = opts.open(&tmp_cfg).with_context(|| {
+            format!(
+                "Nie można utworzyć pliku konfiguracyjnego curl: {:?}",
+                tmp_cfg
+            )
+        })?;
+        writeln!(f, "header = \"xi-api-key: {}\"", trimmed)?;
+    }
+    #[cfg(not(unix))]
+    {
+        fs::write(&tmp_cfg, format!("header = \"xi-api-key: {}\"\n", trimmed))?;
+    }
+
     let output = std::process::Command::new("curl")
         .args([
             "-sS",
             "-f",
+            "-K",
+            tmp_cfg.to_str().unwrap_or(""),
             "https://api.elevenlabs.io/v1/user/subscription",
-            "-H",
-            &format!("xi-api-key: {}", trimmed),
         ])
-        .output()
-        .context("Nie udało się wykonać zapytania curl do API ElevenLabs")?;
+        .output();
+
+    let _ = fs::remove_file(&tmp_cfg);
+
+    let output = output.context("Nie udało się wykonać zapytania curl do API ElevenLabs")?;
 
     if !output.status.success() {
         let err_msg = String::from_utf8_lossy(&output.stderr);
@@ -256,6 +304,60 @@ mod tests {
                 .as_deref(),
             Some("sk_test_secret_123")
         );
+
+        let _ = fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn test_save_credentials_file_permissions_0600() {
+        let tmp_dir =
+            std::env::temp_dir().join(format!("audioticon_perm_test_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp_dir);
+        let cred_file = tmp_dir.join("credentials.toml");
+
+        let mut config = CredentialsConfig::default();
+        config.providers.insert(
+            "elevenlabs".to_string(),
+            ProviderCredentials {
+                api_key: Some("sk_test_mock".to_string()),
+                model_id: None,
+                voice_id: None,
+            },
+        );
+
+        fs::create_dir_all(&tmp_dir).unwrap();
+        let toml_str = toml::to_string_pretty(&config).unwrap();
+
+        #[cfg(unix)]
+        {
+            use std::io::Write;
+            use std::os::unix::fs::OpenOptionsExt;
+            use std::os::unix::fs::PermissionsExt;
+
+            let mut options = fs::OpenOptions::new();
+            options.write(true).create(true).truncate(true).mode(0o600);
+            let mut file = options.open(&cred_file).unwrap();
+            file.write_all(toml_str.as_bytes()).unwrap();
+
+            let metadata = fs::metadata(&cred_file).unwrap();
+            assert_eq!(metadata.permissions().mode() & 0o777, 0o600);
+        }
+
+        let _ = fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn test_corrupted_toml_error() {
+        let tmp_dir =
+            std::env::temp_dir().join(format!("audioticon_corrupt_test_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp_dir);
+        let cred_file = tmp_dir.join("credentials.toml");
+        fs::create_dir_all(&tmp_dir).unwrap();
+        fs::write(&cred_file, "this is definitely [not valid toml :::").unwrap();
+
+        let res: Result<CredentialsConfig> =
+            toml::from_str(&fs::read_to_string(&cred_file).unwrap()).context("Błąd składni");
+        assert!(res.is_err());
 
         let _ = fs::remove_dir_all(&tmp_dir);
     }

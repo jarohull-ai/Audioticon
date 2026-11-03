@@ -383,3 +383,130 @@ fn test_cli_render_estimate_flag() {
     assert!(stdout.contains("Szacunek kosztów syntezy mowy (ELEVENLABS)"));
     assert!(stdout.contains("Łączna liczba znaków:"));
 }
+
+fn http_roundtrip_with_headers(
+    port: u16,
+    method: &str,
+    path: &str,
+    headers: &[(&str, &str)],
+    body: Option<&str>,
+) -> (u16, String, Vec<u8>) {
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+    let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port)).expect("connect to server");
+    stream
+        .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+        .unwrap();
+    let b = body.unwrap_or("");
+    let mut header_lines = String::new();
+    let mut has_ct = false;
+    for (k, v) in headers {
+        if k.eq_ignore_ascii_case("content-type") {
+            has_ct = true;
+        }
+        header_lines.push_str(&format!("{}: {}\r\n", k, v));
+    }
+    if !has_ct {
+        header_lines.push_str("Content-Type: application/json\r\n");
+    }
+
+    let req = format!(
+        "{} {} HTTP/1.1\r\nHost: 127.0.0.1:{}\r\n{}Content-Length: {}\r\nConnection: close\r\n\r\n{}",
+        method, path, port, header_lines, b.len(), b
+    );
+    stream.write_all(req.as_bytes()).expect("write request");
+    let mut res = Vec::new();
+    stream.read_to_end(&mut res).expect("read response");
+
+    let header_end = res
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .unwrap_or(res.len());
+    let header_str = String::from_utf8_lossy(&res[..header_end]).to_string();
+    let body_bytes = if header_end + 4 <= res.len() {
+        res[header_end + 4..].to_vec()
+    } else {
+        Vec::new()
+    };
+
+    let status = header_str
+        .lines()
+        .next()
+        .and_then(|l| l.split_whitespace().nth(1))
+        .and_then(|s| s.parse::<u16>().ok())
+        .unwrap_or(0);
+
+    (status, header_str, body_bytes)
+}
+
+#[test]
+fn test_api_csrf_protection_and_origin_validation() {
+    let port = 39000 + (std::process::id() as u16 % 1000);
+    let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .args(["serve", "--port", &port.to_string(), "--no-browser"])
+        .spawn()
+        .expect("Failed to start audioticon serve");
+
+    let mut connected = false;
+    for _ in 0..40 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        if std::net::TcpStream::connect(format!("127.0.0.1:{}", port)).is_ok() {
+            connected = true;
+            break;
+        }
+    }
+    assert!(connected, "Server did not start listening in time");
+
+    let payload = "{\"provider\": \"elevenlabs\", \"api_key\": \"sk_evil_hacked_key_12345\"}";
+
+    // 1. Attack from malicious origin (https://evil.example) MUST return 403 Forbidden
+    let (s_evil, _, b_evil) = http_roundtrip_with_headers(
+        port,
+        "POST",
+        "/api/providers/set",
+        &[("Origin", "https://evil.example")],
+        Some(payload),
+    );
+    assert_eq!(
+        s_evil, 403,
+        "Untrusted Origin must be rejected with 403 Forbidden"
+    );
+    let err_str = String::from_utf8_lossy(&b_evil);
+    assert!(err_str.contains("403 Forbidden"));
+
+    // 2. Attack without application/json (e.g. form post text/plain) MUST return 415 Unsupported Media Type
+    let (s_simple, _, _) = http_roundtrip_with_headers(
+        port,
+        "POST",
+        "/api/providers/set",
+        &[
+            ("Origin", "http://localhost:3000"),
+            ("Content-Type", "text/plain"),
+        ],
+        Some(payload),
+    );
+    assert_eq!(
+        s_simple, 415,
+        "Non-JSON POST must be rejected with 415 to block simple CSRF"
+    );
+
+    // 3. Legitimate request from localhost MUST succeed with 200 OK
+    let (s_ok, _, b_ok) = http_roundtrip_with_headers(
+        port,
+        "POST",
+        "/api/providers/set",
+        &[
+            ("Origin", "http://localhost:3000"),
+            ("Content-Type", "application/json"),
+        ],
+        Some(payload),
+    );
+    assert_eq!(s_ok, 200, "Legitimate localhost origin must succeed");
+    let ok_str = String::from_utf8_lossy(&b_ok);
+    assert!(ok_str.contains("\"status\":\"ok\""));
+
+    // Clean up
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = audioticon_core::remove_api_key("elevenlabs");
+}

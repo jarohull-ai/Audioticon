@@ -3906,6 +3906,12 @@ air = 0.70</pre>
     }
 
     async function saveProviderKey(provId, btn) {
+      const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (!isLocalHost && !hasExplicitEngineConnection) {
+        alert("ℹ️ Wersja online na GitHub Pages nie przechowuje kluczy API. Uruchom lokalny silnik Audioticon w terminalu:\n\n   audioticon serve\n\naby bezpiecznie zapisać klucz w ~/.config/audioticon/credentials.toml (prawa 0600).");
+        return;
+      }
+
       const input = document.getElementById(`key-input-${provId}`);
       if (!input || !input.value.trim()) {
         alert('Podaj klucz API przed zapisaniem.');
@@ -4037,6 +4043,10 @@ air = 0.70</pre>
               <div style="font-size: 0.75rem; color: #38bdf8;">Do wysłania do API:</div>
               <div style="font-size: 1.15rem; font-weight: 800; color: #38bdf8;">${est.characters_to_synthesize.toLocaleString()} znaków</div>
               <div style="font-size: 0.7rem; color: #94a3b8;">Płacisz tylko za nowe lub zmienione zdania!</div>
+            </div>
+
+            <div style="font-size: 0.72rem; color: #64748b; margin-top: 0.2rem; text-align: center;">
+              ℹ️ Kalkulator ma charakter orientacyjny. Rzeczywiste zużycie kredytów zależy od modelu oraz planu abonamentowego u danego dostawcy.
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem;">
