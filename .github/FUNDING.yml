@@ -1,0 +1,5 @@
+# GitHub Funding configuration (enables the "💖 Sponsor" button)
+
+github: [jarohull-ai]
+buy_me_a_coffee: HISTORYINANUTSHELL
+custom: ['https://buymeacoffee.com/HISTORYINANUTSHELL']
