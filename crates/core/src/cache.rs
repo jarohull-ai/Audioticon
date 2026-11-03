@@ -26,7 +26,8 @@ pub fn compute_segment_hash(segment: &TextSegment, voice: &str) -> String {
     let filter_chain = build_ffmpeg_filter_chain(segment.filter.as_deref());
     hasher.update(filter_chain.as_bytes());
 
-    hasher.update(voice.as_bytes());
+    let voice_to_use = segment.voice.as_deref().unwrap_or(voice);
+    hasher.update(voice_to_use.as_bytes());
     hex::encode(hasher.finalize())
 }
 
@@ -44,6 +45,7 @@ mod tests {
             volume_mod: 0,
             filter: None,
             actor_tags: vec![ActorTag::Whisper],
+            voice: None,
         };
         let seg2 = seg1.clone();
         assert_eq!(
@@ -61,6 +63,7 @@ mod tests {
             volume_mod: 0,
             filter: None,
             actor_tags: vec![],
+            voice: None,
         };
         let mut seg2 = seg1.clone();
         seg2.actor_tags.push(ActorTag::Whisper);
@@ -82,6 +85,13 @@ mod tests {
         assert_ne!(
             compute_segment_hash(&seg1, "pl-PL-MarekNeural"),
             compute_segment_hash(&seg4, "pl-PL-MarekNeural")
+        );
+
+        let mut seg5 = seg1.clone();
+        seg5.voice = Some("pl-PL-ZofiaNeural".to_string());
+        assert_ne!(
+            compute_segment_hash(&seg1, "pl-PL-MarekNeural"),
+            compute_segment_hash(&seg5, "pl-PL-MarekNeural")
         );
     }
 }

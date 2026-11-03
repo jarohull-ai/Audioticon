@@ -344,8 +344,9 @@ impl SpeechSynthesizer for EdgeTtsBridge {
         let temp_mp3 = out_path.with_extension("temp.mp3");
         let temp_wav = out_path.with_extension("temp.wav");
 
+        let voice_to_use = segment.voice.as_deref().unwrap_or(&self.voice);
         let status = tokio::process::Command::new(&self.edge_tts_bin)
-            .arg(format!("--voice={}", self.voice))
+            .arg(format!("--voice={}", voice_to_use))
             .arg(rate_arg)
             .arg(pitch_arg)
             .arg(vol_arg)
@@ -662,7 +663,11 @@ impl AudioDirectorEngine {
                     scheduled_items.push((Some(breath_file), None));
                 }
                 DirectedItem::Speech(segment) => {
-                    let hash = compute_segment_hash(segment, self.synthesizer.voice_name());
+                    let voice_name = segment
+                        .voice
+                        .as_deref()
+                        .unwrap_or_else(|| self.synthesizer.voice_name());
+                    let hash = compute_segment_hash(segment, voice_name);
                     let cached_wav = self.cache_dir.join(format!("{}.wav", hash));
 
                     if cached_wav.exists() {

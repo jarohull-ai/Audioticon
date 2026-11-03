@@ -4,6 +4,12 @@ author = "Jarosław Kuchta"
 narrator = "Lektor Polski"
 year = "2026"
 
+[voices]
+narrator = "pl-PL-MarekNeural"
+anna = "pl-PL-ZofiaNeural"
+kapitan = "pl-PL-MarekNeural"
+bot = "pl_PL-darkman-medium"
+
 [presets."📻:wojskowe"]
 base = "radio"
 distortion = 0.55

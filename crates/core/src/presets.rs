@@ -236,6 +236,8 @@ pub struct ProjectConfig {
     pub project: Option<ProjectMetaConfig>,
     #[serde(default)]
     pub presets: HashMap<String, EffectPreset>,
+    #[serde(default)]
+    pub voices: HashMap<String, String>,
 }
 
 impl ProjectConfig {
@@ -281,17 +283,20 @@ impl ProjectConfig {
     }
 }
 
-/// Registry of base factory presets and custom project/user presets.
+/// Registry of base factory presets, custom project/user presets, and character voice mappings.
 #[derive(Debug, Clone)]
 pub struct PresetRegistry {
     /// Active presets indexed by tag (e.g. "radio", "📻:wojskowe", "phone:retro")
     presets: HashMap<String, EffectPreset>,
+    /// Character voice mappings (e.g. "anna" -> "pl-PL-ZofiaNeural")
+    voices: HashMap<String, String>,
 }
 
 impl Default for PresetRegistry {
     fn default() -> Self {
         let mut r = Self {
             presets: HashMap::new(),
+            voices: HashMap::new(),
         };
         r.register_factory_defaults();
         r
@@ -374,11 +379,24 @@ impl PresetRegistry {
         );
     }
 
-    /// Loads custom presets from project config
+    /// Loads custom presets and character voice mappings from project config
     pub fn load_project_config(&mut self, config: &ProjectConfig) {
         for (name, preset) in &config.presets {
             self.presets.insert(name.clone(), preset.clone());
         }
+        for (name, voice) in &config.voices {
+            self.voices.insert(name.to_lowercase(), voice.clone());
+        }
+    }
+
+    /// Looks up a character voice mapping from the registry
+    pub fn get_voice(&self, name: &str) -> Option<&str> {
+        self.voices.get(&name.to_lowercase()).map(|s| s.as_str())
+    }
+
+    /// Registers a character voice mapping (e.g. "anna" -> "pl-PL-ZofiaNeural")
+    pub fn register_voice(&mut self, name: impl Into<String>, voice: impl Into<String>) {
+        self.voices.insert(name.into().to_lowercase(), voice.into());
     }
 
     /// Resolves an effect tag (e.g. "radio", "📻:wojskowe", "phone:retro", "🏛️:kaplica").

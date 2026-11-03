@@ -108,6 +108,24 @@ impl Default for EmojiDirector {
             EmojiAction::Filter("robot".to_string()),
         );
 
+        // Multi-Voice Casting & Characters
+        m.insert("👩".to_string(), EmojiAction::Voice("female".to_string()));
+        m.insert("👨".to_string(), EmojiAction::Voice("male".to_string()));
+        m.insert("🎙️".to_string(), EmojiAction::Voice("narrator".to_string()));
+        m.insert("🎙".to_string(), EmojiAction::Voice("narrator".to_string()));
+        m.insert(
+            "[glos]".to_string(),
+            EmojiAction::Voice("default".to_string()),
+        );
+        m.insert(
+            "[głos]".to_string(),
+            EmojiAction::Voice("default".to_string()),
+        );
+        m.insert(
+            "[voice]".to_string(),
+            EmojiAction::Voice("default".to_string()),
+        );
+
         // Structure & Chapter markers
         m.insert("📖".to_string(), EmojiAction::Chapter);
         m.insert("📑".to_string(), EmojiAction::Chapter);
@@ -134,6 +152,28 @@ impl EmojiDirector {
         Self {
             registry,
             ..Default::default()
+        }
+    }
+
+    /// Resolves character names or voice aliases to concrete neural voice models
+    pub fn resolve_voice(&self, name: &str) -> String {
+        let clean = name.trim().to_lowercase();
+        if let Some(v) = self.registry.get_voice(&clean) {
+            return v.to_string();
+        }
+        match clean.as_str() {
+            "zofia" | "kobieta" | "female" | "ona" | "woman" => "pl-PL-ZofiaNeural".to_string(),
+            "marek" | "mezczyzna" | "mężczyzna" | "male" | "on" | "man" => {
+                "pl-PL-MarekNeural".to_string()
+            }
+            "agnieszka" => "pl-PL-AgnieszkaNeural".to_string(),
+            "darkman" => "pl_PL-darkman-medium".to_string(),
+            "gosia" => "pl_PL-gosia-medium".to_string(),
+            "ryan" => "en-US-RyanMultilingualNeural".to_string(),
+            "jenny" => "en-US-JennyNeural".to_string(),
+            "guy" => "en-US-GuyNeural".to_string(),
+            "narrator" | "lektor" | "default" | "domyslny" | "domyślny" => "default".to_string(),
+            other => other.to_string(),
         }
     }
 
@@ -347,9 +387,12 @@ impl EmojiDirector {
                 match action {
                     EmojiAction::Pause(ms) => {
                         script.items.push(DirectedItem::Silence(*ms));
-                        // After full pause (like 🛑), reset pacing and emotion tags back to defaults
+                        // After full pause (like 🛑), reset pacing and emotion tags back to defaults,
+                        // but preserve the active speaker's voice assignment across dialogue sentences!
                         if *ms >= 800 {
+                            let current_voice = current_segment.voice.clone();
                             current_segment = TextSegment::default();
+                            current_segment.voice = current_voice;
                             pending_one_shot_volume = false;
                         }
                     }
@@ -408,6 +451,15 @@ impl EmojiDirector {
                     }
                     EmojiAction::Chapter => {
                         pending_chapter = true;
+                    }
+                    EmojiAction::Voice(default_name) => {
+                        let voice_spec = variant.unwrap_or(default_name);
+                        let resolved = self.resolve_voice(voice_spec);
+                        if resolved == "default" || resolved == "narrator" || resolved.is_empty() {
+                            current_segment.voice = None;
+                        } else {
+                            current_segment.voice = Some(resolved);
+                        }
                     }
                 }
             }
@@ -606,5 +658,41 @@ mod tests {
         assert_eq!(speeches[1].filter.as_deref(), Some("[telefon]"));
         assert_eq!(speeches[2].text, "Zgłaszam się.");
         assert_eq!(speeches[2].filter.as_deref(), Some("[radio]:wojskowe"));
+    }
+
+    #[test]
+    fn test_multi_voice_casting() {
+        let director = EmojiDirector::default();
+        let input = "Narrator mówił spokojnie. 🛑 👩 \"Nie boję się.\" 🛑 👨 \"To dobrze.\" 🛑 [głos:zofia] \"Spotkamy się jutro.\" 🛑 [głos:narrator] I zapadł zmierzch.";
+        let script = director.parse(input);
+
+        let speeches: Vec<&TextSegment> = script
+            .items
+            .iter()
+            .filter_map(|it| match it {
+                DirectedItem::Speech(seg) => Some(seg),
+                _ => None,
+            })
+            .collect();
+
+        // 0: Narrator (default -> None)
+        assert_eq!(speeches[0].text, "Narrator mówił spokojnie.");
+        assert_eq!(speeches[0].voice, None);
+
+        // 1: 👩 (female -> "pl-PL-ZofiaNeural")
+        assert_eq!(speeches[1].text, "\"Nie boję się.\"");
+        assert_eq!(speeches[1].voice.as_deref(), Some("pl-PL-ZofiaNeural"));
+
+        // 2: 👨 (male -> "pl-PL-MarekNeural")
+        assert_eq!(speeches[2].text, "\"To dobrze.\"");
+        assert_eq!(speeches[2].voice.as_deref(), Some("pl-PL-MarekNeural"));
+
+        // 3: [głos:zofia]
+        assert_eq!(speeches[3].text, "\"Spotkamy się jutro.\"");
+        assert_eq!(speeches[3].voice.as_deref(), Some("pl-PL-ZofiaNeural"));
+
+        // 4: [głos:narrator] -> None
+        assert_eq!(speeches[4].text, "I zapadł zmierzch.");
+        assert_eq!(speeches[4].voice, None);
     }
 }

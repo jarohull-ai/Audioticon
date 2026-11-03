@@ -17,6 +17,8 @@ pub enum EmojiAction {
     Filter(String),
     /// Chapter title marker (e.g. 📖 "Rozdział 1")
     Chapter,
+    /// Character / Speaker voice override for multi-voice casting (e.g. "zofia", "marek", "ryan")
+    Voice(String),
 }
 
 /// Expressive actor delivery and emotion tags for next-gen neural voice models.
@@ -81,6 +83,8 @@ pub struct TextSegment {
     pub volume_mod: i32,
     pub filter: Option<String>,
     pub actor_tags: Vec<ActorTag>,
+    #[serde(default)]
+    pub voice: Option<String>,
 }
 
 impl Default for TextSegment {
@@ -92,6 +96,7 @@ impl Default for TextSegment {
             volume_mod: 0,
             filter: None,
             actor_tags: Vec::new(),
+            voice: None,
         }
     }
 }
@@ -208,6 +213,9 @@ impl DirectedScript {
                     out.push_str(&format!("\n\n=== {} ===\n", title));
                 }
                 DirectedItem::Speech(seg) => {
+                    if let Some(ref v) = seg.voice {
+                        out.push_str(&format!("[speaker:{}] ", v));
+                    }
                     out.push_str(&seg.format_for_chattts());
                     out.push(' ');
                 }
@@ -235,6 +243,9 @@ impl DirectedScript {
                     out.push_str(&format!("\n\n# {}\n", title));
                 }
                 DirectedItem::Speech(seg) => {
+                    if let Some(ref v) = seg.voice {
+                        out.push_str(&format!("[speaker:{}] ", v));
+                    }
                     out.push_str(&seg.format_for_elevenlabs());
                     out.push(' ');
                 }

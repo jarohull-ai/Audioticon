@@ -477,6 +477,24 @@
       color: #5eead4;
     }
 
+    .timeline-block.type-female {
+      background: rgba(236, 72, 153, 0.22);
+      border-color: rgba(236, 72, 153, 0.55);
+      color: #f472b6;
+    }
+
+    .timeline-block.type-male {
+      background: rgba(14, 165, 233, 0.22);
+      border-color: rgba(14, 165, 233, 0.55);
+      color: #7dd3fc;
+    }
+
+    .timeline-block.type-narrator {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: rgba(99, 102, 241, 0.5);
+      color: #c7d2fe;
+    }
+
     /* Player & Download Bar */
     .player-action-bar {
       background: rgba(0, 0, 0, 0.4);
@@ -1228,6 +1246,9 @@
 
   <!-- Floating Contextual Bubble Menu (po zaznaczeniu tekstu) -->
   <div id="bubble-menu" class="bubble-menu">
+    <button type="button" class="bubble-btn" onclick="applyBubbleAction('wrap', '👩', '🛑')">👩 Żeński</button>
+    <button type="button" class="bubble-btn" onclick="applyBubbleAction('wrap', '👨', '🛑')">👨 Męski</button>
+    <button type="button" class="bubble-btn" onclick="applyBubbleAction('wrap', '🎙️', '🛑')">🎙️ Lektor</button>
     <button type="button" class="bubble-btn" onclick="applyBubbleAction('wrap', '🤫', '🛑')">🤫 Szept</button>
     <button type="button" class="bubble-btn" onclick="applyBubbleAction('wrap', '💥', '🛑')">💥 Krzyk</button>
     <button type="button" class="bubble-btn" onclick="applyBubbleAction('wrap', '📱', '🛑')">📱 Telefon</button>
@@ -2437,7 +2458,13 @@ air = 0.70</pre>
         let activeIcon = '🗣️';
         let activeLabel = 'Narracja';
 
-        if (line.includes('📱') || line.includes('[telefon]')) {
+        if (line.includes('👩') || line.includes('[głos:zofia]') || line.includes('[głos:kobieta]') || line.includes('[glos:zofia]') || line.includes('[glos:kobieta]')) {
+          activeType = 'female'; activeIcon = '👩'; activeLabel = 'Zofia (kobieta)';
+        } else if (line.includes('👨') || line.includes('[głos:marek]') || line.includes('[głos:mężczyzna]') || line.includes('[glos:marek]') || line.includes('[glos:mezczyzna]')) {
+          activeType = 'male'; activeIcon = '👨'; activeLabel = 'Marek (mężczyzna)';
+        } else if (line.includes('🎙️') || line.includes('🎙') || line.includes('[głos:narrator]') || line.includes('[glos:narrator]')) {
+          activeType = 'narrator'; activeIcon = '🎙️'; activeLabel = 'Lektor (narrator)';
+        } else if (line.includes('📱') || line.includes('[telefon]')) {
           activeType = 'phone'; activeIcon = '📱'; activeLabel = 'Telefon';
         } else if (line.includes('📻') || line.includes('[radio]')) {
           activeType = 'radio'; activeIcon = '📻'; activeLabel = 'Radio';
@@ -2604,6 +2631,12 @@ air = 0.70</pre>
     // ⚡ SLASH COMMAND MENU (/ W NOTION STYLE)
     // ========================================================
     const SLASH_COMMANDS = [
+      { cmd: 'kobieta', tag: '👩 ', label: 'Głos: Kobieta / Zofia', icon: '👩' },
+      { cmd: 'mezczyzna', tag: '👨 ', label: 'Głos: Mężczyzna / Marek', icon: '👨' },
+      { cmd: 'lektor', tag: '🎙️ ', label: 'Powrót do lektora (narrator)', icon: '🎙️' },
+      { cmd: 'glos:zofia', tag: '[głos:zofia] ', label: 'Postać: Zofia (PL)', icon: '👩' },
+      { cmd: 'glos:marek', tag: '[głos:marek] ', label: 'Postać: Marek (PL)', icon: '👨' },
+      { cmd: 'glos:narrator', tag: '[głos:narrator] ', label: 'Reset do narracji głównej', icon: '🎙️' },
       { cmd: 'pauza', tag: '⏸️ ', label: 'Pauza lektora (0.8s)', icon: '⏸️' },
       { cmd: 'szept', tag: '🤫 ', label: 'Szept narracji', icon: '🤫' },
       { cmd: 'krzyk', tag: '💥 ', label: 'Krzyk / Akcent emocjonalny', icon: '💥' },
