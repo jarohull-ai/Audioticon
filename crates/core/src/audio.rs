@@ -310,14 +310,15 @@ impl EdgeTtsBridge {
             }
         }
         // 3. Fallbacks
+        let temp_edge = std::env::temp_dir().join("edge_env/bin/edge-tts");
         let candidates = [
-            "/tmp/edge_env/bin/edge-tts",
-            "/usr/local/bin/edge-tts",
-            "/usr/bin/edge-tts",
+            temp_edge.as_path(),
+            Path::new("/usr/local/bin/edge-tts"),
+            Path::new("/usr/bin/edge-tts"),
         ];
         for c in candidates {
-            if Path::new(c).exists() {
-                return PathBuf::from(c);
+            if c.exists() {
+                return c.to_path_buf();
             }
         }
         PathBuf::from("edge-tts")
@@ -437,7 +438,7 @@ impl PiperBridge {
 
     fn ensure_worker_script() -> PathBuf {
         let script_dir = dirs::data_dir()
-            .unwrap_or_else(|| PathBuf::from("/tmp"))
+            .unwrap_or_else(std::env::temp_dir)
             .join("audioticon");
         let _ = std::fs::create_dir_all(&script_dir);
         let script_path = script_dir.join("piper_worker.py");
@@ -467,15 +468,16 @@ impl PiperBridge {
             }
         }
         // 3. Fallbacks
+        let temp_py = std::env::temp_dir().join("edge_env/bin/python3");
         let candidates = [
-            "/tmp/edge_env/bin/python3",
-            "/usr/local/bin/python3",
-            "/usr/bin/python3",
-            "python3",
+            temp_py.as_path(),
+            Path::new("/usr/local/bin/python3"),
+            Path::new("/usr/bin/python3"),
+            Path::new("python3"),
         ];
         for c in candidates {
-            if Path::new(c).exists() {
-                return PathBuf::from(c);
+            if c.exists() {
+                return c.to_path_buf();
             }
         }
         PathBuf::from("python3")
@@ -538,8 +540,10 @@ impl PiperBridge {
             || voice_str.contains("agnieszka")
         {
             "pl_PL-gosia-medium"
-        } else if voice_str.contains("mc_speech")
-            || voice_str.contains("mc")
+        } else if voice_str == "mc"
+            || voice_str.starts_with("mc_")
+            || voice_str.contains("mc_speech")
+            || voice_str.contains("mcspeech")
             || voice_str.contains("guard")
             || voice_str.contains("straznik")
             || voice_str.contains("strażnik")

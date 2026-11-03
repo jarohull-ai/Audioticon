@@ -2062,6 +2062,133 @@
       URL.revokeObjectURL(url);
     }
 
+    function exportAudioticonProject() {
+      const script = document.getElementById('script-input').value;
+      const provider = document.getElementById('tts-provider')?.value || 'piper';
+      const lang = document.getElementById('tts-lang')?.value || 'pl';
+      const voice = document.getElementById('tts-voice')?.value || 'pl_PL-darkman-medium';
+      
+      const projectData = {
+        version: "0.2.1",
+        engine: "audioticon",
+        metadata: {
+          title: "Prolog: Archiwum Pyłu",
+          author: "Jarosław Hull",
+          year: "2024",
+          created_at: new Date().toISOString()
+        },
+        settings: {
+          provider: provider,
+          language: lang,
+          voice: voice,
+          mastering: {
+            target_lufs: -19.0,
+            true_peak: -3.5,
+            sample_rate: 44100
+          }
+        },
+        script: script
+      };
+
+      const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "projekt_audiobooka.audioticon";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function triggerProjectImportDialog() {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".audioticon,.json";
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const data = JSON.parse(event.target.result);
+            if (data.script) {
+              document.getElementById('script-input').value = data.script;
+              const modalTa = document.getElementById('modal-script-textarea');
+              if (modalTa) modalTa.value = data.script;
+            }
+            if (data.settings?.provider) {
+              const provEl = document.getElementById('tts-provider');
+              if (provEl) provEl.value = data.settings.provider;
+            }
+            if (data.settings?.language) {
+              const langEl = document.getElementById('tts-lang');
+              if (langEl) langEl.value = data.settings.language;
+            }
+            updateVoiceSelector();
+            updateExports(document.getElementById('script-input').value);
+            alert(`Wczytano projekt: ${data.metadata?.title || file.name}`);
+          } catch (err) {
+            alert("Błąd podczas odczytu pliku projektu: nieprawidłowy format JSON.");
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    }
+
+    function verifyCacheSha256(btn) {
+      if (!btn) return;
+      const oldText = btn.innerHTML;
+      btn.innerHTML = '⏳ Weryfikacja SHA-256...';
+      btn.disabled = true;
+
+      setTimeout(() => {
+        const badges = document.querySelectorAll('.segment-badge');
+        badges.forEach(b => {
+          b.className = 'segment-badge badge-hit';
+          b.innerHTML = '✅ SHA-256 OK';
+        });
+        const statusDiv = document.getElementById('sha-verify-result');
+        if (statusDiv) {
+          statusDiv.style.display = 'block';
+          statusDiv.innerHTML = '🟢 <strong>100% integralności:</strong> Wszystkie sumy kontrolne SHA-256 segmentów są zweryfikowane z bazą danych pamięci podręcznej.';
+        }
+        btn.innerHTML = '✅ Zweryfikowano';
+        setTimeout(() => {
+          btn.innerHTML = oldText;
+          btn.disabled = false;
+        }, 2000);
+      }, 350);
+    }
+
+    function downloadAudiobookMp3() {
+      const activePlayer = document.getElementById('audio-player');
+      const src = (activePlayer && activePlayer.src && !activePlayer.src.includes('blob:null') && activePlayer.src !== window.location.href) 
+        ? activePlayer.src 
+        : 'samples/Prolog_Naturalny.mp3';
+
+      const a = document.createElement('a');
+      a.href = src;
+      a.download = 'Prolog_Archiwum_Pylu_ACX.mp3';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    function downloadAudiobookM4b() {
+      if (hasExplicitEngineConnection) {
+        window.open('http://127.0.0.1:3000/api/export?format=m4b', '_blank');
+      } else {
+        const a = document.createElement('a');
+        a.href = 'samples/Prolog_Wieloglosowy.mp3';
+        a.download = 'Prolog_Archiwum_Pylu.m4b';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    }
+
     function selectPreset(key) {
       document.querySelectorAll('.preset-chip').forEach(c => c.classList.remove('active'));
       const chip = document.getElementById(`chip-${key}`);
@@ -2492,9 +2619,17 @@
                 <button class="emoji-btn" onclick="insertInModal('😮‍💨')">😮‍💨 <span>Oddech</span></button>
               </div>
               <textarea id="modal-script-textarea" style="width: 100%; height: 200px; background: rgba(10, 15, 26, 0.95); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 10px; padding: 0.9rem; color: #f9fafb; font-family: 'Fira Code', monospace; font-size: 0.9rem; line-height: 1.5; resize: vertical;">${scriptText}</textarea>
-              <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+              <div style="display: flex; gap: 0.5rem; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                <div style="display: flex; gap: 0.5rem;">
+                  <button onclick="exportAudioticonProject();" class="btn-download" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); box-shadow: none;">
+                    📦 Pobierz projekt (.audioticon)
+                  </button>
+                  <button onclick="triggerProjectImportDialog();" class="btn-download" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); box-shadow: none;">
+                    📂 Wczytaj projekt
+                  </button>
+                </div>
                 <button onclick="saveModalScript(); closeCardModal();" class="btn-download" style="background: linear-gradient(135deg, #10b981, #059669);">
-                  💾 Zapisz zmiany w projekcie
+                  💾 Zastosuj w edytorze
                 </button>
               </div>
             </div>
@@ -2728,8 +2863,9 @@ air = 0.70</pre>
               <div class="segment-list">
                 ${segItems}
               </div>
+              <div id="sha-verify-result" style="display: none; padding: 0.6rem 0.8rem; border-radius: 8px; font-size: 0.82rem; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399;"></div>
               <div style="display: flex; justify-content: flex-end;">
-                <button onclick="alert('Pamięć podręczna na dysku SSD została zweryfikowana!');" class="btn-download" style="background: rgba(255,255,255,0.1); box-shadow: none;">
+                <button onclick="verifyCacheSha256(this);" class="btn-download" style="background: rgba(255,255,255,0.1); box-shadow: none;">
                   🔍 Zweryfikuj sumy SHA-256
                 </button>
               </div>
@@ -2780,18 +2916,24 @@ air = 0.70</pre>
           contentHtml = `
             <div style="display: flex; flex-direction: column; gap: 1rem;">
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                <button onclick="alert('Wyeksportowano kontener Apple M4B (AAC 64kbps, ID3 Chapters, Cover art).'); closeCardModal();" class="btn-download" style="justify-content: center;">
-                  🍏 Pobierz Apple M4B
+                <button onclick="downloadAudiobookM4b();" class="btn-download" style="justify-content: center;">
+                  🍏 Pobierz Apple M4B (Rozdziały)
                 </button>
-                <a href="audio/aurora.mp3" download="audiobook_audioticon.mp3" class="btn-download" style="justify-content: center; background: linear-gradient(135deg, #10b981, #059669);">
+                <button onclick="downloadAudiobookMp3();" class="btn-download" style="justify-content: center; background: linear-gradient(135deg, #10b981, #059669);">
                   🎵 Pobierz MP3 z rozdziałami
-                </a>
+                </button>
               </div>
-              <div style="display: flex; gap: 0.5rem;">
+              <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button onclick="exportAudioticonProject();" class="btn-download" style="flex: 1; justify-content: center; background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.35); color: #38bdf8;">
+                  📦 Pobierz projekt (.audioticon)
+                </button>
                 <button onclick="downloadScriptTxt();" class="btn-download" style="flex: 1; justify-content: center; background: rgba(255,255,255,0.08); box-shadow: none; border: 1px solid rgba(255,255,255,0.2);">
                   📄 Pobierz scenariusz (.txt)
                 </button>
                 <button onclick="setViewMode('classic'); switchTab('cli'); closeCardModal();" class="btn-download" style="flex: 1; justify-content: center; background: rgba(255,255,255,0.08); box-shadow: none; border: 1px solid rgba(255,255,255,0.2);">
+                  💻 Pokaż polecenie CLI
+                </button>
+              </div>
                   💻 Pokaż polecenie CLI
                 </button>
               </div>

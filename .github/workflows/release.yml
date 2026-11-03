@@ -31,7 +31,7 @@ jobs:
           ln -sf audioticon "dist/${PKG_NAME}/audioticon-cli" 2>/dev/null || true
           cp audioticon.example.toml "dist/${PKG_NAME}/"
           cp scripts/setup.sh "dist/${PKG_NAME}/"
-          cp LICENSE-MIT LICENSE-APACHE README.md "dist/${PKG_NAME}/"
+          cp LICENSE-MIT LICENSE-APACHE README.md THIRD_PARTY_NOTICES.md "dist/${PKG_NAME}/"
           cd dist
           tar -czvf "${PKG_NAME}.tar.gz" "${PKG_NAME}"
           sha256sum "${PKG_NAME}.tar.gz" > "${PKG_NAME}.tar.gz.sha256"
