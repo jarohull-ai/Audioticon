@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
 use audioticon_core::{
-    base64_decode, download_model, export_to_m4b, export_to_mp3, find_model, list_models,
-    models_dir, presets, remove_model, AudioDirectorEngine, AudiobookMetadata, DirectedItem,
-    EdgeTtsBridge, EmojiDirector, ImportedBook, PiperBridge, PresetRegistry, ProjectConfig,
-    SpeechSynthesizer,
+    base64_decode, compute_segment_hash, download_model, export_to_m4b, export_to_mp3, find_model,
+    list_models, models_dir, presets, remove_model, AudioDirectorEngine, AudiobookMetadata,
+    DirectedItem, EdgeTtsBridge, EmojiDirector, ImportedBook, PiperBridge, PresetRegistry,
+    ProjectConfig, SpeechSynthesizer,
 };
 use clap::{Parser, Subcommand, ValueEnum};
 use std::collections::HashMap;
@@ -927,6 +927,32 @@ fn default_export_format() -> String {
     "m4b".to_string()
 }
 
+fn url_decode(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let bytes = input.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'+' {
+            result.push(' ');
+            i += 1;
+        } else if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(val) =
+                u8::from_str_radix(std::str::from_utf8(&bytes[i + 1..i + 3]).unwrap_or(""), 16)
+            {
+                result.push(val as char);
+                i += 3;
+            } else {
+                result.push('%');
+                i += 1;
+            }
+        } else {
+            result.push(bytes[i] as char);
+            i += 1;
+        }
+    }
+    result
+}
+
 type PiperCache = Arc<Mutex<HashMap<PathBuf, Arc<PiperBridge>>>>;
 
 async fn resolve_synthesizer(
@@ -1406,6 +1432,108 @@ async fn handle_studio_request(
         return;
     }
 
+    // Route: POST /api/cache/status
+    if method == tiny_http::Method::Post && url == "/api/cache/status" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(10 * 1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        let req = match serde_json::from_str::<ApiParseRequest>(&body_str) {
+            Ok(r) => r,
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": "Nieprawidłowy format JSON",
+                    "details": e.to_string()
+                });
+                let json_header =
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(json_header);
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let clean_lang = req.lang.to_lowercase();
+        let director = EmojiDirector::default().with_lang(&clean_lang);
+        let script = director.parse(&req.text);
+        let cache_dir = get_default_cache_dir();
+
+        let mut segments_info = Vec::new();
+        let mut cached_count = 0;
+        let mut total_speech = 0;
+
+        for item in &script.items {
+            if let DirectedItem::Speech(ref seg) = item {
+                total_speech += 1;
+                let voice_name = seg.voice.as_deref().unwrap_or("pl_PL-darkman-medium");
+                let hash = compute_segment_hash(seg, voice_name);
+                let cached_file = cache_dir.join(format!("{}.wav", hash));
+                let in_cache = cached_file.exists();
+                let file_size = if in_cache {
+                    std::fs::metadata(&cached_file)
+                        .map(|m| m.len())
+                        .unwrap_or(0)
+                } else {
+                    0
+                };
+                if in_cache {
+                    cached_count += 1;
+                }
+                segments_info.push(serde_json::json!({
+                    "index": total_speech,
+                    "text": seg.text,
+                    "voice": voice_name,
+                    "hash": hash,
+                    "short_hash": &hash[..8.min(hash.len())],
+                    "in_cache": in_cache,
+                    "size_bytes": file_size,
+                }));
+            }
+        }
+
+        let ratio = if total_speech > 0 {
+            cached_count as f64 / total_speech as f64
+        } else {
+            0.0
+        };
+
+        let json_resp = serde_json::json!({
+            "total_speech_segments": total_speech,
+            "cached_count": cached_count,
+            "cache_hit_ratio": ratio,
+            "segments": segments_info,
+        });
+
+        let json_header = Header::from_bytes(
+            &b"Content-Type"[..],
+            &b"application/json; charset=utf-8"[..],
+        )
+        .unwrap();
+        let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+        resp.add_header(json_header);
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
     // Route: POST /api/render
     if method == tiny_http::Method::Post && url == "/api/render" {
         let mut body_str = String::new();
@@ -1549,7 +1677,8 @@ async fn handle_studio_request(
                 return;
             }
 
-            match serde_json::from_str::<ApiExportRequest>(&body_str) {
+            let parsed: ApiExportRequest = match serde_json::from_str::<ApiExportRequest>(&body_str)
+            {
                 Ok(r) => r,
                 Err(e) => {
                     let err_json = serde_json::json!({
@@ -1566,22 +1695,67 @@ async fn handle_studio_request(
                     let _ = request.respond(resp.with_status_code(400));
                     return;
                 }
-            }
-        } else {
-            let fmt = if url.contains("format=mp3") {
-                "mp3".to_string()
-            } else {
-                "m4b".to_string()
             };
+
+            if parsed.text.trim().is_empty() {
+                let err_json = serde_json::json!({
+                    "error": "Brak tekstu do wyrenderowania. Pole 'text' nie może być puste."
+                });
+                let json_header =
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(json_header);
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+            parsed
+        } else {
+            // GET /api/export
+            let query = url.split_once('?').map(|(_, q)| q).unwrap_or("");
+            let mut params = std::collections::HashMap::new();
+            for pair in query.split('&') {
+                if let Some((k, v)) = pair.split_once('=') {
+                    params.insert(k, url_decode(v));
+                }
+            }
+            let text = params.get("text").cloned().unwrap_or_default();
+            if text.trim().is_empty() {
+                let err_json = serde_json::json!({
+                    "error": "Brak tekstu do wyrenderowania. Podaj parametr 'text' w zapytaniu GET lub wyślij zapytanie POST z ciałem JSON."
+                });
+                let json_header =
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(json_header);
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+
+            let fmt = params
+                .get("format")
+                .cloned()
+                .unwrap_or_else(|| "m4b".to_string());
             ApiExportRequest {
-                text: "📖 Rozdział 1: Początek 🛑 Witamy w Audioticon. To jest wygenerowany audiobook.".to_string(),
-                provider: default_provider_str(),
-                lang: default_lang_str(),
-                voice: default_voice_str(),
-                model: None,
+                text,
+                provider: params
+                    .get("provider")
+                    .cloned()
+                    .unwrap_or_else(default_provider_str),
+                lang: params.get("lang").cloned().unwrap_or_else(default_lang_str),
+                voice: params
+                    .get("voice")
+                    .cloned()
+                    .unwrap_or_else(default_voice_str),
+                model: params.get("model").cloned(),
                 format: fmt,
-                title: Some("Audioticon Audiobook".to_string()),
-                author: None,
+                title: params.get("title").cloned(),
+                author: params.get("author").cloned(),
                 narrator: Some("Lektor".to_string()),
                 year: Some("2026".to_string()),
             }

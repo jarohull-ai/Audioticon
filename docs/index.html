@@ -1672,7 +1672,7 @@
     <section id="guest-showcase" class="guest-showcase-section">
       <div class="showcase-container">
         <div class="showcase-hero-badge">
-          <span class="pulse-dot"></span> Oficjalne Wydanie v0.2.2 • Silnik Audio w Rust
+          <span class="pulse-dot"></span> Oficjalne Wydanie v0.2.3 • Silnik Audio w Rust
         </div>
         <h1 class="showcase-title">Twórz broadcastowe audiobooki tekstem i emotikonami</h1>
         <p class="showcase-subtitle">
@@ -1736,8 +1736,8 @@
           <a href="#view-3d" class="btn-cta-studio" onclick="document.getElementById('view-3d').scrollIntoView({behavior: 'smooth'})">
             🪐 Otwórz Studio 3D
           </a>
-          <a href="https://github.com/jarohull-ai/Audioticon/releases/tag/v0.2.2" target="_blank" class="btn-cta-download">
-            📥 Pobierz v0.2.2 (Linux x86_64)
+          <a href="https://github.com/jarohull-ai/Audioticon/releases/tag/v0.2.3" target="_blank" class="btn-cta-download">
+            📥 Pobierz v0.2.3 (Linux x86_64)
           </a>
           <a href="https://github.com/jarohull-ai/Audioticon/wiki/Audioticon" target="_blank" class="btn-cta-wiki">
             📚 Dokumentacja Wiki
@@ -1761,7 +1761,7 @@
       </div>
       <div class="engine-status-right">
         <button class="btn-engine-connect" id="btn-engine-connect" onclick="checkEngineConnection(true)">
-          🔗 Połącz z lokalnym Audioticon (127.0.0.1:3000)
+          🔗 Połącz z lokalnym Audioticon
         </button>
       </div>
     </div>
@@ -2062,6 +2062,15 @@
       URL.revokeObjectURL(url);
     }
 
+    function getApiUrl(path) {
+      const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (isLocalHost) {
+        return path;
+      }
+      const port = window.localEnginePort || 3000;
+      return `http://127.0.0.1:${port}${path}`;
+    }
+
     function exportAudioticonProject() {
       const script = document.getElementById('script-input').value;
       const provider = document.getElementById('tts-provider')?.value || 'piper';
@@ -2077,11 +2086,27 @@
       }
 
       const title = prompt("Podaj tytuł projektu:", defaultTitle) || defaultTitle;
-      const defaultAuthor = script.includes("Archiwum Pyłu") ? "Jarosław Hull" : "Autor";
-      const author = prompt("Podaj autora książki:", defaultAuthor) || defaultAuthor;
+      const defaultAuthor = script.includes("Archiwum Pyłu") ? "Jarosław Kuchta" : "";
+      const author = prompt("Podaj autora książki:", defaultAuthor) || (defaultAuthor || "Autor");
+
+      // Extract chapters structure
+      const chapters = [];
+      const lines = script.split('\n');
+      lines.forEach((line, idx) => {
+        if (line.includes('📖')) {
+          const ch = line.replace(/[📖🛑⏸️]/g, '').trim();
+          if (ch) chapters.push({ line: idx + 1, title: ch });
+        }
+      });
+
+      // Extract cast tags
+      const casting = {};
+      if (script.includes('🎙️')) casting['narrator'] = '🎙️ Lektor';
+      if (script.includes('👨')) casting['guard'] = '👨 Mężczyzna';
+      if (script.includes('👩')) casting['woman'] = '👩 Kobieta';
 
       const projectData = {
-        version: "0.2.2",
+        version: "0.2.3",
         engine: "audioticon",
         metadata: {
           title: title,
@@ -2099,6 +2124,8 @@
             sample_rate: 44100
           }
         },
+        chapters: chapters,
+        casting: casting,
         script: script
       };
 
@@ -2169,28 +2196,76 @@
     async function verifyCacheSha256(btn) {
       if (!btn) return;
       const oldText = btn.innerHTML;
-      btn.innerHTML = '⏳ Obliczanie sum SHA-256 (Web Crypto)...';
+      btn.innerHTML = '⏳ Weryfikacja pamięci podręcznej (Cache)...';
       btn.disabled = true;
 
       const scriptText = document.getElementById('script-input').value;
-      const sentences = scriptText.split(/[.!?🛑⏸️]/).map(s => s.trim()).filter(s => s.length > 3);
+      const provider = document.getElementById('tts-provider')?.value || 'piper';
+      const lang = document.getElementById('tts-lang')?.value || 'pl';
+      const voice = document.getElementById('tts-voice')?.value || 'pl_PL-darkman-medium';
 
-      const badges = document.querySelectorAll('.segment-list .segment-badge');
-      for (let i = 0; i < badges.length; i++) {
-        const sent = sentences[i] || `segment_${i}`;
-        const hash = await sha256Hex(sent);
-        badges[i].className = 'segment-badge badge-hit';
-        badges[i].innerHTML = `✅ sha256:${hash.substring(0, 8)}…`;
-        badges[i].title = `Pełna suma SHA-256 segmentu:\n${hash}`;
+      let connectedToEngine = false;
+
+      // Try server-side cache verification
+      try {
+        const resp = await fetch(getApiUrl('/api/cache/status'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: scriptText,
+            lang: lang,
+            voice: voice,
+            provider: provider
+          })
+        });
+
+        if (resp.ok) {
+          const cacheData = await resp.json();
+          connectedToEngine = true;
+          
+          const segContainer = document.querySelector('.segment-list');
+          if (segContainer && cacheData.segments && cacheData.segments.length > 0) {
+            segContainer.innerHTML = cacheData.segments.map(s => `
+              <div class="segment-item">
+                <span style="font-family: 'Fira Code', monospace; color: #e2e8f0;">[${String(s.index).padStart(2, '0')}] "${s.text.substring(0, 38)}..."</span>
+                <span class="segment-badge ${s.in_cache ? 'badge-hit' : 'badge-render'}" title="Klucz SHA-256 w silniku:\n${s.hash}\nRozmiar audio: ${s.size_bytes} B">
+                  ${s.in_cache ? `✅ Hit ${s.short_hash} (${Math.round(s.size_bytes/1024)} KB)` : `⏳ Render ${s.short_hash}`}
+                </span>
+              </div>
+            `).join('');
+          }
+
+          const statusDiv = document.getElementById('sha-verify-result');
+          if (statusDiv) {
+            statusDiv.style.display = 'block';
+            statusDiv.innerHTML = `🟢 <strong>Połączono z silnikiem lokalnym:</strong> ${cacheData.cached_count} / ${cacheData.total_speech_segments} segmentów znajduje się w fizycznej pamięci podręcznej (${Math.round(cacheData.cache_hit_ratio * 100)}% trafień). Sumy SHA-256 są zgodne z plikami na dysku.`;
+          }
+        }
+      } catch (err) {
+        connectedToEngine = false;
       }
 
-      const statusDiv = document.getElementById('sha-verify-result');
-      if (statusDiv) {
-        statusDiv.style.display = 'block';
-        statusDiv.innerHTML = `🟢 <strong>Web Crypto API SHA-256:</strong> Pomyślnie obliczono kryptograficzne sumy kontrolne dla ${Math.min(sentences.length, badges.length)} segmentów. Każdy fragment posiada zweryfikowany deterministyczny hash cache.`;
+      // If disconnected from engine, run client-side Web Crypto text hashing
+      if (!connectedToEngine) {
+        const sentences = scriptText.split(/[.!?🛑⏸️]/).map(s => s.trim()).filter(s => s.length > 3);
+        const badges = document.querySelectorAll('.segment-list .segment-badge');
+
+        for (let i = 0; i < badges.length; i++) {
+          const sent = sentences[i] || `segment_${i}`;
+          const hash = await sha256Hex(sent);
+          badges[i].className = 'segment-badge badge-hit';
+          badges[i].innerHTML = `📝 sha256:${hash.substring(0, 8)}…`;
+          badges[i].title = `Suma SHA-256 tekstu (Web Crypto API):\n${hash}`;
+        }
+
+        const statusDiv = document.getElementById('sha-verify-result');
+        if (statusDiv) {
+          statusDiv.style.display = 'block';
+          statusDiv.innerHTML = `ℹ️ <strong>Web Crypto API (tryb offline):</strong> Obliczono autentyczne sumy SHA-256 dla tekstu zdań. Aby zweryfikować stan rzeczywistych plików w lokalnym cache silnika, uruchom <code>audioticon studio</code> i połącz aplikację.`;
+        }
       }
 
-      btn.innerHTML = '✅ Zweryfikowano SHA-256';
+      btn.innerHTML = connectedToEngine ? '✅ Zweryfikowano Cache' : '✅ Obliczono SHA-256';
       setTimeout(() => {
         btn.innerHTML = oldText;
         btn.disabled = false;
@@ -2211,6 +2286,8 @@
         title = "Prolog: Archiwum Pyłu";
       }
 
+      const author = script.includes("Archiwum Pyłu") ? "Jarosław Kuchta" : "Autor";
+
       const oldText = btn ? btn.innerHTML : '';
       if (btn) {
         btn.innerHTML = `⏳ Eksportuję ${format.toUpperCase()}...`;
@@ -2218,7 +2295,7 @@
       }
 
       try {
-        const resp = await fetch('http://127.0.0.1:3000/api/export', {
+        const resp = await fetch(getApiUrl('/api/export'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2228,11 +2305,36 @@
             voice: voice,
             format: format,
             title: title,
-            author: script.includes("Archiwum Pyłu") ? "Jarosław Hull" : "Autor",
+            author: author,
             narrator: "Lektor",
             year: new Date().getFullYear().toString()
           })
         });
+
+        if (!resp.ok) {
+          const errText = await resp.text();
+          throw new Error(errText || `Błąd serwera HTTP ${resp.status}`);
+        }
+
+        const blob = await resp.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        const cleanName = title.replace(/[^a-zA-Z0-9_\-\u00a0-\u024f]/g, '_').substring(0, 40);
+        a.download = `${cleanName}.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      } catch (err) {
+        alert(`Błąd podczas eksportu ${format.toUpperCase()}:\n${err.message}`);
+      } finally {
+        if (btn) {
+          btn.innerHTML = oldText;
+          btn.disabled = false;
+        }
+      }
+    }
 
         if (!resp.ok) {
           const errText = await resp.text();
@@ -2377,9 +2479,8 @@
       btn.innerHTML = `⏳ Renderowanie EBU R128...`;
       infoBox.innerHTML = `⏳ <strong>Trwa renderowanie...</strong> Silnik: <em>${provider}</em>, język: <em>${lang}</em>. Przetwarzanie filtrów DSP, normalizacja EBU R128 (-19 LUFS / -3.5 dBTP)...`;
 
-      // Try local server first (relative or 127.0.0.1:3000)
-      const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const endpoints = isLocalHost ? ['/api/render'] : ['http://127.0.0.1:3000/api/render', '/api/render'];
+      // Try local server first via dynamic getApiUrl
+      const endpoints = [getApiUrl('/api/render')];
 
       const voice = document.getElementById('tts-voice')?.value || (lang === 'pl' ? 'pl_PL-darkman-medium' : 'en_US-lessac-medium');
 
@@ -2429,7 +2530,7 @@
 
       if (!success) {
         infoBox.innerHTML = `ℹ️ <strong>Brak aktywnego silnika lokalnego.</strong> Aby renderować dowolny własny tekst offline z masteringiem EBU R128:<br>
-        1. <a href="https://github.com/jarohull-ai/Audioticon/releases/tag/v0.2.2" target="_blank" style="color: #38bdf8; font-weight: bold; text-decoration: underline;">Pobierz aplikację Audioticon v0.2.2 (Releases)</a><br>
+        1. <a href="https://github.com/jarohull-ai/Audioticon/releases/tag/v0.2.3" target="_blank" style="color: #38bdf8; font-weight: bold; text-decoration: underline;">Pobierz aplikację Audioticon v0.2.3 (Releases)</a><br>
         2. Uruchom w terminalu: <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">audioticon studio</code> (lub <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">audioticon serve</code>).<br>
         W tej chwili możesz odsłuchać 3 gotowe próbki audio w sekcji na górze strony!`;
       }
@@ -3199,8 +3300,7 @@ air = 0.70</pre>
     }
 
     async function sendImportRequest(filename, payload) {
-      const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const endpoints = isLocalHost ? ['/api/import'] : ['http://127.0.0.1:3000/api/import', '/api/import'];
+      const endpoints = [getApiUrl('/api/import')];
 
       let result = null;
       let lastErr = null;
@@ -3396,19 +3496,22 @@ air = 0.70</pre>
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2500);
-        const res = await fetch('http://127.0.0.1:3000/api/models', { signal: controller.signal });
+        const res = await fetch(getApiUrl('/api/models'), { signal: controller.signal });
         clearTimeout(timeoutId);
 
         if (res.ok) {
           hasExplicitEngineConnection = true;
           if (dot) dot.className = 'status-indicator-dot online';
-          if (label) label.innerHTML = '🟢 <strong>Połączono z silnikiem</strong>: Audioticon Studio (127.0.0.1:3000)';
+          const locStr = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? `${window.location.host}`
+            : `127.0.0.1:${window.localEnginePort || 3000}`;
+          if (label) label.innerHTML = `🟢 <strong>Połączono z silnikiem</strong>: Audioticon Studio (${locStr})`;
           if (btn) {
             btn.innerHTML = '✅ Połączono';
             btn.style.borderColor = '#10b981';
             btn.style.color = '#34d399';
           }
-          if (showFeedback) alert('Pomyślnie połączono z lokalnym silnikiem Audioticon (127.0.0.1:3000)!');
+          if (showFeedback) alert(`Pomyślnie połączono z lokalnym silnikiem Audioticon (${locStr})!`);
           fetchOfflineModelsList();
           return true;
         }
@@ -3423,7 +3526,11 @@ air = 0.70</pre>
         btn.style.color = '#f3f4f6';
       }
       if (showFeedback) {
-        alert('Nie wykryto uruchomionego serwera pod adresem http://127.0.0.1:3000.\n\nAby połączyć przeglądarkę z silnikiem na komputerze:\n1. Otwórz terminal i wpisz: audioticon studio (lub audioticon serve)\n2. Następnie kliknij ponownie „Połącz”.');
+        const p = prompt('Nie wykryto silnika pod adresem domyślnym. Jeśli uruchomiłeś audioticon na innym porcie, podaj numer portu (np. 4000):', window.localEnginePort || '3000');
+        if (p && !isNaN(parseInt(p, 10))) {
+          window.localEnginePort = parseInt(p, 10);
+          return checkEngineConnection(true);
+        }
       }
       return false;
     }
@@ -3437,7 +3544,7 @@ air = 0.70</pre>
 
       if (isLocalHost || hasExplicitEngineConnection) {
         container.innerHTML = `<div style="color: #94a3b8; font-size: 0.82rem; padding: 0.5rem; text-align: center;">⏳ Sprawdzanie modeli offline...</div>`;
-        const endpoints = isLocalHost ? ['/api/models'] : ['http://127.0.0.1:3000/api/models', '/api/models'];
+        const endpoints = [getApiUrl('/api/models')];
         for (const ep of endpoints) {
           try {
             const res = await fetch(ep);
@@ -3524,8 +3631,7 @@ air = 0.70</pre>
         statusDiv.innerHTML = `<span style="color: #38bdf8;">⏳ Pobieranie modelu neuronowego <strong>${modelId}</strong> z repozytorium HuggingFace (~63 MB)... Proszę czekać...</span>`;
       }
 
-      const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const endpoints = isLocalHost ? ['/api/models/download'] : ['http://127.0.0.1:3000/api/models/download', '/api/models/download'];
+      const endpoints = [getApiUrl('/api/models/download')];
 
       let success = false;
       let errorMsg = '';
