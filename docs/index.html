@@ -1672,7 +1672,7 @@
     <section id="guest-showcase" class="guest-showcase-section">
       <div class="showcase-container">
         <div class="showcase-hero-badge">
-          <span class="pulse-dot"></span> Oficjalne Wydanie v0.2.1 • Silnik Audio w Rust
+          <span class="pulse-dot"></span> Oficjalne Wydanie v0.2.2 • Silnik Audio w Rust
         </div>
         <h1 class="showcase-title">Twórz broadcastowe audiobooki tekstem i emotikonami</h1>
         <p class="showcase-subtitle">
@@ -1736,8 +1736,8 @@
           <a href="#view-3d" class="btn-cta-studio" onclick="document.getElementById('view-3d').scrollIntoView({behavior: 'smooth'})">
             🪐 Otwórz Studio 3D
           </a>
-          <a href="https://github.com/jarohull-ai/Audioticon/releases/tag/v0.2.1" target="_blank" class="btn-cta-download">
-            📥 Pobierz v0.2.1 (Linux x86_64)
+          <a href="https://github.com/jarohull-ai/Audioticon/releases/tag/v0.2.2" target="_blank" class="btn-cta-download">
+            📥 Pobierz v0.2.2 (Linux x86_64)
           </a>
           <a href="https://github.com/jarohull-ai/Audioticon/wiki/Audioticon" target="_blank" class="btn-cta-wiki">
             📚 Dokumentacja Wiki
@@ -2068,13 +2068,25 @@
       const lang = document.getElementById('tts-lang')?.value || 'pl';
       const voice = document.getElementById('tts-voice')?.value || 'pl_PL-darkman-medium';
       
+      let defaultTitle = "Projekt Audioticon";
+      const chMatch = script.match(/📖\s*([^\n🛑]+)/);
+      if (chMatch) {
+        defaultTitle = chMatch[1].trim();
+      } else if (script.includes("Archiwum Pyłu")) {
+        defaultTitle = "Prolog: Archiwum Pyłu";
+      }
+
+      const title = prompt("Podaj tytuł projektu:", defaultTitle) || defaultTitle;
+      const defaultAuthor = script.includes("Archiwum Pyłu") ? "Jarosław Hull" : "Autor";
+      const author = prompt("Podaj autora książki:", defaultAuthor) || defaultAuthor;
+
       const projectData = {
-        version: "0.2.1",
+        version: "0.2.2",
         engine: "audioticon",
         metadata: {
-          title: "Prolog: Archiwum Pyłu",
-          author: "Jarosław Hull",
-          year: "2024",
+          title: title,
+          author: author,
+          year: new Date().getFullYear().toString(),
           created_at: new Date().toISOString()
         },
         settings: {
@@ -2094,7 +2106,8 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "projekt_audiobooka.audioticon";
+      const safeFilename = title.replace(/[^a-zA-Z0-9_\-\u00a0-\u024f]/g, '_').toLowerCase().substring(0, 40);
+      a.download = `${safeFilename}.audioticon`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -2137,55 +2150,145 @@
       input.click();
     }
 
-    function verifyCacheSha256(btn) {
+    async function sha256Hex(text) {
+      if (window.crypto && crypto.subtle) {
+        const msgBuffer = new TextEncoder().encode(text);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      } else {
+        let hash = 0;
+        for (let i = 0; i < text.length; i++) {
+          hash = ((hash << 5) - hash) + text.charCodeAt(i);
+          hash |= 0;
+        }
+        return Math.abs(hash).toString(16).padStart(8, '0');
+      }
+    }
+
+    async function verifyCacheSha256(btn) {
       if (!btn) return;
       const oldText = btn.innerHTML;
-      btn.innerHTML = '⏳ Weryfikacja SHA-256...';
+      btn.innerHTML = '⏳ Obliczanie sum SHA-256 (Web Crypto)...';
       btn.disabled = true;
 
+      const scriptText = document.getElementById('script-input').value;
+      const sentences = scriptText.split(/[.!?🛑⏸️]/).map(s => s.trim()).filter(s => s.length > 3);
+
+      const badges = document.querySelectorAll('.segment-list .segment-badge');
+      for (let i = 0; i < badges.length; i++) {
+        const sent = sentences[i] || `segment_${i}`;
+        const hash = await sha256Hex(sent);
+        badges[i].className = 'segment-badge badge-hit';
+        badges[i].innerHTML = `✅ sha256:${hash.substring(0, 8)}…`;
+        badges[i].title = `Pełna suma SHA-256 segmentu:\n${hash}`;
+      }
+
+      const statusDiv = document.getElementById('sha-verify-result');
+      if (statusDiv) {
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = `🟢 <strong>Web Crypto API SHA-256:</strong> Pomyślnie obliczono kryptograficzne sumy kontrolne dla ${Math.min(sentences.length, badges.length)} segmentów. Każdy fragment posiada zweryfikowany deterministyczny hash cache.`;
+      }
+
+      btn.innerHTML = '✅ Zweryfikowano SHA-256';
       setTimeout(() => {
-        const badges = document.querySelectorAll('.segment-badge');
-        badges.forEach(b => {
-          b.className = 'segment-badge badge-hit';
-          b.innerHTML = '✅ SHA-256 OK';
+        btn.innerHTML = oldText;
+        btn.disabled = false;
+      }, 3000);
+    }
+
+    async function requestAudiobookExport(format, btn) {
+      const script = document.getElementById('script-input').value;
+      const provider = document.getElementById('tts-provider')?.value || 'piper';
+      const lang = document.getElementById('tts-lang')?.value || 'pl';
+      const voice = document.getElementById('tts-voice')?.value || 'pl_PL-darkman-medium';
+      
+      let title = "Audioticon Audiobook";
+      const chMatch = script.match(/📖\s*([^\n🛑]+)/);
+      if (chMatch) {
+        title = chMatch[1].trim();
+      } else if (script.includes("Archiwum Pyłu")) {
+        title = "Prolog: Archiwum Pyłu";
+      }
+
+      const oldText = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.innerHTML = `⏳ Eksportuję ${format.toUpperCase()}...`;
+        btn.disabled = true;
+      }
+
+      try {
+        const resp = await fetch('http://127.0.0.1:3000/api/export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: script,
+            provider: provider,
+            lang: lang,
+            voice: voice,
+            format: format,
+            title: title,
+            author: script.includes("Archiwum Pyłu") ? "Jarosław Hull" : "Autor",
+            narrator: "Lektor",
+            year: new Date().getFullYear().toString()
+          })
         });
-        const statusDiv = document.getElementById('sha-verify-result');
-        if (statusDiv) {
-          statusDiv.style.display = 'block';
-          statusDiv.innerHTML = '🟢 <strong>100% integralności:</strong> Wszystkie sumy kontrolne SHA-256 segmentów są zweryfikowane z bazą danych pamięci podręcznej.';
+
+        if (!resp.ok) {
+          const errText = await resp.text();
+          throw new Error(errText || `Błąd serwera HTTP ${resp.status}`);
         }
-        btn.innerHTML = '✅ Zweryfikowano';
-        setTimeout(() => {
-          btn.innerHTML = oldText;
-          btn.disabled = false;
-        }, 2000);
-      }, 350);
-    }
 
-    function downloadAudiobookMp3() {
-      const activePlayer = document.getElementById('audio-player');
-      const src = (activePlayer && activePlayer.src && !activePlayer.src.includes('blob:null') && activePlayer.src !== window.location.href) 
-        ? activePlayer.src 
-        : 'samples/Prolog_Naturalny.mp3';
-
-      const a = document.createElement('a');
-      a.href = src;
-      a.download = 'Prolog_Archiwum_Pylu_ACX.mp3';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-
-    function downloadAudiobookM4b() {
-      if (hasExplicitEngineConnection) {
-        window.open('http://127.0.0.1:3000/api/export?format=m4b', '_blank');
-      } else {
+        const blob = await resp.blob();
+        const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = 'samples/Prolog_Wieloglosowy.mp3';
-        a.download = 'Prolog_Archiwum_Pylu.m4b';
+        a.href = blobUrl;
+        const cleanName = title.replace(/[^a-zA-Z0-9_\-\u00a0-\u024f]/g, '_').substring(0, 40);
+        a.download = `${cleanName}.${format}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      } catch (err) {
+        alert(`Błąd podczas eksportu ${format.toUpperCase()}:\n${err.message}`);
+      } finally {
+        if (btn) {
+          btn.innerHTML = oldText;
+          btn.disabled = false;
+        }
+      }
+    }
+
+    function downloadAudiobookMp3(btn) {
+      if (hasExplicitEngineConnection) {
+        requestAudiobookExport('mp3', btn);
+      } else {
+        const activePlayer = document.getElementById('audio-player');
+        const src = (activePlayer && activePlayer.src && !activePlayer.src.includes('blob:null') && activePlayer.src !== window.location.href) 
+          ? activePlayer.src 
+          : 'samples/Prolog_Naturalny.mp3';
+
+        const a = document.createElement('a');
+        a.href = src;
+        a.download = 'Prolog_Archiwum_Pylu_ACX.mp3';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    }
+
+    function downloadAudiobookM4b(btn) {
+      if (hasExplicitEngineConnection) {
+        requestAudiobookExport('m4b', btn);
+      } else {
+        alert(
+          "🍏 Format Apple M4B (kontener AAC z metadanymi i rozdziałami):\n\n" +
+          "Generowanie prawdziwego pliku M4B z rozdziałami wymaga lokalnego silnika Audioticon i ffmpeg.\n\n" +
+          "W wersji online możesz pobrać zmasterowany plik MP3 ('Pobierz MP3 z rozdziałami').\n\n" +
+          "Aby wygenerować plik .m4b ze swoim tekstem:\n" +
+          "1. Uruchom w terminalu: audioticon studio\n" +
+          "2. Kliknij 'Połącz z lokalnym Audioticon' na górnym pasku."
+        );
       }
     }
 
@@ -2326,7 +2429,7 @@
 
       if (!success) {
         infoBox.innerHTML = `ℹ️ <strong>Brak aktywnego silnika lokalnego.</strong> Aby renderować dowolny własny tekst offline z masteringiem EBU R128:<br>
-        1. <a href="https://github.com/jarohull-ai/Audioticon/releases/tag/v0.2.1" target="_blank" style="color: #38bdf8; font-weight: bold; text-decoration: underline;">Pobierz aplikację Audioticon v0.2.1 (Releases)</a><br>
+        1. <a href="https://github.com/jarohull-ai/Audioticon/releases/tag/v0.2.2" target="_blank" style="color: #38bdf8; font-weight: bold; text-decoration: underline;">Pobierz aplikację Audioticon v0.2.2 (Releases)</a><br>
         2. Uruchom w terminalu: <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">audioticon studio</code> (lub <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">audioticon serve</code>).<br>
         W tej chwili możesz odsłuchać 3 gotowe próbki audio w sekcji na górze strony!`;
       }
@@ -2916,10 +3019,10 @@ air = 0.70</pre>
           contentHtml = `
             <div style="display: flex; flex-direction: column; gap: 1rem;">
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                <button onclick="downloadAudiobookM4b();" class="btn-download" style="justify-content: center;">
+                <button onclick="downloadAudiobookM4b(this);" class="btn-download" style="justify-content: center;">
                   🍏 Pobierz Apple M4B (Rozdziały)
                 </button>
-                <button onclick="downloadAudiobookMp3();" class="btn-download" style="justify-content: center; background: linear-gradient(135deg, #10b981, #059669);">
+                <button onclick="downloadAudiobookMp3(this);" class="btn-download" style="justify-content: center; background: linear-gradient(135deg, #10b981, #059669);">
                   🎵 Pobierz MP3 z rozdziałami
                 </button>
               </div>

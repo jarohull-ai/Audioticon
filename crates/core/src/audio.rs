@@ -1075,7 +1075,7 @@ mod tests {
 
     #[test]
     fn test_piper_voice_resolution() {
-        let dummy_default = PathBuf::from("/tmp/models/pl_PL-darkman-medium.onnx");
+        let dummy_default = std::env::temp_dir().join("models/pl_PL-darkman-medium.onnx");
         let bridge = PiperBridge::new(dummy_default.clone());
 
         // Female / Zofia alias should resolve to gosia model

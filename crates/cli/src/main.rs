@@ -217,7 +217,7 @@ fn get_default_cache_dir() -> PathBuf {
     if let Some(user_cache) = dirs::cache_dir() {
         user_cache.join("audioticon")
     } else {
-        PathBuf::from("/tmp/audioticon_cache")
+        std::env::temp_dir().join("audioticon_cache")
     }
 }
 
@@ -899,7 +899,85 @@ struct ApiParseRequest {
     lang: String,
 }
 
+#[derive(serde::Deserialize)]
+struct ApiExportRequest {
+    #[serde(default)]
+    text: String,
+    #[serde(default = "default_provider_str")]
+    provider: String,
+    #[serde(default = "default_lang_str")]
+    lang: String,
+    #[serde(default = "default_voice_str")]
+    voice: String,
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default = "default_export_format")]
+    format: String,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    author: Option<String>,
+    #[serde(default)]
+    narrator: Option<String>,
+    #[serde(default)]
+    year: Option<String>,
+}
+
+fn default_export_format() -> String {
+    "m4b".to_string()
+}
+
 type PiperCache = Arc<Mutex<HashMap<PathBuf, Arc<PiperBridge>>>>;
+
+async fn resolve_synthesizer(
+    provider: &str,
+    voice: &str,
+    model: Option<&str>,
+    clean_lang: &str,
+    default_model: Option<&PathBuf>,
+    piper_cache: &PiperCache,
+) -> Result<Arc<dyn SpeechSynthesizer>, String> {
+    if provider == "edge" {
+        Ok(Arc::new(EdgeTtsBridge::new(voice)))
+    } else {
+        let m_path = if let Some(custom_m) = model {
+            if let Some(item) = find_model(custom_m) {
+                item.onnx_path
+                    .unwrap_or_else(|| models_dir().join(format!("{}.onnx", item.id)))
+            } else {
+                let p = PathBuf::from(custom_m);
+                if p.exists() {
+                    p
+                } else {
+                    models_dir().join(custom_m)
+                }
+            }
+        } else if let Some(item) = find_model(voice) {
+            item.onnx_path
+                .unwrap_or_else(|| models_dir().join(format!("{}.onnx", item.id)))
+        } else {
+            default_model
+                .cloned()
+                .unwrap_or_else(|| get_default_piper_model(clean_lang))
+        };
+
+        if !m_path.exists() {
+            return Err(format!(
+                "Nie znaleziono modelu Piper: {:?}. Pobierz model w Studio lub poleceniem 'audioticon models download <nazwa>'",
+                m_path
+            ));
+        }
+
+        let mut cache = piper_cache.lock().await;
+        if let Some(existing) = cache.get(&m_path) {
+            Ok(existing.clone())
+        } else {
+            let bridge = Arc::new(PiperBridge::new(m_path.clone()));
+            cache.insert(m_path, bridge.clone());
+            Ok(bridge)
+        }
+    }
+}
 
 fn get_cors_header(request: &tiny_http::Request) -> Option<Header> {
     for header in request.headers() {
@@ -1366,52 +1444,28 @@ async fn handle_studio_request(
         };
 
         let clean_lang = req.lang.to_lowercase();
-        let synth: Arc<dyn SpeechSynthesizer> = if req.provider == "edge" {
-            Arc::new(EdgeTtsBridge::new(&req.voice))
-        } else {
-            let m_path = if let Some(ref custom_m) = req.model {
-                if let Some(item) = find_model(custom_m) {
-                    item.onnx_path
-                        .unwrap_or_else(|| models_dir().join(format!("{}.onnx", item.id)))
-                } else {
-                    let p = PathBuf::from(custom_m);
-                    if p.exists() {
-                        p
-                    } else {
-                        models_dir().join(custom_m)
-                    }
-                }
-            } else if let Some(item) = find_model(&req.voice) {
-                item.onnx_path
-                    .unwrap_or_else(|| models_dir().join(format!("{}.onnx", item.id)))
-            } else {
-                default_model
-                    .clone()
-                    .unwrap_or_else(|| get_default_piper_model(&clean_lang))
-            };
-
-            if !m_path.exists() {
+        let synth = match resolve_synthesizer(
+            &req.provider,
+            &req.voice,
+            req.model.as_deref(),
+            &clean_lang,
+            default_model.as_ref(),
+            &piper_cache,
+        )
+        .await
+        {
+            Ok(s) => s,
+            Err(err_msg) => {
                 let err_header =
                     Header::from_bytes(&b"Content-Type"[..], &b"text/plain; charset=utf-8"[..])
                         .unwrap();
-                let mut resp = tiny_http::Response::from_string(format!(
-                    "Nie znaleziono modelu Piper: {:?}. Pobierz model w Studio lub poleceniem 'audioticon models download <nazwa>'",
-                    m_path
-                ));
+                let mut resp = tiny_http::Response::from_string(err_msg);
                 resp.add_header(err_header);
                 if let Some(ref h) = cors_header {
                     resp.add_header(h.clone());
                 }
                 let _ = request.respond(resp.with_status_code(400));
                 return;
-            }
-            let mut cache = piper_cache.lock().await;
-            if let Some(existing) = cache.get(&m_path) {
-                existing.clone()
-            } else {
-                let bridge = Arc::new(PiperBridge::new(m_path.clone()));
-                cache.insert(m_path, bridge.clone());
-                bridge
             }
         };
 
@@ -1453,6 +1507,183 @@ async fn handle_studio_request(
                         Header::from_bytes(&b"Content-Type"[..], &b"audio/mpeg"[..]).unwrap();
                     let mut resp = tiny_http::Response::from_data(bytes);
                     resp.add_header(mp3_header);
+                    if let Some(ref h) = cors_header {
+                        resp.add_header(h.clone());
+                    }
+                    let _ = request.respond(resp);
+                    return;
+                }
+            }
+            Err(e) => {
+                let _ = std::fs::remove_file(&wav_target);
+                let mut resp =
+                    tiny_http::Response::from_string(format!("Błąd renderowania: {}", e));
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(500));
+                return;
+            }
+        }
+    }
+
+    // Route: POST /api/export or GET /api/export
+    if (method == tiny_http::Method::Post || method == tiny_http::Method::Get)
+        && (url == "/api/export" || url.starts_with("/api/export?"))
+    {
+        let req: ApiExportRequest = if method == tiny_http::Method::Post {
+            let mut body_str = String::new();
+            if request
+                .as_reader()
+                .take(10 * 1024 * 1024)
+                .read_to_string(&mut body_str)
+                .is_err()
+            {
+                let mut resp = tiny_http::Response::from_string(
+                    "{\"error\": \"Nie można odczytać zapytania\"}",
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+
+            match serde_json::from_str::<ApiExportRequest>(&body_str) {
+                Ok(r) => r,
+                Err(e) => {
+                    let err_json = serde_json::json!({
+                        "error": "Nieprawidłowy format JSON",
+                        "details": e.to_string()
+                    });
+                    let json_header =
+                        Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
+                    let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                    resp.add_header(json_header);
+                    if let Some(ref h) = cors_header {
+                        resp.add_header(h.clone());
+                    }
+                    let _ = request.respond(resp.with_status_code(400));
+                    return;
+                }
+            }
+        } else {
+            let fmt = if url.contains("format=mp3") {
+                "mp3".to_string()
+            } else {
+                "m4b".to_string()
+            };
+            ApiExportRequest {
+                text: "📖 Rozdział 1: Początek 🛑 Witamy w Audioticon. To jest wygenerowany audiobook.".to_string(),
+                provider: default_provider_str(),
+                lang: default_lang_str(),
+                voice: default_voice_str(),
+                model: None,
+                format: fmt,
+                title: Some("Audioticon Audiobook".to_string()),
+                author: None,
+                narrator: Some("Lektor".to_string()),
+                year: Some("2026".to_string()),
+            }
+        };
+
+        let clean_lang = req.lang.to_lowercase();
+        let synth = match resolve_synthesizer(
+            &req.provider,
+            &req.voice,
+            req.model.as_deref(),
+            &clean_lang,
+            default_model.as_ref(),
+            &piper_cache,
+        )
+        .await
+        {
+            Ok(s) => s,
+            Err(err_msg) => {
+                let err_header =
+                    Header::from_bytes(&b"Content-Type"[..], &b"text/plain; charset=utf-8"[..])
+                        .unwrap();
+                let mut resp = tiny_http::Response::from_string(err_msg);
+                resp.add_header(err_header);
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let cache_dir = get_default_cache_dir();
+        let _ = std::fs::create_dir_all(&cache_dir);
+        let director = EmojiDirector::default().with_lang(&clean_lang);
+        let script = director.parse(&req.text);
+        let engine = AudioDirectorEngine::new(cache_dir.clone(), synth);
+
+        let req_id = REQ_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let wav_target = cache_dir.join(format!("export_{}_{}.wav", std::process::id(), req_id));
+
+        let is_m4b = req.format.to_lowercase() == "m4b";
+        let out_target = if is_m4b {
+            cache_dir.join(format!("export_{}_{}.m4b", std::process::id(), req_id))
+        } else {
+            cache_dir.join(format!("export_{}_{}.mp3", std::process::id(), req_id))
+        };
+
+        let meta = AudiobookMetadata {
+            title: req
+                .title
+                .clone()
+                .or_else(|| Some("Audioticon Audiobook".to_string())),
+            author: req.author.clone(),
+            narrator: req.narrator.clone().or_else(|| Some("Lektor".to_string())),
+            year: req.year.clone().or_else(|| Some("2026".to_string())),
+            language: Some(clean_lang.clone()),
+        };
+
+        match engine.render(&script, &wav_target).await {
+            Ok(render_res) => {
+                let export_res = if is_m4b {
+                    export_to_m4b(&wav_target, &out_target, &render_res.chapters, &meta).await
+                } else {
+                    export_to_mp3(&wav_target, &out_target, &render_res.chapters, &meta).await
+                };
+                let _ = std::fs::remove_file(&wav_target);
+
+                if let Err(e) = export_res {
+                    let mut resp = tiny_http::Response::from_string(format!(
+                        "Błąd eksportu {}: {}",
+                        req.format, e
+                    ));
+                    if let Some(ref h) = cors_header {
+                        resp.add_header(h.clone());
+                    }
+                    let _ = request.respond(resp.with_status_code(500));
+                    return;
+                }
+
+                if let Ok(bytes) = std::fs::read(&out_target) {
+                    let _ = std::fs::remove_file(&out_target);
+                    let ct_bytes = if is_m4b {
+                        b"audio/mp4"[..].to_vec()
+                    } else {
+                        b"audio/mpeg"[..].to_vec()
+                    };
+                    let ext = if is_m4b { "m4b" } else { "mp3" };
+                    let safe_title = meta
+                        .title
+                        .as_deref()
+                        .unwrap_or("audiobook")
+                        .replace(|c: char| !c.is_alphanumeric() && c != '_' && c != '-', "_");
+                    let cd_str = format!("attachment; filename=\"{}.{}\"", safe_title, ext);
+
+                    let ct_header =
+                        Header::from_bytes(&b"Content-Type"[..], &ct_bytes[..]).unwrap();
+                    let cd_header =
+                        Header::from_bytes(&b"Content-Disposition"[..], cd_str.as_bytes()).unwrap();
+
+                    let mut resp = tiny_http::Response::from_data(bytes);
+                    resp.add_header(ct_header);
+                    resp.add_header(cd_header);
                     if let Some(ref h) = cors_header {
                         resp.add_header(h.clone());
                     }
