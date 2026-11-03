@@ -200,26 +200,21 @@ impl EmojiDirector {
                     || clean.contains("gosia")
                     || clean.contains("female")
                     || clean.contains("kobieta")
-                    || clean == "ona"
-                    || clean.starts_with("ona_")
-                    || clean.ends_with("_ona")
                     || clean.contains("woman")
+                    || clean.split(['-', '_', ' ']).any(|t| t == "ona")
                 {
                     // Female character: clear natural feminine pitch (0Hz) and pacing (-6%)
                     (0, -6)
                 } else if clean.contains("marek")
-                    || clean == "male"
-                    || clean.starts_with("male_")
-                    || clean.ends_with("_male")
-                    || clean.contains("-male")
-                    || clean.contains("_male_")
-                    || clean.contains("mezczyzna")
-                    || clean.contains("mężczyzna")
+                    || clean.contains("darkman")
                     || clean.contains("mc_speech")
-                    || clean == "on"
-                    || clean.starts_with("on_")
-                    || clean.ends_with("_on")
-                    || (clean.contains("man") && !clean.contains("woman"))
+                    || clean.split(['-', '_', ' ']).any(|t| {
+                        t == "male"
+                            || t == "man"
+                            || t == "mezczyzna"
+                            || t == "mężczyzna"
+                            || t == "on"
+                    })
                 {
                     // Male character in dialogue: deep -20Hz contrast, deliberate -10% pacing
                     (-20, -10)
@@ -880,6 +875,24 @@ mod tests {
         assert_eq!(
             EmojiDirector::base_acoustics_for_speaker(Some("pl_PL-mc_speech-medium")),
             (-20, -10)
+        );
+        assert_eq!(
+            EmojiDirector::base_acoustics_for_speaker(Some("darkman")),
+            (-20, -10)
+        );
+        assert_eq!(
+            EmojiDirector::base_acoustics_for_speaker(Some("old-man")),
+            (-20, -10)
+        );
+
+        // foreign voices with "man" substring that are NOT male
+        assert_eq!(
+            EmojiDirector::base_acoustics_for_speaker(Some("pt-BR-ManuelaNeural")),
+            (-4, -6)
+        );
+        assert_eq!(
+            EmojiDirector::base_acoustics_for_speaker(Some("mandarin_voice")),
+            (-4, -6)
         );
 
         // narrator / default
