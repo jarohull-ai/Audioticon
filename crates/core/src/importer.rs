@@ -342,12 +342,13 @@ impl ImportedBook {
             paragraphs.clear();
         };
 
+        let chapter_keyword_re = Regex::new(
+            r"(?i)^(?:rozdzia[łl]|rozdz\.|chapter|ch\.|akt|cz[ęe][śs][ćc]|prolog|epilog)\b",
+        )
+        .expect("Valid regex");
+
         for (is_h, p_text) in extracted_paragraphs {
-            let is_chapter_keyword = Regex::new(
-                r"(?i)^(?:rozdzia[łl]|rozdz\.|chapter|ch\.|akt|cz[ęe][śs][ćc]|prolog|epilog)\b",
-            )
-            .unwrap()
-            .is_match(&p_text);
+            let is_chapter_keyword = chapter_keyword_re.is_match(&p_text);
 
             if (is_h || is_chapter_keyword) && p_text.len() < 120 {
                 flush(
