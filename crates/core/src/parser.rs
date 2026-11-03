@@ -457,8 +457,27 @@ impl EmojiDirector {
                         let resolved = self.resolve_voice(voice_spec);
                         if resolved == "default" || resolved == "narrator" || resolved.is_empty() {
                             current_segment.voice = None;
+                            if current_segment.pitch_mod == -18 {
+                                current_segment.pitch_mod = -4;
+                            }
+                            if current_segment.rate_mod == -10 {
+                                current_segment.rate_mod = -6;
+                            }
                         } else {
                             current_segment.voice = Some(resolved);
+                            let clean_spec = voice_spec.trim().to_lowercase();
+                            if clean_spec == "male"
+                                || clean_spec == "man"
+                                || clean_spec == "mezczyzna"
+                                || clean_spec == "mężczyzna"
+                            {
+                                if current_segment.pitch_mod == -4 {
+                                    current_segment.pitch_mod = -18;
+                                }
+                                if current_segment.rate_mod == -6 {
+                                    current_segment.rate_mod = -10;
+                                }
+                            }
                         }
                     }
                 }
@@ -678,6 +697,8 @@ mod tests {
         // 0: Narrator (default -> None)
         assert_eq!(speeches[0].text, "Narrator mówił spokojnie.");
         assert_eq!(speeches[0].voice, None);
+        assert_eq!(speeches[0].pitch_mod, -4);
+        assert_eq!(speeches[0].rate_mod, -6);
 
         // 1: 👩 (female -> "pl-PL-ZofiaNeural")
         assert_eq!(speeches[1].text, "\"Nie boję się.\"");
@@ -686,13 +707,43 @@ mod tests {
         // 2: 👨 (male -> "pl-PL-MarekNeural")
         assert_eq!(speeches[2].text, "\"To dobrze.\"");
         assert_eq!(speeches[2].voice.as_deref(), Some("pl-PL-MarekNeural"));
+        assert_eq!(speeches[2].pitch_mod, -18);
+        assert_eq!(speeches[2].rate_mod, -10);
 
         // 3: [głos:zofia]
         assert_eq!(speeches[3].text, "\"Spotkamy się jutro.\"");
         assert_eq!(speeches[3].voice.as_deref(), Some("pl-PL-ZofiaNeural"));
 
-        // 4: [głos:narrator] -> None
+        // 4: [głos:narrator] -> None (resets back to narrator default acoustics)
         assert_eq!(speeches[4].text, "I zapadł zmierzch.");
         assert_eq!(speeches[4].voice, None);
+        assert_eq!(speeches[4].pitch_mod, -4);
+        assert_eq!(speeches[4].rate_mod, -6);
+    }
+
+    #[test]
+    fn test_narrator_vs_male_character_cache_differentiation() {
+        let director = EmojiDirector::default();
+        let script_narrator = director.parse("🎙️ Stój! Kto idzie przez bramę?");
+        let script_guard = director.parse("👨 Stój! Kto idzie przez bramę?");
+
+        let seg_narrator = match &script_narrator.items[0] {
+            DirectedItem::Speech(s) => s,
+            _ => panic!("Expected speech"),
+        };
+        let seg_guard = match &script_guard.items[0] {
+            DirectedItem::Speech(s) => s,
+            _ => panic!("Expected speech"),
+        };
+
+        let hash_narrator = crate::cache::compute_segment_hash(seg_narrator, "pl-PL-MarekNeural");
+        let hash_guard = crate::cache::compute_segment_hash(seg_guard, "pl-PL-MarekNeural");
+
+        assert_ne!(
+            hash_narrator, hash_guard,
+            "Narrator and male character must have distinct cache hashes and audio files"
+        );
+        assert_eq!(seg_narrator.pitch_mod, -4);
+        assert_eq!(seg_guard.pitch_mod, -18);
     }
 }

@@ -1,5 +1,6 @@
 # GitHub Funding configuration (enables the "💖 Sponsor" button)
 
-github: [jarohull-ai]
+# Odkomentuj poniższą linię po aktywacji programu GitHub Sponsors dla konta:
+# github: [jarohull-ai]
 buy_me_a_coffee: HISTORYINANUTSHELL
 custom: ['https://buymeacoffee.com/HISTORYINANUTSHELL']
