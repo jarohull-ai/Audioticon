@@ -1093,4 +1093,65 @@ mod tests {
         let default_path = bridge.resolve_model_path(None);
         assert_eq!(default_path, dummy_default);
     }
+
+    #[tokio::test]
+    async fn test_export_to_m4b_synthetic() {
+        let tmp_dir = std::env::temp_dir();
+        let tmp_wav = tmp_dir.join("test_synth_master.wav");
+        let tmp_m4b = tmp_dir.join("test_synth_output.m4b");
+
+        // Create a 1-second synthetic 24kHz mono WAV
+        let spec = WavSpec {
+            channels: 1,
+            sample_rate: 24000,
+            bits_per_sample: 16,
+            sample_format: SampleFormat::Int,
+        };
+        let mut writer = WavWriter::create(&tmp_wav, spec).expect("Create WAV");
+        for t in 0..24000 {
+            let sample =
+                (3000.0 * (2.0 * std::f32::consts::PI * 440.0 * (t as f32) / 24000.0).sin()) as i16;
+            writer.write_sample(sample).expect("Write sample");
+        }
+        writer.finalize().expect("Finalize WAV");
+
+        let chapters = vec![
+            ChapterMark {
+                start_ms: 0,
+                end_ms: 500,
+                title: "Rozdział 1: Start".to_string(),
+            },
+            ChapterMark {
+                start_ms: 500,
+                end_ms: 1000,
+                title: "Rozdział 2: Finał".to_string(),
+            },
+        ];
+        let meta = AudiobookMetadata {
+            title: Some("Synthetic Test Book".to_string()),
+            author: Some("Jarosław Kuchta".to_string()),
+            narrator: Some("Lektor".to_string()),
+            year: Some("2026".to_string()),
+            language: Some("pl".to_string()),
+        };
+
+        let res = export_to_m4b(&tmp_wav, &tmp_m4b, &chapters, &meta).await;
+        let _ = std::fs::remove_file(&tmp_wav);
+
+        assert!(res.is_ok(), "export_to_m4b failed: {:?}", res.err());
+        assert!(tmp_m4b.exists());
+        let m4b_bytes = std::fs::read(&tmp_m4b).expect("Read m4b");
+        let _ = std::fs::remove_file(&tmp_m4b);
+
+        assert!(m4b_bytes.len() > 1000);
+        // Verify ISO Base Media File Format and M4B brand
+        assert!(
+            m4b_bytes.windows(4).any(|w| w == b"ftyp"),
+            "M4B must contain ftyp atom"
+        );
+        assert!(
+            m4b_bytes.windows(4).any(|w| w == b"M4B "),
+            "M4B must contain M4B brand atom"
+        );
+    }
 }

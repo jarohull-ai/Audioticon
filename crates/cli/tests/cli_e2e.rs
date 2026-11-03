@@ -227,6 +227,23 @@ fn test_api_server_endpoints_e2e() {
         assert!(body_str.contains("Nie znaleziono modelu Piper"));
     }
 
+    // 6. Verify round-trip cache status: if export succeeded, the exact sentence must be reported in_cache: true
+    if status == 200 {
+        let verify_cache_req = "{\"text\": \"📖 Rozdział 1: Test E2E 🛑 Krótkie zdanie testowe.\", \"lang\": \"pl\", \"provider\": \"piper\"}";
+        let (c_status, _, c_body) =
+            http_roundtrip(port, "POST", "/api/cache/status", Some(verify_cache_req));
+        assert_eq!(c_status, 200);
+        let c_str = String::from_utf8_lossy(&c_body);
+        assert!(
+            c_str.contains("\"in_cache\":true"),
+            "Rendered sentence must be found in physical cache"
+        );
+        assert!(
+            !c_str.contains("\"cached_count\":0"),
+            "Cached count must be greater than 0"
+        );
+    }
+
     let _ = child.kill();
     let _ = child.wait();
 }

@@ -1672,7 +1672,7 @@
     <section id="guest-showcase" class="guest-showcase-section">
       <div class="showcase-container">
         <div class="showcase-hero-badge">
-          <span class="pulse-dot"></span> Oficjalne Wydanie v0.2.3 • Silnik Audio w Rust
+          <span class="pulse-dot"></span> Oficjalne Wydanie v0.2.4 • Silnik Audio w Rust
         </div>
         <h1 class="showcase-title">Twórz broadcastowe audiobooki tekstem i emotikonami</h1>
         <p class="showcase-subtitle">
@@ -1736,8 +1736,8 @@
           <a href="#view-3d" class="btn-cta-studio" onclick="document.getElementById('view-3d').scrollIntoView({behavior: 'smooth'})">
             🪐 Otwórz Studio 3D
           </a>
-          <a href="https://github.com/jarohull-ai/Audioticon/releases/tag/v0.2.3" target="_blank" class="btn-cta-download">
-            📥 Pobierz v0.2.3 (Linux x86_64)
+          <a href="https://github.com/jarohull-ai/Audioticon/releases/tag/v0.2.4" target="_blank" class="btn-cta-download">
+            📥 Pobierz v0.2.4 (Linux x86_64)
           </a>
           <a href="https://github.com/jarohull-ai/Audioticon/wiki/Audioticon" target="_blank" class="btn-cta-wiki">
             📚 Dokumentacja Wiki
@@ -2077,7 +2077,7 @@
       const lang = document.getElementById('tts-lang')?.value || 'pl';
       const voice = document.getElementById('tts-voice')?.value || 'pl_PL-darkman-medium';
       
-      let defaultTitle = "Projekt Audioticon";
+      let defaultTitle = window.projectTitle || "Projekt Audioticon";
       const chMatch = script.match(/📖\s*([^\n🛑]+)/);
       if (chMatch) {
         defaultTitle = chMatch[1].trim();
@@ -2086,7 +2086,7 @@
       }
 
       const title = prompt("Podaj tytuł projektu:", defaultTitle) || defaultTitle;
-      const defaultAuthor = script.includes("Archiwum Pyłu") ? "Jarosław Kuchta" : "";
+      const defaultAuthor = window.projectAuthor || (script.includes("Archiwum Pyłu") ? "Jarosław Kuchta" : "");
       const author = prompt("Podaj autora książki:", defaultAuthor) || (defaultAuthor || "Autor");
 
       // Extract chapters structure
@@ -2106,7 +2106,7 @@
       if (script.includes('👩')) casting['woman'] = '👩 Kobieta';
 
       const projectData = {
-        version: "0.2.3",
+        version: "0.2.4",
         engine: "audioticon",
         metadata: {
           title: title,
@@ -2152,6 +2152,14 @@
         reader.onload = (event) => {
           try {
             const data = JSON.parse(event.target.result);
+            if (data.metadata) {
+              window.projectMetadata = data.metadata;
+              if (data.metadata.title) window.projectTitle = data.metadata.title;
+              if (data.metadata.author) window.projectAuthor = data.metadata.author;
+            }
+            if (data.casting) {
+              window.projectCasting = data.casting;
+            }
             if (data.script) {
               document.getElementById('script-input').value = data.script;
               const modalTa = document.getElementById('modal-script-textarea');
@@ -2166,8 +2174,16 @@
               if (langEl) langEl.value = data.settings.language;
             }
             updateVoiceSelector();
+            if (data.settings?.voice) {
+              const voiceEl = document.getElementById('tts-voice');
+              if (voiceEl) voiceEl.value = data.settings.voice;
+            }
             updateExports(document.getElementById('script-input').value);
-            alert(`Wczytano projekt: ${data.metadata?.title || file.name}`);
+            const metaTitle = data.metadata?.title || file.name;
+            const metaAuthor = data.metadata?.author || 'Nieznany';
+            const chCount = (data.chapters || []).length;
+            const castCount = Object.keys(data.casting || {}).length;
+            alert(`Wczytano projekt: ${metaTitle}\nAutor: ${metaAuthor}\nRozdziały: ${chCount}\nObsada: ${castCount}`);
           } catch (err) {
             alert("Błąd podczas odczytu pliku projektu: nieprawidłowy format JSON.");
           }
@@ -2530,7 +2546,7 @@
 
       if (!success) {
         infoBox.innerHTML = `ℹ️ <strong>Brak aktywnego silnika lokalnego.</strong> Aby renderować dowolny własny tekst offline z masteringiem EBU R128:<br>
-        1. <a href="https://github.com/jarohull-ai/Audioticon/releases/tag/v0.2.3" target="_blank" style="color: #38bdf8; font-weight: bold; text-decoration: underline;">Pobierz aplikację Audioticon v0.2.3 (Releases)</a><br>
+        1. <a href="https://github.com/jarohull-ai/Audioticon/releases/tag/v0.2.4" target="_blank" style="color: #38bdf8; font-weight: bold; text-decoration: underline;">Pobierz aplikację Audioticon v0.2.4 (Releases)</a><br>
         2. Uruchom w terminalu: <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">audioticon studio</code> (lub <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">audioticon serve</code>).<br>
         W tej chwili możesz odsłuchać 3 gotowe próbki audio w sekcji na górze strony!`;
       }

@@ -1450,7 +1450,7 @@ async fn handle_studio_request(
             return;
         }
 
-        let req = match serde_json::from_str::<ApiParseRequest>(&body_str) {
+        let req = match serde_json::from_str::<ApiRenderRequest>(&body_str) {
             Ok(r) => r,
             Err(e) => {
                 let err_json = serde_json::json!({
@@ -1470,6 +1470,29 @@ async fn handle_studio_request(
         };
 
         let clean_lang = req.lang.to_lowercase();
+        let synth_voice_name: String = if req.provider == "edge" {
+            req.voice.clone()
+        } else if let Ok(synth) = resolve_synthesizer(
+            &req.provider,
+            &req.voice,
+            req.model.as_deref(),
+            &clean_lang,
+            default_model.as_ref(),
+            &piper_cache,
+        )
+        .await
+        {
+            synth.voice_name().to_string()
+        } else {
+            let m_name = req.model.as_deref().unwrap_or(&req.voice);
+            let stem = PathBuf::from(m_name)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("pl_PL-darkman-medium")
+                .to_string();
+            format!("piper-{}", stem)
+        };
+
         let director = EmojiDirector::default().with_lang(&clean_lang);
         let script = director.parse(&req.text);
         let cache_dir = get_default_cache_dir();
@@ -1481,7 +1504,7 @@ async fn handle_studio_request(
         for item in &script.items {
             if let DirectedItem::Speech(ref seg) = item {
                 total_speech += 1;
-                let voice_name = seg.voice.as_deref().unwrap_or("pl_PL-darkman-medium");
+                let voice_name = seg.voice.as_deref().unwrap_or(&synth_voice_name);
                 let hash = compute_segment_hash(seg, voice_name);
                 let cached_file = cache_dir.join(format!("{}.wav", hash));
                 let in_cache = cached_file.exists();
