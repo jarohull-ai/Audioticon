@@ -205,8 +205,10 @@ impl EmojiDirector {
                 {
                     // Female character: clear natural feminine pitch (0Hz) and pacing (-6%)
                     (0, -6)
+                } else if clean.contains("darkman") {
+                    // Darkman is Piper's canonical Polish lektor/narrator voice (natural pitch -4Hz, pacing -6%)
+                    (-4, -6)
                 } else if clean.contains("marek")
-                    || clean.contains("darkman")
                     || clean.contains("mc_speech")
                     || clean.split(['-', '_', ' ']).any(|t| {
                         t == "male"
@@ -863,7 +865,7 @@ mod tests {
             (0, -6)
         );
 
-        // male voices
+        // male character dialogue voices
         assert_eq!(
             EmojiDirector::base_acoustics_for_speaker(Some("pl-PL-MarekNeural")),
             (-20, -10)
@@ -877,12 +879,18 @@ mod tests {
             (-20, -10)
         );
         assert_eq!(
-            EmojiDirector::base_acoustics_for_speaker(Some("darkman")),
-            (-20, -10)
-        );
-        assert_eq!(
             EmojiDirector::base_acoustics_for_speaker(Some("old-man")),
             (-20, -10)
+        );
+
+        // darkman is Piper's canonical lektor/narrator voice (acoustics -4Hz, -6%)
+        assert_eq!(
+            EmojiDirector::base_acoustics_for_speaker(Some("darkman")),
+            (-4, -6)
+        );
+        assert_eq!(
+            EmojiDirector::base_acoustics_for_speaker(Some("pl_PL-darkman-medium")),
+            (-4, -6)
         );
 
         // foreign voices with "man" substring that are NOT male

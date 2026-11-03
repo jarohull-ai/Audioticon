@@ -882,6 +882,7 @@
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
     }
 
+    .header-pill,
     .dock-pill {
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.12);
@@ -898,6 +899,7 @@
       font-family: inherit;
     }
 
+    .header-pill:hover,
     .dock-pill:hover {
       background: rgba(6, 182, 212, 0.15);
       border-color: rgba(6, 182, 212, 0.4);
@@ -1653,7 +1655,7 @@
       </div>
     </a>
     <div class="header-links">
-      <a href="#guest-showcase" class="dock-pill" style="text-decoration: none;">🎧 Próbki Audio</a>
+      <a href="#guest-showcase" class="header-pill" style="text-decoration: none;">🎧 Próbki Audio</a>
       <!-- 3D Orbit / Classic Switcher -->
       <div class="view-switcher">
         <button id="btn-view-3d" class="btn-toggle active" onclick="setViewMode('3d')">🪐 Bęben 3D</button>
@@ -2760,7 +2762,7 @@
         }
       });
 
-      document.querySelectorAll('.dock-pill').forEach((pill, idx) => {
+      document.querySelectorAll('.orbit-dock .dock-pill').forEach((pill, idx) => {
         if (idx === currentActiveCard) {
           pill.classList.add('active');
         } else {
