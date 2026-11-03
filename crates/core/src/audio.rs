@@ -369,13 +369,13 @@ impl SpeechSynthesizer for EdgeTtsBridge {
         let voice_to_use = self.resolve_voice_label(segment.voice.as_deref());
 
         // When male character (👨) is cast on the same voice as narrator (Marek),
-        // apply distinct -18Hz pitch shift and -10% pacing to provide clear masculine contrast in dialogue:
+        // apply distinct -20Hz pitch shift and -10% pacing to provide clear masculine contrast in dialogue:
         let is_same_as_narrator = voice_to_use == self.voice;
         let is_character_override =
             segment.voice.is_some() && segment.voice.as_deref() != Some("default");
         let (pitch_mod, rate_mod) = if is_same_as_narrator && is_character_override {
             let p = if segment.pitch_mod == -4 || segment.pitch_mod == 0 {
-                -18
+                -20
             } else {
                 segment.pitch_mod
             };

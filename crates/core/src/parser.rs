@@ -190,6 +190,38 @@ impl EmojiDirector {
         }
     }
 
+    /// Canonical baseline acoustics (pitch_mod, rate_mod) for speakers and characters.
+    pub fn base_acoustics_for_speaker(voice: Option<&str>) -> (i32, i32) {
+        match voice {
+            Some(v) => {
+                let clean = v.trim().to_lowercase();
+                if clean.contains("marek")
+                    || clean.contains("male")
+                    || clean.contains("mezczyzna")
+                    || clean.contains("mężczyzna")
+                    || clean.contains("mc_speech")
+                {
+                    // Male character in dialogue: deep -20Hz contrast, deliberate -10% pacing
+                    (-20, -10)
+                } else if clean.contains("zofia")
+                    || clean.contains("gosia")
+                    || clean.contains("female")
+                    || clean.contains("kobieta")
+                    || clean.contains("ona")
+                    || clean.contains("woman")
+                {
+                    // Female character: clear natural feminine pitch (0Hz) and pacing (-6%)
+                    (0, -6)
+                } else {
+                    // Default character
+                    (-4, -6)
+                }
+            }
+            // Narrator (default lektor)
+            None => (-4, -6),
+        }
+    }
+
     fn build_regex(actions: &HashMap<String, EmojiAction>) -> Regex {
         if actions.is_empty() {
             return Regex::new("$^").expect("Valid dummy regex");
@@ -387,12 +419,16 @@ impl EmojiDirector {
                 match action {
                     EmojiAction::Pause(ms) => {
                         script.items.push(DirectedItem::Silence(*ms));
-                        // After full pause (like 🛑), reset pacing and emotion tags back to defaults,
-                        // but preserve the active speaker's voice assignment across dialogue sentences!
+                        // After full pause (like 🛑), reset pacing and emotion tags back to the
+                        // active speaker's canonical baseline acoustics:
                         if *ms >= 800 {
                             let current_voice = current_segment.voice.clone();
                             current_segment = TextSegment::default();
-                            current_segment.voice = current_voice;
+                            current_segment.voice = current_voice.clone();
+                            let (base_pitch, base_rate) =
+                                Self::base_acoustics_for_speaker(current_voice.as_deref());
+                            current_segment.pitch_mod = base_pitch;
+                            current_segment.rate_mod = base_rate;
                             pending_one_shot_volume = false;
                         }
                     }
@@ -457,28 +493,14 @@ impl EmojiDirector {
                         let resolved = self.resolve_voice(voice_spec);
                         if resolved == "default" || resolved == "narrator" || resolved.is_empty() {
                             current_segment.voice = None;
-                            if current_segment.pitch_mod == -18 {
-                                current_segment.pitch_mod = -4;
-                            }
-                            if current_segment.rate_mod == -10 {
-                                current_segment.rate_mod = -6;
-                            }
                         } else {
                             current_segment.voice = Some(resolved);
-                            let clean_spec = voice_spec.trim().to_lowercase();
-                            if clean_spec == "male"
-                                || clean_spec == "man"
-                                || clean_spec == "mezczyzna"
-                                || clean_spec == "mężczyzna"
-                            {
-                                if current_segment.pitch_mod == -4 {
-                                    current_segment.pitch_mod = -18;
-                                }
-                                if current_segment.rate_mod == -6 {
-                                    current_segment.rate_mod = -10;
-                                }
-                            }
                         }
+                        // Explicitly apply the speaker's canonical baseline acoustics upon every speaker switch
+                        let (base_pitch, base_rate) =
+                            Self::base_acoustics_for_speaker(current_segment.voice.as_deref());
+                        current_segment.pitch_mod = base_pitch;
+                        current_segment.rate_mod = base_rate;
                     }
                 }
             }
@@ -703,16 +725,20 @@ mod tests {
         // 1: 👩 (female -> "pl-PL-ZofiaNeural")
         assert_eq!(speeches[1].text, "\"Nie boję się.\"");
         assert_eq!(speeches[1].voice.as_deref(), Some("pl-PL-ZofiaNeural"));
+        assert_eq!(speeches[1].pitch_mod, 0);
+        assert_eq!(speeches[1].rate_mod, -6);
 
         // 2: 👨 (male -> "pl-PL-MarekNeural")
         assert_eq!(speeches[2].text, "\"To dobrze.\"");
         assert_eq!(speeches[2].voice.as_deref(), Some("pl-PL-MarekNeural"));
-        assert_eq!(speeches[2].pitch_mod, -18);
+        assert_eq!(speeches[2].pitch_mod, -20);
         assert_eq!(speeches[2].rate_mod, -10);
 
         // 3: [głos:zofia]
         assert_eq!(speeches[3].text, "\"Spotkamy się jutro.\"");
         assert_eq!(speeches[3].voice.as_deref(), Some("pl-PL-ZofiaNeural"));
+        assert_eq!(speeches[3].pitch_mod, 0);
+        assert_eq!(speeches[3].rate_mod, -6);
 
         // 4: [głos:narrator] -> None (resets back to narrator default acoustics)
         assert_eq!(speeches[4].text, "I zapadł zmierzch.");
@@ -744,6 +770,70 @@ mod tests {
             "Narrator and male character must have distinct cache hashes and audio files"
         );
         assert_eq!(seg_narrator.pitch_mod, -4);
-        assert_eq!(seg_guard.pitch_mod, -18);
+        assert_eq!(seg_guard.pitch_mod, -20);
+    }
+
+    #[test]
+    fn test_voice_switch_male_to_female_does_not_leak_acoustics() {
+        let director = EmojiDirector::default();
+        let script = director.parse("👨 Tak. 👩 Stój! Kto idzie?");
+
+        let speeches: Vec<&TextSegment> = script
+            .items
+            .iter()
+            .filter_map(|it| match it {
+                DirectedItem::Speech(seg) => Some(seg),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(speeches.len(), 2);
+        // Male speaker
+        assert_eq!(speeches[0].text, "Tak.");
+        assert_eq!(speeches[0].pitch_mod, -20);
+        assert_eq!(speeches[0].rate_mod, -10);
+
+        // Female speaker must NOT inherit male pitch or rate
+        assert_eq!(speeches[1].text, "Stój! Kto idzie?");
+        assert_eq!(speeches[1].pitch_mod, 0);
+        assert_eq!(speeches[1].rate_mod, -6);
+        assert_eq!(speeches[1].voice.as_deref(), Some("pl-PL-ZofiaNeural"));
+    }
+
+    #[test]
+    fn test_pause_preserves_male_character_acoustics() {
+        let director = EmojiDirector::default();
+        let script = director.parse("👨 Tak. 🛑 Stój! Kto idzie?");
+
+        let speeches: Vec<&TextSegment> = script
+            .items
+            .iter()
+            .filter_map(|it| match it {
+                DirectedItem::Speech(seg) => Some(seg),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(speeches.len(), 2);
+        // First sentence before pause
+        assert_eq!(speeches[0].text, "Tak.");
+        assert_eq!(speeches[0].pitch_mod, -20);
+        assert_eq!(speeches[0].rate_mod, -10);
+
+        // Second sentence after full pause must still maintain male character acoustics (-20Hz, -10%)
+        // and must NOT revert to narrator default (-4Hz, -6%)
+        assert_eq!(speeches[1].text, "Stój! Kto idzie?");
+        assert_eq!(speeches[1].pitch_mod, -20);
+        assert_eq!(speeches[1].rate_mod, -10);
+        assert_eq!(speeches[1].voice.as_deref(), Some("pl-PL-MarekNeural"));
+
+        // Hash of second sentence must be different from narrator's hash of the same sentence
+        let narrator_seg = TextSegment {
+            text: speeches[1].text.clone(),
+            ..Default::default()
+        };
+        let hash_guard = crate::cache::compute_segment_hash(speeches[1], "pl-PL-MarekNeural");
+        let hash_narrator = crate::cache::compute_segment_hash(&narrator_seg, "pl-PL-MarekNeural");
+        assert_ne!(hash_guard, hash_narrator);
     }
 }
