@@ -605,18 +605,13 @@ pub fn clone_to_elevenlabs(profile_id: &str, api_key: &str) -> Result<String> {
     Ok(resp.voice_id)
 }
 
-/// Exports all voice samples and metadata into a standard ZIP archive (LJSpeech/XTTS dataset format).
-pub fn export_dataset_zip(profile_id: &str, output_zip_path: &Path) -> Result<PathBuf> {
+/// Exports all voice samples and metadata into an in-memory ZIP archive bytes (LJSpeech/XTTS dataset format).
+pub fn export_dataset_zip_bytes(profile_id: &str) -> Result<Vec<u8>> {
     let profile = get_voice_profile(profile_id)?;
     let p_dir = profile_dir(profile_id);
 
-    if let Some(parent) = output_zip_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    let zip_file = fs::File::create(output_zip_path)
-        .with_context(|| format!("Nie można utworzyć pliku ZIP: {:?}", output_zip_path))?;
-    let mut zip = zip::ZipWriter::new(zip_file);
+    let cursor = std::io::Cursor::new(Vec::new());
+    let mut zip = zip::ZipWriter::new(cursor);
     let options = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
 
@@ -648,7 +643,17 @@ pub fn export_dataset_zip(profile_id: &str, output_zip_path: &Path) -> Result<Pa
         }
     }
 
-    zip.finish()?;
+    let cursor = zip.finish()?;
+    Ok(cursor.into_inner())
+}
+
+/// Exports all voice samples and metadata into a standard ZIP archive (LJSpeech/XTTS dataset format).
+pub fn export_dataset_zip(profile_id: &str, output_zip_path: &Path) -> Result<PathBuf> {
+    let bytes = export_dataset_zip_bytes(profile_id)?;
+    if let Some(parent) = output_zip_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(output_zip_path, &bytes)?;
     Ok(output_zip_path.to_path_buf())
 }
 
@@ -756,7 +761,11 @@ mod tests {
             .join(format!("recorded_{}.meta.json", seg_hash))
             .exists());
 
-        // 5. Export dataset ZIP
+        // 5. Export dataset ZIP (file and bytes)
+        let zip_bytes = export_dataset_zip_bytes("lektor").unwrap();
+        assert!(!zip_bytes.is_empty());
+        assert_eq!(&zip_bytes[0..4], b"PK\x03\x04");
+
         let zip_out = tmp_voices.join("lektor_dataset.zip");
         let exported = export_dataset_zip("lektor", &zip_out).unwrap();
         assert!(exported.exists());

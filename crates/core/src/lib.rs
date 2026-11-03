@@ -39,7 +39,7 @@ pub use types::{
 pub use verbalizer::normalize_polish_text;
 pub use voicelab::{
     add_sample_to_profile, analyze_wav_samples, clone_to_elevenlabs, convert_to_standard_wav,
-    delete_voice_profile, export_dataset_zip, get_voice_profile, list_voice_profiles, profile_dir,
-    punch_in_sentence, read_wav_samples, sanitize_slug, save_voice_profile, voices_dir,
-    SampleQualityReport, VoiceProfile, VoiceSampleMeta,
+    delete_voice_profile, export_dataset_zip, export_dataset_zip_bytes, get_voice_profile,
+    list_voice_profiles, profile_dir, punch_in_sentence, read_wav_samples, sanitize_slug,
+    save_voice_profile, voices_dir, SampleQualityReport, VoiceProfile, VoiceSampleMeta,
 };

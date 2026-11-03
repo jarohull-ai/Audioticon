@@ -646,3 +646,97 @@ fn test_cli_emojis_lifecycle() {
 
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+#[test]
+fn test_api_voicelab_dataset_download_e2e() {
+    let port = get_free_port();
+    let tmp_voices = std::env::temp_dir().join(format!(
+        "test_vl_ds_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let profile_dir = tmp_voices.join("lektor-test-zip");
+    std::fs::create_dir_all(&profile_dir).expect("create profile dir");
+
+    let mut prof =
+        audioticon_core::VoiceProfile::new("lektor-test-zip", "Lektor Test ZIP", "male", "pl");
+    prof.description = Some("Profil do testu ZIP".into());
+    let dummy_wav = profile_dir.join("sample_01.wav");
+    std::fs::write(&dummy_wav, b"RIFF....WAVEfmt ....data....").expect("write dummy wav");
+    prof.samples.push(audioticon_core::VoiceSampleMeta {
+        filename: "sample_01.wav".into(),
+        duration_sec: 1.5,
+        sample_rate: 24000,
+        channels: 1,
+        rms_db: -20.0,
+        peak_db: -3.0,
+        snr_db: 25.0,
+        clipping: false,
+        created_at: "2026-11-03T12:00:00Z".into(),
+    });
+    std::fs::write(
+        profile_dir.join("profile.json"),
+        serde_json::to_string(&prof).unwrap(),
+    )
+    .expect("write profile json");
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .env("AUDIOTICON_VOICES_DIR", &tmp_voices)
+        .args(["serve", "--port", &port.to_string(), "--no-browser"])
+        .spawn()
+        .expect("Failed to start audioticon serve");
+
+    let mut connected = false;
+    for _ in 0..40 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        if std::net::TcpStream::connect(format!("127.0.0.1:{}", port)).is_ok() {
+            connected = true;
+            break;
+        }
+    }
+    assert!(connected, "Server did not start listening in time");
+
+    // 1. Nonexistent profile should return 404
+    let (status_404, _, _) = http_roundtrip(
+        port,
+        "GET",
+        "/api/voicelab/dataset?profile=nieistnieje",
+        None,
+    );
+    assert_eq!(status_404, 404);
+
+    // 2. Traversal attempt should return 400
+    let (status_400, _, _) =
+        http_roundtrip(port, "GET", "/api/voicelab/dataset?profile=../hack", None);
+    assert_eq!(status_400, 400);
+
+    // 3. Existing profile dataset ZIP download should return 200 and valid ZIP archive
+    let (status_ok, headers, body) = http_roundtrip(
+        port,
+        "GET",
+        "/api/voicelab/dataset?profile=lektor-test-zip",
+        None,
+    );
+    assert_eq!(status_ok, 200);
+    assert!(headers.contains("application/zip"));
+    assert!(headers.contains("attachment; filename=\"lektor-test-zip_dataset.zip\""));
+    assert!(body.len() > 30, "ZIP archive must not be empty");
+    assert_eq!(
+        &body[0..4],
+        b"PK\x03\x04",
+        "Must begin with ZIP local header magic bytes"
+    );
+
+    let body_str = String::from_utf8_lossy(&body);
+    assert!(body_str.contains("profile.json"));
+    assert!(body_str.contains("metadata.csv"));
+    assert!(body_str.contains("sample_01.wav"));
+
+    // Clean up
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = std::fs::remove_dir_all(&tmp_voices);
+}

@@ -5177,7 +5177,32 @@ air = 0.70</pre>
         alert('Wybierz najpierw profil lektora');
         return;
       }
-      alert(`Pobieranie datasetu ZIP dla lektora "${currentVoiceProfileId}". Archiwum zawiera próbki WAV oraz metadata.csv gotowe do treningu XTTS / Piper.`);
+      try {
+        const url = `/api/voicelab/dataset?profile=${encodeURIComponent(currentVoiceProfileId)}`;
+        const resp = await fetch(url);
+        if (!resp.ok) {
+          let errMsg = `Błąd (${resp.status})`;
+          try {
+            const errJson = await resp.json();
+            if (errJson && errJson.error) errMsg = errJson.error;
+          } catch (_) {
+            const txt = await resp.text();
+            if (txt) errMsg = txt;
+          }
+          throw new Error(errMsg);
+        }
+        const blob = await resp.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `${currentVoiceProfileId}_dataset.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      } catch (e) {
+        alert('Nie udało się pobrać datasetu ZIP: ' + e.message + '\n\nUpewnij się, że lokalny silnik audioticon jest uruchomiony.');
+      }
     }
 
     document.addEventListener('DOMContentLoaded', () => {

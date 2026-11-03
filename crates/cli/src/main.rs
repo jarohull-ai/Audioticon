@@ -3323,6 +3323,67 @@ async fn handle_studio_request(
         return;
     }
 
+    // Route: GET /api/voicelab/dataset?profile=...
+    if method == tiny_http::Method::Get && url.starts_with("/api/voicelab/dataset") {
+        let query = url.split_once('?').map(|(_, q)| q).unwrap_or("");
+        let mut params = std::collections::HashMap::new();
+        for pair in query.split('&') {
+            if let Some((k, v)) = pair.split_once('=') {
+                params.insert(k, url_decode(v));
+            }
+        }
+        let profile = params.get("profile").cloned().unwrap_or_default();
+        if profile.is_empty()
+            || profile.contains("..")
+            || profile.contains('/')
+            || profile.contains('\\')
+        {
+            let mut resp = tiny_http::Response::from_string(
+                "{\"error\": \"Nieprawidłowy identyfikator profilu\"}",
+            );
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        match voicelab::export_dataset_zip_bytes(&profile) {
+            Ok(zip_bytes) => {
+                let mut resp = tiny_http::Response::from_data(zip_bytes);
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/zip"[..]).unwrap(),
+                );
+                let disp_val = format!("attachment; filename=\"{}_dataset.zip\"", profile);
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Disposition"[..], disp_val.as_bytes()).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": format!("Błąd eksportu datasetu: {}", e)
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(404));
+                return;
+            }
+        }
+    }
+
     // Route: POST /api/voicelab/punch-in
     if method == tiny_http::Method::Post && url == "/api/voicelab/punch-in" {
         let mut body_str = String::new();
