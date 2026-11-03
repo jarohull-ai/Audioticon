@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod cache;
+pub mod models;
 pub mod parser;
 pub mod presets;
 pub mod types;
@@ -10,6 +11,9 @@ pub use audio::{
     AudioDirectorEngine, EdgeTtsBridge, PiperBridge, SpeechSynthesizer, DEFAULT_SAMPLE_RATE,
 };
 pub use cache::compute_segment_hash;
+pub use models::{
+    download_model, find_model, list_models, models_dir, remove_model, ModelCatalogItem,
+};
 pub use parser::EmojiDirector;
 pub use presets::{EffectPreset, PresetRegistry, ProjectConfig, ProjectMetaConfig};
 pub use types::{

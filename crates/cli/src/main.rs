@@ -1,7 +1,8 @@
 use anyhow::{Context, Result};
 use audioticon_core::{
-    export_to_m4b, export_to_mp3, presets, AudioDirectorEngine, AudiobookMetadata, DirectedItem,
-    EdgeTtsBridge, EmojiDirector, PiperBridge, PresetRegistry, ProjectConfig, SpeechSynthesizer,
+    download_model, export_to_m4b, export_to_mp3, find_model, list_models, models_dir, presets,
+    remove_model, AudioDirectorEngine, AudiobookMetadata, DirectedItem, EdgeTtsBridge,
+    EmojiDirector, PiperBridge, PresetRegistry, ProjectConfig, SpeechSynthesizer,
 };
 use clap::{Parser, Subcommand, ValueEnum};
 use std::collections::HashMap;
@@ -158,6 +159,30 @@ enum Commands {
         /// Nie otwieraj automatycznie przeglądarki
         #[arg(long)]
         no_browser: bool,
+    },
+    /// Zarządzanie lokalnymi modelami neuronowymi Piper TTS (offline)
+    Models {
+        #[command(subcommand)]
+        action: Option<ModelsAction>,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
+enum ModelsAction {
+    /// Wyświetla listę dostępnych w katalogu i zainstalowanych modeli offline
+    List,
+    /// Pobiera wybrany model z oficjalnego repozytorium HuggingFace
+    Download {
+        /// Identyfikator lub alias modelu (np. gosia, darkman, lessac, amy, pl_PL-gosia-medium)
+        name: String,
+        /// Wymuś ponowne pobranie nawet jeśli plik już istnieje
+        #[arg(long)]
+        force: bool,
+    },
+    /// Usuwa pobrany model offline z dysku
+    Remove {
+        /// Identyfikator lub alias modelu do usunięcia
+        name: String,
     },
 }
 
@@ -321,10 +346,25 @@ async fn main() -> Result<()> {
             let synthesizer: Arc<dyn SpeechSynthesizer> = match provider {
                 TtsProvider::Edge => Arc::new(EdgeTtsBridge::new(&voice)),
                 TtsProvider::Piper => {
-                    let m_path = model.unwrap_or_else(|| get_default_piper_model(&clean_lang));
+                    let m_path = if let Some(ref custom_m) = model {
+                        if let Some(item) = find_model(&custom_m.to_string_lossy()) {
+                            item.onnx_path
+                                .unwrap_or_else(|| models_dir().join(format!("{}.onnx", item.id)))
+                        } else if custom_m.exists() {
+                            custom_m.clone()
+                        } else {
+                            models_dir().join(custom_m)
+                        }
+                    } else if let Some(item) = find_model(&voice) {
+                        item.onnx_path
+                            .unwrap_or_else(|| models_dir().join(format!("{}.onnx", item.id)))
+                    } else {
+                        get_default_piper_model(&clean_lang)
+                    };
+
                     if !m_path.exists() {
                         anyhow::bail!(
-                            "Nie znaleziono modelu Piper: {:?}. Pobierz model do ~/.local/share/audioticon/models/",
+                            "Nie znaleziono modelu Piper: {:?}.\nAby pobrać model, użyj polecenia:\n   audioticon models download <nazwa>  (np. audioticon models download gosia)",
                             m_path
                         );
                     }
@@ -618,6 +658,74 @@ async fn main() -> Result<()> {
         } => {
             run_studio_server(host, port, provider, lang, model, no_browser).await?;
         }
+        Commands::Models { action } => {
+            let act = action.unwrap_or(ModelsAction::List);
+            match act {
+                ModelsAction::List => {
+                    let dir = audioticon_core::models_dir();
+                    println!("=========================================================================================");
+                    println!("🤖 AUDIOTICON — Menedżer Modeli Neuronowych Piper TTS (Offline)");
+                    println!("Folder modeli: {}", dir.display());
+                    println!("=========================================================================================");
+                    println!(
+                        "{:<4} {:<24} {:<10} {:<12} {:<10} Status",
+                        "Lp.", "Identyfikator", "Język", "Głos", "Rozmiar"
+                    );
+                    println!("-----------------------------------------------------------------------------------------");
+                    let models = audioticon_core::list_models();
+                    for (idx, m) in models.iter().enumerate() {
+                        let status_str = if m.installed {
+                            "✅ Zainstalowany (Gotowy)"
+                        } else {
+                            "☁️  Dostępny do pobrania"
+                        };
+                        let gender_str = match m.gender.as_str() {
+                            "female" => "Żeński 👩",
+                            "male" => "Męski 👨",
+                            _ => "Inny 🎙️",
+                        };
+                        println!(
+                            "{:02}.  {:<24} {:<10} {:<12} ~{:>2} MB    {}",
+                            idx + 1,
+                            m.id,
+                            m.lang_name,
+                            gender_str,
+                            m.size_mb,
+                            status_str
+                        );
+                    }
+                    println!("=========================================================================================");
+                    println!("💡 Wskazówka: pobierz model poleceniem:");
+                    println!("   audioticon models download <nazwa>  (np. audioticon models download gosia)");
+                    println!("=========================================================================================");
+                }
+                ModelsAction::Download { name, force } => {
+                    println!(
+                        "⏳ Pobieranie modelu '{}' z repozytorium HuggingFace...",
+                        name
+                    );
+                    match audioticon_core::download_model(&name, force) {
+                        Ok(path) => {
+                            println!("✅ Sukces! Model został pobrany i jest gotowy do syntezy:");
+                            println!("   {}", path.display());
+                        }
+                        Err(err) => {
+                            eprintln!("❌ Błąd pobierania modelu: {}", err);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                ModelsAction::Remove { name } => match audioticon_core::remove_model(&name) {
+                    Ok(_) => {
+                        println!("🗑️ Model '{}' został pomyślnie usunięty z dysku.", name);
+                    }
+                    Err(err) => {
+                        eprintln!("❌ Błąd usuwania modelu: {}", err);
+                        std::process::exit(1);
+                    }
+                },
+            }
+        }
     }
 
     Ok(())
@@ -635,6 +743,8 @@ struct ApiRenderRequest {
     lang: String,
     #[serde(default = "default_voice_str")]
     voice: String,
+    #[serde(default)]
+    model: Option<String>,
 }
 fn default_provider_str() -> String {
     "piper".to_string()
@@ -762,6 +872,150 @@ async fn handle_studio_request(
         return;
     }
 
+    // Route: GET /api/models
+    if method == tiny_http::Method::Get && url == "/api/models" {
+        let models = list_models();
+        let json_resp = serde_json::to_string(&models).unwrap_or_else(|_| "[]".to_string());
+        let json_header = Header::from_bytes(
+            &b"Content-Type"[..],
+            &b"application/json; charset=utf-8"[..],
+        )
+        .unwrap();
+        let mut resp = tiny_http::Response::from_string(json_resp);
+        resp.add_header(json_header);
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: POST /api/models/download
+    if method == tiny_http::Method::Post && url == "/api/models/download" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct DownloadReq {
+            model: String,
+            #[serde(default)]
+            force: bool,
+        }
+
+        let d_req = match serde_json::from_str::<DownloadReq>(&body_str) {
+            Ok(r) => r,
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": "Nieprawidłowy format JSON",
+                    "details": e.to_string()
+                });
+                let json_header =
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(json_header);
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        match download_model(&d_req.model, d_req.force) {
+            Ok(path) => {
+                let res_json = serde_json::json!({
+                    "status": "ok",
+                    "model": d_req.model,
+                    "path": path.to_string_lossy(),
+                    "message": "Model został pomyślnie pobrany i jest gotowy do syntezy!"
+                });
+                let json_header = Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap();
+                let mut resp = tiny_http::Response::from_string(res_json.to_string());
+                resp.add_header(json_header);
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+            }
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": "Błąd pobierania modelu",
+                    "details": e.to_string()
+                });
+                let json_header = Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap();
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(json_header);
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(500));
+            }
+        }
+        return;
+    }
+
+    // Route: POST /api/models/remove
+    if method == tiny_http::Method::Post && url == "/api/models/remove" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct RemoveReq {
+            model: String,
+        }
+
+        if let Ok(r) = serde_json::from_str::<RemoveReq>(&body_str) {
+            let _ = remove_model(&r.model);
+            let res_json = serde_json::json!({ "status": "ok", "model": r.model });
+            let json_header = Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap();
+            let mut resp = tiny_http::Response::from_string(res_json.to_string());
+            resp.add_header(json_header);
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp);
+        }
+        return;
+    }
+
     // Route: POST /api/parse
     if method == tiny_http::Method::Post && url == "/api/parse" {
         let mut body_str = String::new();
@@ -858,15 +1112,33 @@ async fn handle_studio_request(
         let synth: Arc<dyn SpeechSynthesizer> = if req.provider == "edge" {
             Arc::new(EdgeTtsBridge::new(&req.voice))
         } else {
-            let m_path = default_model
-                .clone()
-                .unwrap_or_else(|| get_default_piper_model(&clean_lang));
+            let m_path = if let Some(ref custom_m) = req.model {
+                if let Some(item) = find_model(custom_m) {
+                    item.onnx_path
+                        .unwrap_or_else(|| models_dir().join(format!("{}.onnx", item.id)))
+                } else {
+                    let p = PathBuf::from(custom_m);
+                    if p.exists() {
+                        p
+                    } else {
+                        models_dir().join(custom_m)
+                    }
+                }
+            } else if let Some(item) = find_model(&req.voice) {
+                item.onnx_path
+                    .unwrap_or_else(|| models_dir().join(format!("{}.onnx", item.id)))
+            } else {
+                default_model
+                    .clone()
+                    .unwrap_or_else(|| get_default_piper_model(&clean_lang))
+            };
+
             if !m_path.exists() {
                 let err_header =
                     Header::from_bytes(&b"Content-Type"[..], &b"text/plain; charset=utf-8"[..])
                         .unwrap();
                 let mut resp = tiny_http::Response::from_string(format!(
-                    "Nie znaleziono modelu Piper: {:?}",
+                    "Nie znaleziono modelu Piper: {:?}. Pobierz model w Studio lub poleceniem 'audioticon models download <nazwa>'",
                     m_path
                 ));
                 resp.add_header(err_header);

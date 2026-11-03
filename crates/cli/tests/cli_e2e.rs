@@ -66,3 +66,18 @@ fn test_cli_lang_validation() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("Nieobsługiwany język"));
 }
+
+#[test]
+fn test_cli_models_list() {
+    let output = Command::new(env!("CARGO_BIN_EXE_audioticon-cli"))
+        .arg("models")
+        .output()
+        .expect("Failed to execute audioticon models");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Menedżer Modeli Neuronowych"));
+    assert!(stdout.contains("pl_PL-darkman-medium"));
+    assert!(stdout.contains("pl_PL-gosia-medium"));
+    assert!(stdout.contains("en_US-lessac-medium"));
+}
