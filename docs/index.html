@@ -1831,7 +1831,7 @@
               <div>
                 <div class="card-icon">🗣️</div>
                 <div class="card-title-3d">Głosy & Silnik</div>
-                <div class="card-desc-3d">Piper TTS (100% offline w RAM) oraz Edge Neural (Marek / Zofia).</div>
+                <div class="card-desc-3d">Piper (offline), Edge Neural oraz ElevenLabs API (chmura AI).</div>
               </div>
               <button class="card-open-btn">Otwórz panel ↗</button>
             </div>
@@ -1953,6 +1953,7 @@
         <select id="tts-provider" onchange="onProviderChange()">
           <option value="piper">Piper (100% Offline, ~20ms cache)</option>
           <option value="edge">Edge Neural (Marek / Zofia)</option>
+          <option value="elevenlabs">ElevenLabs v3 (Generative AI)</option>
         </select>
 
         <label style="font-size: 0.85rem; color: var(--text-muted); margin-left: 0.5rem;">Język:</label>
@@ -1969,6 +1970,12 @@
         </select>
 
         <div style="flex: 1;"></div>
+        <button id="btn-estimate" onclick="showCostEstimateModal()" class="btn-sm" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399; font-weight: 700; border-radius: 8px; padding: 0.45rem 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;" title="Sprawdź szacunkową liczbę znaków i koszt syntezy">
+          💰 Koszt & Znaki
+        </button>
+        <button id="btn-providers" onclick="openCard(2)" class="btn-sm" style="background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.35); color: #c084fc; font-weight: 700; border-radius: 8px; padding: 0.45rem 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;" title="Zarządzaj kluczami API i dostawcami">
+          🔑 Klucze API
+        </button>
         <button id="btn-render" onclick="renderCustomAudio()" class="btn-render">
           ▶ Renderuj i odsłuchaj
         </button>
@@ -2934,6 +2941,7 @@
                   <select id="modal-tts-prov" onchange="syncVoiceModalProvider(this.value)" style="width: 100%; margin-top: 0.4rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.5rem; color: #fff;">
                     <option value="piper" ${currentProv === 'piper' ? 'selected' : ''}>Piper Neural (100% Offline, RAM)</option>
                     <option value="edge" ${currentProv === 'edge' ? 'selected' : ''}>Edge Neural (Chmura Microsoft)</option>
+                    <option value="elevenlabs" ${currentProv === 'elevenlabs' ? 'selected' : ''}>ElevenLabs v3 (Generative AI)</option>
                   </select>
                 </div>
                 <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 1rem;">
@@ -2973,6 +2981,27 @@
                   <div style="color: #94a3b8; font-size: 0.82rem; padding: 0.5rem; text-align: center;">Ładowanie listy modeli offline...</div>
                 </div>
                 <div id="model-download-status" style="margin-top: 0.6rem; font-size: 0.8rem; display: none;"></div>
+              </div>
+
+              <!-- Dostawcy API i Bezpieczne Klucze -->
+              <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 12px; padding: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+                  <div>
+                    <h4 style="margin: 0; color: #c084fc; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
+                      🔑 Dostawcy API & Bezpieczne Klucze (credentials.toml)
+                    </h4>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.78rem; color: #94a3b8;">
+                      Klucze są przechowywane lokalnie na Twoim komputerze (<code style="color: #c084fc; font-size: 0.75rem;">~/.config/audioticon/credentials.toml</code>, chmod 0600) i nigdy nie trafiają do git ani do plików projektu.
+                    </p>
+                  </div>
+                  <button onclick="fetchProvidersStatus()" class="btn-sm" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: #c084fc; border-radius: 6px; padding: 0.35rem 0.65rem; cursor: pointer; font-size: 0.75rem;">
+                    🔄 Odśwież stan
+                  </button>
+                </div>
+
+                <div id="providers-container" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                  <div style="color: #94a3b8; font-size: 0.82rem; padding: 0.5rem; text-align: center;">Ładowanie stanu dostawców...</div>
+                </div>
               </div>
 
               <div class="dsp-slider-group">
@@ -3172,10 +3201,10 @@ air = 0.70</pre>
                 <button onclick="downloadScriptTxt();" class="btn-download" style="flex: 1; justify-content: center; background: rgba(255,255,255,0.08); box-shadow: none; border: 1px solid rgba(255,255,255,0.2);">
                   📄 Pobierz scenariusz (.txt)
                 </button>
-                <button onclick="setViewMode('classic'); switchTab('cli'); closeCardModal();" class="btn-download" style="flex: 1; justify-content: center; background: rgba(255,255,255,0.08); box-shadow: none; border: 1px solid rgba(255,255,255,0.2);">
-                  💻 Pokaż polecenie CLI
+                <button onclick="showCostEstimateModal();" class="btn-download" style="flex: 1; justify-content: center; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399;">
+                  💰 Szacunek kosztów & cache
                 </button>
-              </div>
+                <button onclick="setViewMode('classic'); switchTab('cli'); closeCardModal();" class="btn-download" style="flex: 1; justify-content: center; background: rgba(255,255,255,0.08); box-shadow: none; border: 1px solid rgba(255,255,255,0.2);">
                   💻 Pokaż polecenie CLI
                 </button>
               </div>
@@ -3198,7 +3227,10 @@ air = 0.70</pre>
 
       modal.classList.add('open');
       if (idx === 2) {
-        setTimeout(fetchOfflineModelsList, 50);
+        setTimeout(() => {
+          fetchOfflineModelsList();
+          fetchProvidersStatus();
+        }, 50);
       }
     }
 
@@ -3482,6 +3514,21 @@ air = 0.70</pre>
           const opt = document.createElement('option');
           opt.value = m.id;
           opt.textContent = `${m.gender} ${m.name.replace('Polski ', '').replace('English (US) ', '')} (Piper)`;
+          sel.appendChild(opt);
+        });
+      } else if (prov === 'elevenlabs') {
+        const elVoices = [
+          { id: 'adam', name: 'Adam (Męski głęboki - Narrator)', gender: '👨' },
+          { id: 'antoni', name: 'Antoni (Polski lektor broadcast)', gender: '🎙️' },
+          { id: 'rachel', name: 'Rachel (Spokojny narracyjny)', gender: '👩' },
+          { id: 'domi', name: 'Domi (Kobiecy wyrazisty)', gender: '👩' },
+          { id: 'bella', name: 'Bella (Ekspresyjny dialogowy)', gender: '👩' },
+          { id: 'josh', name: 'Josh (Męski młody)', gender: '👨' },
+        ];
+        elVoices.forEach(v => {
+          const opt = document.createElement('option');
+          opt.value = v.id;
+          opt.textContent = `${v.gender} ${v.name} (ElevenLabs)`;
           sel.appendChild(opt);
         });
       } else {
@@ -3793,6 +3840,218 @@ air = 0.70</pre>
       updateVoiceSelector();
       updateExports(document.getElementById('script-input').value);
       alert(`Zastosowano konfigurację lektora: ${prov.toUpperCase()} (${lang.toUpperCase()})`);
+    }
+
+    // ========================================================
+    // 🔑 PROVIDERS & SECURE API KEYS (credentials.toml)
+    // ========================================================
+    async function fetchProvidersStatus() {
+      const container = document.getElementById('providers-container');
+      if (!container) return;
+
+      const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (!isLocalHost && !hasExplicitEngineConnection) {
+        container.innerHTML = `
+          <div style="padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 8px; font-size: 0.8rem; color: #94a3b8;">
+            ℹ️ Połącz się z lokalnym silnikiem Audioticon (<code>audioticon serve</code>), aby zarządzać kluczami API.
+          </div>
+        `;
+        return;
+      }
+
+      try {
+        const res = await fetch(getApiUrl('/api/providers'));
+        if (!res.ok) throw new Error("Błąd pobierania dostawców");
+        const data = await res.json();
+        renderProvidersList(data.providers);
+      } catch (e) {
+        container.innerHTML = `<div style="color: #f87171; font-size: 0.8rem;">Nie udało się pobrać listy dostawców (${e.message}). Uruchom silnik poleceniem <code>audioticon serve</code>.</div>`;
+      }
+    }
+
+    function renderProvidersList(providers) {
+      const container = document.getElementById('providers-container');
+      if (!container) return;
+
+      container.innerHTML = providers.map(p => {
+        const isEleven = p.id === 'elevenlabs';
+        const badge = p.has_key
+          ? `<span style="background: rgba(16,185,129,0.2); color: #34d399; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700;">🟢 Skonfigurowany (${p.masked_key})</span>`
+          : `<span style="background: rgba(255,255,255,0.06); color: #94a3b8; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.72rem;">⚪ Brak klucza</span>`;
+
+        return `
+          <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 0.75rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <strong style="color: #fff; font-size: 0.85rem;">${p.name}</strong>
+                ${badge}
+              </div>
+              ${isEleven && p.has_key ? `
+                <button onclick="checkProviderKey('${p.id}', this)" class="btn-sm" style="background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.3); color: #38bdf8; font-size: 0.72rem; padding: 0.2rem 0.5rem; border-radius: 4px; cursor: pointer;">
+                  🔍 Sprawdź konto
+                </button>
+              ` : ''}
+            </div>
+
+            <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
+              <input type="password" id="key-input-${p.id}" placeholder="${p.has_key ? 'Wprowadź nowy klucz, aby podmienić...' : 'Wklej klucz API (sk_...)'}" style="flex: 1; min-width: 180px; background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 0.35rem 0.6rem; font-size: 0.75rem; color: #fff;">
+              <button onclick="saveProviderKey('${p.id}', this)" class="btn-sm" style="background: rgba(168,85,247,0.2); border: 1px solid rgba(168,85,247,0.4); color: #c084fc; font-weight: 700; font-size: 0.75rem; padding: 0.35rem 0.7rem; border-radius: 6px; cursor: pointer;">
+                💾 Zapisz klucz
+              </button>
+            </div>
+            <div id="check-result-${p.id}" style="margin-top: 0.4rem; font-size: 0.75rem; display: none;"></div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function saveProviderKey(provId, btn) {
+      const input = document.getElementById(`key-input-${provId}`);
+      if (!input || !input.value.trim()) {
+        alert('Podaj klucz API przed zapisaniem.');
+        return;
+      }
+      const val = input.value.trim();
+      const origText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Zapisywanie...';
+
+      try {
+        const res = await fetch(getApiUrl('/api/providers/set'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: provId, api_key: val })
+        });
+        const json = await res.json();
+        if (res.ok) {
+          input.value = '';
+          await fetchProvidersStatus();
+          alert(`✅ Klucz dla ${provId} został bezpiecznie zapisany w ~/.config/audioticon/credentials.toml (prawa 0600)!`);
+        } else {
+          alert(`Błąd zapisu klucza: ${json.error || 'Nieznany błąd'}`);
+        }
+      } catch (e) {
+        alert(`Błąd połączenia z silnikiem: ${e.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = origText;
+      }
+    }
+
+    async function checkProviderKey(provId, btn) {
+      const resDiv = document.getElementById(`check-result-${provId}`);
+      if (!resDiv) return;
+      resDiv.style.display = 'block';
+      resDiv.innerHTML = '<span style="color: #38bdf8;">⏳ Weryfikacja klucza w oficjalnym API...</span>';
+
+      try {
+        const res = await fetch(getApiUrl('/api/providers/check'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: provId })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          resDiv.innerHTML = `
+            <div style="background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); border-radius: 6px; padding: 0.4rem 0.6rem; color: #34d399;">
+              ✅ <strong>Klucz poprawny!</strong> Plan: <em>${data.tier}</em> • Zużycie: <strong>${data.character_count.toLocaleString()}</strong> / ${data.character_limit.toLocaleString()} znaków.
+            </div>
+          `;
+        } else {
+          resDiv.innerHTML = `
+            <div style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 6px; padding: 0.4rem 0.6rem; color: #f87171;">
+              ❌ Błąd weryfikacji: ${data.error || 'Nieprawidłowy klucz'}
+            </div>
+          `;
+        }
+      } catch (e) {
+        resDiv.innerHTML = `<span style="color: #f87171;">Błąd sieci: ${e.message}</span>`;
+      }
+    }
+
+    // ========================================================
+    // 💰 COST & CHARACTER ESTIMATOR (Cache-aware)
+    // ========================================================
+    async function showCostEstimateModal() {
+      const scriptText = document.getElementById('script-input')?.value || '';
+      const prov = document.getElementById('tts-provider')?.value || 'elevenlabs';
+      const voice = document.getElementById('tts-voice')?.value || 'adam';
+
+      let modal = document.getElementById('card-modal-overlay');
+      let body = document.getElementById('modal-body');
+
+      let title = "💰 Szacunek Kosztów i Znaków Syntezy";
+      let desc = "Kalkulacja kosztów API w oparciu o trafienia w dyskowy cache (~/.cache/audioticon).";
+
+      body.innerHTML = `
+        <h2 style="font-size: 1.35rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
+          ${title}
+        </h2>
+        <p style="color: #94a3b8; font-size: 0.85rem; margin-top: -0.4rem;">
+          ${desc}
+        </p>
+        <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 0.25rem 0;">
+        <div id="cost-estimate-content" style="padding: 1rem 0; text-align: center; color: #94a3b8;">
+          ⏳ Obliczanie kosztów i sprawdzanie cache dyskowego...
+        </div>
+      `;
+      modal.classList.add('open');
+
+      try {
+        const res = await fetch(getApiUrl('/api/estimate'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: scriptText, provider: prov, voice: voice })
+        });
+        if (!res.ok) throw new Error("Błąd kalkulacji z silnika");
+        const est = await res.json();
+
+        const costDisplay = est.estimated_cost_usd > 0
+          ? `<strong style="color: #fbbf24; font-size: 1.5rem;">~$${est.estimated_cost_usd.toFixed(4)} USD</strong>`
+          : `<strong style="color: #34d399; font-size: 1.5rem;">$0.00 USD (Darmowy)</strong>`;
+
+        document.getElementById('cost-estimate-content').innerHTML = `
+          <div style="display: flex; flex-direction: column; gap: 1rem; text-align: left;">
+            <div style="background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 1rem; text-align: center;">
+              <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.25rem;">Szacowany Koszt API (${est.provider.toUpperCase()}):</div>
+              ${costDisplay}
+              <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.35rem;">
+                ${est.provider === 'piper' || est.provider === 'edge' ? 'Darmowy nielimitowany silnik' : 'Stawka dostawcy: ~$0.30 za 1 000 znaków'}
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+              <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 0.75rem;">
+                <div style="font-size: 0.75rem; color: #94a3b8;">Łączna liczba znaków:</div>
+                <div style="font-size: 1.15rem; font-weight: 800; color: #fff;">${est.total_characters.toLocaleString()}</div>
+                <div style="font-size: 0.7rem; color: #94a3b8;">${est.total_speech_segments} zdań / segmentów</div>
+              </div>
+              <div style="background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25); border-radius: 8px; padding: 0.75rem;">
+                <div style="font-size: 0.75rem; color: #34d399;">Zaoszczędzone przez Cache:</div>
+                <div style="font-size: 1.15rem; font-weight: 800; color: #34d399;">${est.cached_characters.toLocaleString()} znaków (${est.cache_hit_ratio_percent.toFixed(1)}%)</div>
+                <div style="font-size: 0.7rem; color: #94a3b8;">${est.cached_segments} segmentów już na dysku</div>
+              </div>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 0.75rem;">
+              <div style="font-size: 0.75rem; color: #38bdf8;">Do wysłania do API:</div>
+              <div style="font-size: 1.15rem; font-weight: 800; color: #38bdf8;">${est.characters_to_synthesize.toLocaleString()} znaków</div>
+              <div style="font-size: 0.7rem; color: #94a3b8;">Płacisz tylko za nowe lub zmienione zdania!</div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem;">
+              <button onclick="closeCardModal()" class="btn-download" style="background: rgba(255,255,255,0.08); box-shadow: none;">Zamknij</button>
+              <button onclick="closeCardModal(); renderCustomAudio();" class="btn-download">▶ Renderuj audio</button>
+            </div>
+          </div>
+        `;
+      } catch (e) {
+        document.getElementById('cost-estimate-content').innerHTML = `
+          <div style="color: #f87171; padding: 1rem;">
+            Nie udało się pobrać szacunku z lokalnego silnika (${e.message}). Upewnij się, że silnik jest uruchomiony poleceniem <code>audioticon serve</code>.
+          </div>
+        `;
+      }
     }
 
     function copyTomlToClipboard(btn) {

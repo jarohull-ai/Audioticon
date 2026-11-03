@@ -1,9 +1,10 @@
 use anyhow::{Context, Result};
 use audioticon_core::{
-    base64_decode, compute_segment_hash, download_model, export_to_m4b, export_to_mp3, find_model,
-    list_models, models_dir, presets, remove_model, update_voices_catalog, AudioDirectorEngine,
-    AudiobookMetadata, DirectedItem, EdgeTtsBridge, EmojiDirector, ImportedBook, PiperBridge,
-    PresetRegistry, ProjectConfig, SpeechSynthesizer,
+    base64_decode, compute_segment_hash, credentials, download_model, estimate_cost, export_to_m4b,
+    export_to_mp3, find_model, list_models, models_dir, presets, remove_model,
+    update_voices_catalog, AudioDirectorEngine, AudiobookMetadata, CostEstimate, DirectedItem,
+    EdgeTtsBridge, ElevenLabsBridge, EmojiDirector, ImportedBook, PiperBridge, PresetRegistry,
+    ProjectConfig, SpeechSynthesizer,
 };
 use clap::{Parser, Subcommand, ValueEnum};
 use std::collections::HashMap;
@@ -32,6 +33,8 @@ enum TtsProvider {
     Edge,
     /// Piper TTS (100% lokalny, ultra szybki model neuronowy ONNX)
     Piper,
+    /// ElevenLabs v3 API (profesjonalne głosy generative AI)
+    Elevenlabs,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
@@ -99,6 +102,10 @@ enum Commands {
         /// Uruchamia scenę demonstracyjną wszystkich efektów akustycznych (telefon, radio, katedra, myśli, robot)
         #[arg(long)]
         demo_effects: bool,
+
+        /// Wyświetl tylko szacunkową liczbę znaków i koszt bez generowania audio
+        #[arg(long)]
+        estimate: bool,
     },
     /// Zarządzanie lokalnym buforem audio (cache)
     Cache {
@@ -191,6 +198,60 @@ enum Commands {
         /// Podziel i zapisz rozdziały do osobnych plików w podanym katalogu
         #[arg(long)]
         split_dir: Option<PathBuf>,
+    },
+    /// Zarządzanie kluczami API zewnętrznych dostawców (ElevenLabs, OpenAI, Azure)
+    Providers {
+        #[command(subcommand)]
+        action: Option<ProvidersAction>,
+    },
+    /// Szacuje liczbę znaków i koszt syntezy skryptu (uwzględniając trafienia w cache)
+    Estimate {
+        /// Ścieżka do pliku ze scenariuszem (lub pomiń i użyj tekstu demonstracyjnego)
+        #[arg(short, long)]
+        input: Option<PathBuf>,
+
+        /// Dostawca syntezy mowy: elevenlabs, openai, azure, piper, edge
+        #[arg(long, default_value = "elevenlabs")]
+        provider: String,
+
+        /// Identyfikator głosu (np. adam, antoni, rachel)
+        #[arg(short, long, default_value = "adam")]
+        voice: String,
+
+        /// Własny katalog cache
+        #[arg(short, long)]
+        cache_dir: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
+enum ProvidersAction {
+    /// Wyświetla listę skonfigurowanych dostawców i zamaskowane klucze API
+    List,
+    /// Konfiguruje klucz API dostawcy (zapisywany bezpiecznie w credentials.toml)
+    Set {
+        /// Identyfikator dostawcy (np. elevenlabs, openai, azure)
+        provider: String,
+        /// Klucz API
+        #[arg(short, long)]
+        key: String,
+        /// Domyślny model (opcjonalny, np. eleven_multilingual_v2)
+        #[arg(short, long)]
+        model: Option<String>,
+        /// Domyślny głos (opcjonalny, np. adam, antoni)
+        #[arg(short, long)]
+        voice: Option<String>,
+    },
+    /// Weryfikuje ważność klucza API i sprawdza stan konta (np. subskrypcja ElevenLabs)
+    Check {
+        /// Identyfikator dostawcy do sprawdzenia (domyślnie: elevenlabs)
+        #[arg(default_value = "elevenlabs")]
+        provider: String,
+    },
+    /// Usuwa klucz API dostawcy z konfiguracji
+    Remove {
+        /// Identyfikator dostawcy
+        provider: String,
     },
 }
 
@@ -345,6 +406,7 @@ async fn main() -> Result<()> {
             year,
             demo,
             demo_effects,
+            estimate,
         } => {
             let (script_text, imported_title, imported_author) = match input {
                 Some(ref file_path) if !demo && !demo_effects => {
@@ -399,8 +461,27 @@ async fn main() -> Result<()> {
             let cache_path = cache_dir.unwrap_or_else(get_default_cache_dir);
             std::fs::create_dir_all(&cache_path)?;
 
+            if estimate {
+                let prov_str = match provider {
+                    TtsProvider::Edge => "edge",
+                    TtsProvider::Piper => "piper",
+                    TtsProvider::Elevenlabs => "elevenlabs",
+                };
+                let est = estimate_cost(&script_text, prov_str, &voice, &cache_path);
+                print_estimate_report(&est);
+                return Ok(());
+            }
+
             let synthesizer: Arc<dyn SpeechSynthesizer> = match provider {
                 TtsProvider::Edge => Arc::new(EdgeTtsBridge::new(&voice)),
+                TtsProvider::Elevenlabs => {
+                    let api_key = credentials::get_api_key("elevenlabs").ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "Nie znaleziono klucza API dla ElevenLabs.\nSkonfiguruj klucz za pomocą:\n   audioticon providers set elevenlabs --key <TWÓJ_KLUCZ>\nlub ustaw zmienną środowiskową:\n   export ELEVENLABS_API_KEY=\"twój-klucz\""
+                        )
+                    })?;
+                    Arc::new(ElevenLabsBridge::new(api_key, &voice))
+                }
                 TtsProvider::Piper => {
                     let m_path = if let Some(ref custom_m) = model {
                         if let Some(item) = find_model(&custom_m.to_string_lossy()) {
@@ -906,9 +987,162 @@ async fn main() -> Result<()> {
                 );
             }
         }
+        Commands::Estimate {
+            input,
+            provider,
+            voice,
+            cache_dir,
+        } => {
+            let text = match input {
+                Some(p) => std::fs::read_to_string(&p)
+                    .with_context(|| format!("Nie można odczytać pliku: {:?}", p))?,
+                None => DEMO_SCENE.to_string(),
+            };
+            let cache_path = cache_dir.unwrap_or_else(get_default_cache_dir);
+            let est = estimate_cost(&text, &provider, &voice, &cache_path);
+            print_estimate_report(&est);
+        }
+        Commands::Providers { action } => {
+            match action.unwrap_or(ProvidersAction::List) {
+                ProvidersAction::List => {
+                    let creds = credentials::load_credentials();
+                    let path = credentials::credentials_path();
+                    println!("🔑 Skonfigurowani dostawcy TTS ({})", path.display());
+                    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+                    let known_providers = [
+                        ("elevenlabs", "ElevenLabs v3 (Generative AI)"),
+                        ("openai", "OpenAI TTS"),
+                        ("azure", "Azure Speech Services"),
+                    ];
+
+                    for (id, name) in &known_providers {
+                        let env_key = match *id {
+                            "elevenlabs" => std::env::var("ELEVENLABS_API_KEY").ok(),
+                            "openai" => std::env::var("OPENAI_API_KEY").ok(),
+                            "azure" => std::env::var("AZURE_SPEECH_KEY").ok(),
+                            _ => None,
+                        };
+                        let saved = creds.providers.get(*id);
+                        let (source, masked, model) =
+                            if let Some(k) = env_key.filter(|s| !s.trim().is_empty()) {
+                                ("ENV", credentials::mask_api_key(&k), None)
+                            } else if let Some(p) = saved {
+                                if let Some(ref k) = p.api_key {
+                                    (
+                                        "credentials.toml",
+                                        credentials::mask_api_key(k),
+                                        p.model_id.clone(),
+                                    )
+                                } else {
+                                    ("brak", "—".to_string(), None)
+                                }
+                            } else {
+                                ("brak", "—".to_string(), None)
+                            };
+
+                        let status_badge = if source == "brak" {
+                            "⚪ Nieaktywny"
+                        } else {
+                            "🟢 Skonfigurowany"
+                        };
+                        println!("  {} [{}]", name, id);
+                        println!("     Status:  {} ({})", status_badge, source);
+                        println!("     Klucz:   {}", masked);
+                        if let Some(m) = model {
+                            println!("     Model:   {}", m);
+                        }
+                    }
+                    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    println!("💡 Aby dodać klucz: audioticon providers set elevenlabs --key <TWÓJ_KLUCZ>");
+                }
+                ProvidersAction::Set {
+                    provider,
+                    key,
+                    model,
+                    voice,
+                } => {
+                    credentials::set_api_key(&provider, &key, model.as_deref(), voice.as_deref())?;
+                    println!(
+                        "✅ Zapisano klucz dla dostawcy '{}' w {:?} (prawa 0600)",
+                        provider,
+                        credentials::credentials_path()
+                    );
+                }
+                ProvidersAction::Check { provider } => {
+                    let clean = provider.trim().to_lowercase();
+                    if clean == "elevenlabs" {
+                        let key = credentials::get_api_key("elevenlabs").ok_or_else(|| {
+                            anyhow::anyhow!(
+                                "Brak klucza dla ElevenLabs. Użyj: audioticon providers set elevenlabs --key <KLUCZ>"
+                            )
+                        })?;
+                        println!("🔍 Weryfikuję klucz ElevenLabs z oficjalnym API...");
+                        match credentials::verify_elevenlabs_key(&key) {
+                            Ok(info) => {
+                                println!("✅ Klucz ElevenLabs jest poprawny!");
+                                println!("   Plan / Tier:     {}", info.tier);
+                                println!(
+                                    "   Zużycie znaków:  {} / {}",
+                                    info.character_count, info.character_limit
+                                );
+                                println!(
+                                    "   Możliwość rozsz: {}",
+                                    if info.can_extend_character_limit {
+                                        "tak"
+                                    } else {
+                                        "nie"
+                                    }
+                                );
+                            }
+                            Err(e) => {
+                                eprintln!("❌ Błąd weryfikacji klucza ElevenLabs: {}", e);
+                            }
+                        }
+                    } else {
+                        println!("ℹ️ Weryfikacja online jest obecnie dostępna dla ElevenLabs.");
+                    }
+                }
+                ProvidersAction::Remove { provider } => {
+                    if credentials::remove_api_key(&provider)? {
+                        println!("✅ Usunięto konfigurację dostawcy '{}'.", provider);
+                    } else {
+                        println!(
+                            "ℹ️ Dostawca '{}' nie był skonfigurowany w credentials.toml.",
+                            provider
+                        );
+                    }
+                }
+            }
+        }
     }
 
     Ok(())
+}
+
+fn print_estimate_report(est: &CostEstimate) {
+    println!(
+        "💰 Szacunek kosztów syntezy mowy ({})",
+        est.provider.to_uppercase()
+    );
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!("  Liczba segmentów mowy:  {}", est.total_speech_segments);
+    println!(
+        "  Segmenty w cache:       {} ({:.1}%)",
+        est.cached_segments, est.cache_hit_ratio_percent
+    );
+    println!("  Segmenty do syntezy:    {}", est.segments_to_synthesize);
+    println!("  Łączna liczba znaków:   {}", est.total_characters);
+    println!("  Znaki do syntezy:       {}", est.characters_to_synthesize);
+    if est.estimated_cost_usd > 0.0 {
+        println!(
+            "  Szacowany koszt:        ~${:.4} USD",
+            est.estimated_cost_usd
+        );
+    } else {
+        println!("  Szacowany koszt:        $0.00 USD (darmowy lub 100% cache)");
+    }
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
 
 const STUDIO_HTML: &str = include_str!("../../../docs/index.html");
@@ -1009,6 +1243,11 @@ async fn resolve_synthesizer(
 ) -> Result<Arc<dyn SpeechSynthesizer>, String> {
     if provider == "edge" {
         Ok(Arc::new(EdgeTtsBridge::new(voice)))
+    } else if provider == "elevenlabs" {
+        let api_key = credentials::get_api_key("elevenlabs").ok_or_else(|| {
+            "Brak skonfigurowanego klucza API dla ElevenLabs. Skonfiguruj klucz w ustawieniach dostawców API.".to_string()
+        })?;
+        Ok(Arc::new(ElevenLabsBridge::new(api_key, voice)))
     } else {
         let m_path = if let Some(custom_m) = model {
             if let Some(item) = find_model(custom_m) {
@@ -1154,6 +1393,300 @@ async fn handle_studio_request(
         }
         let _ = request.respond(resp.with_status_code(404));
         return;
+    }
+
+    // Route: GET /api/providers
+    if method == tiny_http::Method::Get && url == "/api/providers" {
+        let creds = credentials::load_credentials();
+        let providers_list = serde_json::json!({
+            "providers": [
+                {
+                    "id": "elevenlabs",
+                    "name": "ElevenLabs v3",
+                    "has_key": credentials::get_api_key("elevenlabs").is_some(),
+                    "masked_key": credentials::get_masked_key("elevenlabs"),
+                    "model_id": creds.providers.get("elevenlabs").and_then(|p| p.model_id.clone()).unwrap_or_else(|| "eleven_multilingual_v2".to_string()),
+                    "voice_id": creds.providers.get("elevenlabs").and_then(|p| p.voice_id.clone()).unwrap_or_else(|| "adam".to_string())
+                },
+                {
+                    "id": "openai",
+                    "name": "OpenAI TTS",
+                    "has_key": credentials::get_api_key("openai").is_some(),
+                    "masked_key": credentials::get_masked_key("openai"),
+                    "model_id": creds.providers.get("openai").and_then(|p| p.model_id.clone()).unwrap_or_else(|| "tts-1".to_string()),
+                    "voice_id": creds.providers.get("openai").and_then(|p| p.voice_id.clone()).unwrap_or_else(|| "alloy".to_string())
+                },
+                {
+                    "id": "azure",
+                    "name": "Azure Cognitive Services",
+                    "has_key": credentials::get_api_key("azure").is_some(),
+                    "masked_key": credentials::get_masked_key("azure"),
+                    "model_id": serde_json::Value::Null,
+                    "voice_id": creds.providers.get("azure").and_then(|p| p.voice_id.clone()).unwrap_or_else(|| "pl-PL-MarekNeural".to_string())
+                }
+            ]
+        });
+
+        let json_header = Header::from_bytes(
+            &b"Content-Type"[..],
+            &b"application/json; charset=utf-8"[..],
+        )
+        .unwrap();
+        let mut resp = tiny_http::Response::from_string(providers_list.to_string());
+        resp.add_header(json_header);
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: POST /api/providers/set
+    if method == tiny_http::Method::Post && url == "/api/providers/set" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(64 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct SetReq {
+            provider: String,
+            api_key: String,
+            model_id: Option<String>,
+            voice_id: Option<String>,
+        }
+
+        match serde_json::from_str::<SetReq>(&body_str) {
+            Ok(data) => {
+                if let Err(e) = credentials::set_api_key(
+                    &data.provider,
+                    &data.api_key,
+                    data.model_id.as_deref(),
+                    data.voice_id.as_deref(),
+                ) {
+                    let err = serde_json::json!({ "error": e.to_string() });
+                    let mut resp = tiny_http::Response::from_string(err.to_string());
+                    resp.add_header(
+                        Header::from_bytes(
+                            &b"Content-Type"[..],
+                            &b"application/json; charset=utf-8"[..],
+                        )
+                        .unwrap(),
+                    );
+                    if let Some(ref h) = cors_header {
+                        resp.add_header(h.clone());
+                    }
+                    let _ = request.respond(resp.with_status_code(400));
+                    return;
+                }
+
+                let resp_json = serde_json::json!({
+                    "status": "ok",
+                    "provider": data.provider,
+                    "masked_key": credentials::mask_api_key(&data.api_key)
+                });
+                let mut resp = tiny_http::Response::from_string(resp_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err =
+                    serde_json::json!({ "error": "Nieprawidłowy JSON", "details": e.to_string() });
+                let mut resp = tiny_http::Response::from_string(err.to_string());
+                resp.add_header(
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        }
+    }
+
+    // Route: POST /api/providers/check
+    if method == tiny_http::Method::Post && url == "/api/providers/check" {
+        let mut body_str = String::new();
+        let _ = request
+            .as_reader()
+            .take(64 * 1024)
+            .read_to_string(&mut body_str);
+
+        #[derive(serde::Deserialize)]
+        struct CheckReq {
+            provider: Option<String>,
+            api_key: Option<String>,
+        }
+
+        let (prov, direct_key) = match serde_json::from_str::<CheckReq>(&body_str) {
+            Ok(r) => (
+                r.provider.unwrap_or_else(|| "elevenlabs".to_string()),
+                r.api_key,
+            ),
+            Err(_) => ("elevenlabs".to_string(), None),
+        };
+
+        let key = direct_key
+            .or_else(|| credentials::get_api_key(&prov))
+            .unwrap_or_default();
+
+        if key.trim().is_empty() {
+            let err = serde_json::json!({ "error": "Brak klucza API do weryfikacji. Wprowadź klucz przed sprawdzeniem." });
+            let mut resp = tiny_http::Response::from_string(err.to_string());
+            resp.add_header(
+                Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        match credentials::verify_elevenlabs_key(&key) {
+            Ok(info) => {
+                let resp_json = serde_json::json!({
+                    "status": "ok",
+                    "provider": "elevenlabs",
+                    "tier": info.tier,
+                    "character_count": info.character_count,
+                    "character_limit": info.character_limit,
+                    "can_extend_character_limit": info.can_extend_character_limit,
+                });
+                let mut resp = tiny_http::Response::from_string(resp_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err = serde_json::json!({ "error": e.to_string() });
+                let mut resp = tiny_http::Response::from_string(err.to_string());
+                resp.add_header(
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        }
+    }
+
+    // Route: POST /api/estimate
+    if method == tiny_http::Method::Post && url == "/api/estimate" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct EstReq {
+            text: String,
+            #[serde(default = "default_est_provider")]
+            provider: String,
+            #[serde(default = "default_est_voice")]
+            voice: String,
+        }
+
+        fn default_est_provider() -> String {
+            "elevenlabs".to_string()
+        }
+        fn default_est_voice() -> String {
+            "adam".to_string()
+        }
+
+        match serde_json::from_str::<EstReq>(&body_str) {
+            Ok(data) => {
+                let cache_dir = get_default_cache_dir();
+                let est = estimate_cost(&data.text, &data.provider, &data.voice, &cache_dir);
+                let json_data = serde_json::to_string(&est).unwrap_or_default();
+                let mut resp = tiny_http::Response::from_string(json_data);
+                resp.add_header(
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err =
+                    serde_json::json!({ "error": "Nieprawidłowy JSON", "details": e.to_string() });
+                let mut resp = tiny_http::Response::from_string(err.to_string());
+                resp.add_header(
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        }
     }
 
     // Route: GET /api/models

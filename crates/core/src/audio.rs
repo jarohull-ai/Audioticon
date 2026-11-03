@@ -797,6 +797,167 @@ impl SpeechSynthesizer for PiperBridge {
     }
 }
 
+/// Synthesizer bridge using ElevenLabs REST API with expressive actor tags and caching.
+pub struct ElevenLabsBridge {
+    pub api_key: String,
+    pub voice: String,
+    pub model_id: String,
+}
+
+impl ElevenLabsBridge {
+    pub fn new(api_key: impl Into<String>, voice: impl Into<String>) -> Self {
+        Self {
+            api_key: api_key.into(),
+            voice: voice.into(),
+            model_id: "eleven_multilingual_v2".to_string(),
+        }
+    }
+
+    pub fn with_model(
+        api_key: impl Into<String>,
+        voice: impl Into<String>,
+        model_id: impl Into<String>,
+    ) -> Self {
+        Self {
+            api_key: api_key.into(),
+            voice: voice.into(),
+            model_id: model_id.into(),
+        }
+    }
+
+    pub fn map_voice_alias(alias_or_id: &str) -> &str {
+        match alias_or_id.trim().to_lowercase().as_str() {
+            "antoni" => "ErXwobaYiN019PkySvjV",
+            "adam" => "pNInz6obpgDQGcFmaJgB",
+            "rachel" => "21m00Tcm4TlvDq8ikWAM",
+            "domi" => "AZnzlk1XvdvUeBnXmlld",
+            "bella" => "EXAVITQu4vr4xnSDxMaL",
+            "josh" => "TxGEqnHWrfWFTfGW9XjX",
+            "elli" => "MF3mGyEYCl7XYWbV9V6O",
+            _ => alias_or_id.trim(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl SpeechSynthesizer for ElevenLabsBridge {
+    fn voice_name(&self) -> &str {
+        &self.voice
+    }
+
+    fn max_concurrency(&self) -> usize {
+        4 // Up to 4 parallel HTTP calls to ElevenLabs API
+    }
+
+    fn resolve_voice_label(&self, requested: Option<&str>) -> String {
+        let v = match requested {
+            Some(r) if !r.trim().is_empty() && r != "default" => {
+                let trimmed = r.trim();
+                if let Some(stripped) = trimmed.strip_prefix("elevenlabs:") {
+                    stripped.trim()
+                } else {
+                    trimmed
+                }
+            }
+            _ => &self.voice,
+        };
+
+        if v.starts_with("elevenlabs-") {
+            v.to_string()
+        } else {
+            format!("elevenlabs-{}", v)
+        }
+    }
+
+    async fn synthesize(&self, segment: &TextSegment, out_path: &Path) -> Result<()> {
+        let voice_label = self.resolve_voice_label(segment.voice.as_deref());
+        let raw_voice = voice_label
+            .strip_prefix("elevenlabs-")
+            .unwrap_or(&voice_label);
+        let actual_voice_id = Self::map_voice_alias(raw_voice);
+
+        let formatted_text = segment.format_for_elevenlabs();
+
+        let temp_json = out_path.with_extension("req.json");
+        let temp_mp3 = out_path.with_extension("temp.mp3");
+        let temp_wav = out_path.with_extension("temp.wav");
+
+        let body = serde_json::json!({
+            "text": formatted_text,
+            "model_id": self.model_id,
+            "voice_settings": {
+                "stability": 0.5,
+                "similarity_boost": 0.75
+            }
+        });
+
+        tokio::fs::write(&temp_json, serde_json::to_vec(&body)?).await?;
+
+        let url = format!(
+            "https://api.elevenlabs.io/v1/text-to-speech/{}",
+            actual_voice_id
+        );
+        let curl_res = tokio::process::Command::new("curl")
+            .arg("-sS")
+            .arg("-f")
+            .arg("-X")
+            .arg("POST")
+            .arg(&url)
+            .arg("-H")
+            .arg(format!("xi-api-key: {}", self.api_key.trim()))
+            .arg("-H")
+            .arg("Content-Type: application/json")
+            .arg("-H")
+            .arg("Accept: audio/mpeg")
+            .arg("--data")
+            .arg(format!("@{}", temp_json.display()))
+            .arg("-o")
+            .arg(&temp_mp3)
+            .output()
+            .await?;
+
+        let _ = tokio::fs::remove_file(&temp_json).await;
+
+        if !curl_res.status.success() {
+            let stderr = String::from_utf8_lossy(&curl_res.stderr);
+            let _ = tokio::fs::remove_file(&temp_mp3).await;
+            anyhow::bail!("ElevenLabs API call failed: {}", stderr.trim());
+        }
+
+        let filter_chain = build_ffmpeg_filter_chain(segment.filter.as_deref());
+
+        let conv = tokio::process::Command::new("ffmpeg")
+            .arg("-y")
+            .arg("-i")
+            .arg(&temp_mp3)
+            .arg("-af")
+            .arg(&filter_chain)
+            .arg("-ar")
+            .arg(DEFAULT_SAMPLE_RATE.to_string())
+            .arg("-ac")
+            .arg("1")
+            .arg("-c:a")
+            .arg("pcm_s16le")
+            .arg(&temp_wav)
+            .output()
+            .await?;
+
+        let _ = tokio::fs::remove_file(&temp_mp3).await;
+
+        if !conv.status.success() {
+            let stderr = String::from_utf8_lossy(&conv.stderr);
+            let _ = tokio::fs::remove_file(&temp_wav).await;
+            anyhow::bail!("ffmpeg conversion failed for ElevenLabs audio: {}", stderr);
+        }
+
+        tokio::fs::rename(&temp_wav, out_path)
+            .await
+            .with_context(|| format!("Błąd atomowego zapisu do cache: {:?}", out_path))?;
+
+        Ok(())
+    }
+}
+
 /// Rendering orchestrator with high-concurrency caching.
 pub struct AudioDirectorEngine {
     pub cache_dir: PathBuf,

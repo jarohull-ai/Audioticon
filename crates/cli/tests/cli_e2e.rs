@@ -319,3 +319,67 @@ fn test_api_cache_status_disk_verification() {
     let _ = child.kill();
     let _ = child.wait();
 }
+
+#[test]
+fn test_cli_providers_lifecycle() {
+    // 1. Set mock API key
+    let set_out = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .args([
+            "providers",
+            "set",
+            "elevenlabs",
+            "--key",
+            "sk_test_secret_1234567890abcdef",
+        ])
+        .output()
+        .expect("Failed to execute audioticon providers set");
+    assert!(set_out.status.success());
+    let stdout_set = String::from_utf8_lossy(&set_out.stdout);
+    assert!(stdout_set.contains("Zapisano klucz dla dostawcy 'elevenlabs'"));
+
+    // 2. List providers and verify masking
+    let list_out = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .args(["providers", "list"])
+        .output()
+        .expect("Failed to execute audioticon providers list");
+    assert!(list_out.status.success());
+    let stdout_list = String::from_utf8_lossy(&list_out.stdout);
+    assert!(stdout_list.contains("ElevenLabs"));
+    assert!(stdout_list.contains("sk_t••••cdef"));
+    assert!(!stdout_list.contains("1234567890")); // Plain key must not leak
+
+    // 3. Remove provider
+    let rem_out = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .args(["providers", "remove", "elevenlabs"])
+        .output()
+        .expect("Failed to execute audioticon providers remove");
+    assert!(rem_out.status.success());
+    let stdout_rem = String::from_utf8_lossy(&rem_out.stdout);
+    assert!(stdout_rem.contains("Usunięto konfigurację dostawcy 'elevenlabs'"));
+}
+
+#[test]
+fn test_cli_estimate_command() {
+    let output = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .args(["estimate", "--provider", "elevenlabs", "--voice", "adam"])
+        .output()
+        .expect("Failed to execute audioticon estimate");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Szacunek kosztów syntezy mowy"));
+    assert!(stdout.contains("ELEVENLABS"));
+    assert!(stdout.contains("Liczba segmentów mowy"));
+    assert!(stdout.contains("Szacowany koszt:"));
+}
+
+#[test]
+fn test_cli_render_estimate_flag() {
+    let output = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .args(["render", "--demo", "--provider", "elevenlabs", "--estimate"])
+        .output()
+        .expect("Failed to execute audioticon render --estimate");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Szacunek kosztów syntezy mowy (ELEVENLABS)"));
+    assert!(stdout.contains("Łączna liczba znaków:"));
+}

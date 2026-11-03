@@ -1,5 +1,7 @@
 pub mod audio;
 pub mod cache;
+pub mod credentials;
+pub mod estimator;
 pub mod importer;
 pub mod models;
 pub mod parser;
@@ -9,9 +11,16 @@ pub mod verbalizer;
 
 pub use audio::{
     create_breath_wav, create_silence_wav, export_to_m4b, export_to_mp3, stitch_wav_files,
-    AudioDirectorEngine, EdgeTtsBridge, PiperBridge, SpeechSynthesizer, DEFAULT_SAMPLE_RATE,
+    AudioDirectorEngine, EdgeTtsBridge, ElevenLabsBridge, PiperBridge, SpeechSynthesizer,
+    DEFAULT_SAMPLE_RATE,
 };
 pub use cache::compute_segment_hash;
+pub use credentials::{
+    credentials_path, get_api_key, get_masked_key, load_credentials, mask_api_key, remove_api_key,
+    save_credentials, set_api_key, verify_elevenlabs_key, CredentialsConfig, ElevenLabsAccountInfo,
+    ProviderCredentials,
+};
+pub use estimator::{estimate_cost, CostEstimate};
 pub use importer::{
     base64_decode, decode_html_entities, strip_html_tags, ImportedBook, ImportedChapter,
 };
