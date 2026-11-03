@@ -715,13 +715,17 @@
       position: relative;
       user-select: none;
       perspective: 1300px;
-      overflow: hidden;
+      /* 3D cards extend beyond the cylinder's layout box while rotating.
+         Clipping this section makes the drum appear empty on narrower windows. */
+      overflow: visible;
       padding: 1rem 0 3rem 0;
     }
 
     .orbit-layout-row {
       width: 100%;
       max-width: 1200px;
+      box-sizing: border-box;
+      padding: 0 1rem;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -2359,31 +2363,6 @@
       }
     }
 
-        if (!resp.ok) {
-          const errText = await resp.text();
-          throw new Error(errText || `Błąd serwera HTTP ${resp.status}`);
-        }
-
-        const blob = await resp.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        const cleanName = title.replace(/[^a-zA-Z0-9_\-\u00a0-\u024f]/g, '_').substring(0, 40);
-        a.download = `${cleanName}.${format}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(blobUrl);
-      } catch (err) {
-        alert(`Błąd podczas eksportu ${format.toUpperCase()}:\n${err.message}`);
-      } finally {
-        if (btn) {
-          btn.innerHTML = oldText;
-          btn.disabled = false;
-        }
-      }
-    }
-
     function downloadAudiobookMp3(btn) {
       if (hasExplicitEngineConnection) {
         requestAudiobookExport('mp3', btn);
@@ -2581,11 +2560,19 @@
     // ========================================================
     const CARD_COUNT = 8;
     function getCardRadius() {
-      if (window.innerWidth < 640) return 270;
-      if (window.innerWidth < 900) return 330;
-      if (window.innerWidth < 1200) return 400;
-      if (window.innerWidth < 1600) return 480;
-      return 540;
+      // Fit the 3D depth to the actual stage. The old fixed values (up to
+      // 540px) pushed cards beyond the perspective viewport and hid the drum.
+      const stage = document.getElementById('orbit-stage');
+      const card = document.querySelector('.orbit-card');
+      if (!stage || !card) return 320;
+
+      const cardStyle = window.getComputedStyle(card);
+      const cardWidth = parseFloat(cardStyle.width) || 230;
+      const availableWidth = stage.clientWidth * 0.38;
+      const availableHeight = stage.clientHeight * 0.62;
+      const fitRadius = Math.min(availableWidth, availableHeight);
+
+      return Math.max(cardWidth * 0.9, Math.min(fitRadius, 420));
     }
 
     let currentOrbitAngle = 0;
