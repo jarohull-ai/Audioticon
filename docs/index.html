@@ -4,6 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Audioticon Studio — Reżyseria Audiobooków</title>
+  <meta name="description" content="Audioticon — Otwarty silnik i studio reżyserii audiobooków w Rust. Wielogłosowość, sterowanie emotikonami, lokalny Piper TTS offline i mastering EBU R128 (-19 LUFS).">
+  <!-- Open Graph / Facebook / Discord -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://jarohull-ai.github.io/Audioticon/">
+  <meta property="og:title" content="Audioticon — Reżyseria Audiobooków Tekstem i Emotikonami">
+  <meta property="og:description" content="Zamieniaj książki i scenariusze w broadcastowe słuchowiska za pomocą prostych emotikonów. 100% lokalny Piper TTS, mastering EBU R128 i Studio 3D.">
+  <meta property="og:image" content="https://raw.githubusercontent.com/jarohull-ai/Audioticon/main/assets/logo.png">
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://jarohull-ai.github.io/Audioticon/">
+  <meta name="twitter:title" content="Audioticon — Reżyseria Audiobooków">
+  <meta name="twitter:description" content="Otwarty silnik audiobookowy w Rust. Wielogłosowość, emoji directing, 100% offline Piper TTS i mastering radiowy.">
+  <meta name="twitter:image" content="https://raw.githubusercontent.com/jarohull-ai/Audioticon/main/assets/logo.png">
   <link rel="icon" type="image/png" href="logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,6 +33,12 @@
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      overflow-x: hidden;
+      width: 100%;
+      max-width: 100vw;
+    }
 
     body {
       background-color: var(--bg);
@@ -721,8 +740,6 @@
       transform-style: preserve-3d;
       cursor: grab;
       touch-action: none;
-      /* Przesunięcie bębna lekko w lewo, robiąc miejsce na szklane logo po prawej */
-      transform: translateX(-70px);
     }
 
     .orbit-stage:active {
@@ -861,6 +878,36 @@
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
     }
 
+    .dock-pill {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #94a3b8;
+      padding: 0.45rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-family: inherit;
+    }
+
+    .dock-pill:hover {
+      background: rgba(6, 182, 212, 0.15);
+      border-color: rgba(6, 182, 212, 0.4);
+      color: #38bdf8;
+      transform: translateY(-1px);
+    }
+
+    .dock-pill.active {
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.3), rgba(139, 92, 246, 0.3));
+      border: 1px solid var(--accent);
+      color: #fff;
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+
     /* Glassmorphic 3D Card (Architecture of Clarity Style) */
     .orbit-card {
       position: absolute;
@@ -903,7 +950,8 @@
     }
 
     .orbit-card.card-flank {
-      filter: brightness(0.72);
+      filter: brightness(0.92);
+      opacity: 0.92 !important;
     }
 
     .orbit-card.card-rear {
@@ -913,8 +961,8 @@
     }
 
     .orbit-card:not(.active):not(.card-flank):not(.card-rear) {
-      filter: brightness(0.65) blur(0.5px);
-      opacity: 0.85;
+      filter: brightness(0.75);
+      opacity: 0.65;
     }
 
     .card-badge {
@@ -1152,6 +1200,334 @@
       }
     }
 
+    @media (min-width: 1200px) {
+      .orbit-layout-row {
+        max-width: 1400px;
+        gap: 3rem;
+      }
+      .orbit-stage {
+        height: 520px;
+      }
+      .orbit-cylinder {
+        width: 270px;
+        height: 380px;
+      }
+      .orbit-card {
+        width: 270px;
+        height: 380px;
+        padding: 1.6rem 1.35rem;
+      }
+      .card-title-3d {
+        font-size: 1.25rem;
+      }
+      .card-desc-3d {
+        font-size: 0.88rem;
+        line-height: 1.45;
+      }
+    }
+
+    @media (min-width: 1600px) {
+      .orbit-layout-row {
+        max-width: 1600px;
+        gap: 4rem;
+      }
+      .orbit-stage {
+        height: 580px;
+      }
+      .orbit-cylinder {
+        width: 310px;
+        height: 430px;
+      }
+      .orbit-card {
+        width: 310px;
+        height: 430px;
+        padding: 1.8rem 1.5rem;
+      }
+      .card-title-3d {
+        font-size: 1.35rem;
+      }
+      .card-desc-3d {
+        font-size: 0.95rem;
+        line-height: 1.5;
+      }
+    }
+
+    @media (max-width: 480px) {
+      header {
+        padding: 0.85rem 1rem;
+      }
+      .brand-title {
+        font-size: 1.05rem;
+      }
+      .header-links {
+        gap: 0.4rem;
+      }
+      .badge-pill {
+        display: none;
+      }
+      .btn-github {
+        padding: 0.35rem 0.65rem;
+        font-size: 0.75rem;
+      }
+    }
+
+    /* ========================================== */
+    /* SHOWCASE HERO & AUDIO SAMPLES STYLES       */
+    /* ========================================== */
+    .guest-showcase-section {
+      padding: 3rem 1.5rem 2.5rem 1.5rem;
+      border-bottom: 1px solid var(--card-border);
+      background: radial-gradient(circle at 50% 0%, rgba(6, 182, 212, 0.15) 0%, transparent 65%);
+    }
+    .showcase-container {
+      max-width: 1180px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .showcase-hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      color: #38bdf8;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-bottom: 1.2rem;
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #10b981;
+      animation: pulse-anim 2s infinite;
+    }
+    @keyframes pulse-anim {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+    .showcase-title {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 800;
+      line-height: 1.2;
+      background: linear-gradient(135deg, #ffffff 40%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 1rem;
+    }
+    .showcase-subtitle {
+      font-size: clamp(0.95rem, 1.8vw, 1.12rem);
+      color: var(--text-muted);
+      max-width: 840px;
+      margin: 0 auto 2.2rem auto;
+      line-height: 1.6;
+    }
+    .samples-showcase-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #e2e8f0;
+      margin-bottom: 1.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .samples-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2.2rem;
+      text-align: left;
+    }
+    .sample-box {
+      background: rgba(17, 24, 39, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 1.35rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      backdrop-filter: blur(12px);
+      transition: all 0.25s ease;
+    }
+    .sample-box:hover {
+      border-color: rgba(6, 182, 212, 0.4);
+      transform: translateY(-3px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    }
+    .sample-box.highlight {
+      border: 1px solid rgba(139, 92, 246, 0.45);
+      background: linear-gradient(145deg, rgba(23, 22, 45, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+    }
+    .sample-box-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.65rem;
+    }
+    .sample-tag {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.2rem 0.55rem;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+    .sample-tag.natural {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .sample-tag.emotion {
+      background: rgba(6, 182, 212, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(6, 182, 212, 0.3);
+    }
+    .sample-tag.multivoice {
+      background: rgba(139, 92, 246, 0.2);
+      color: #c084fc;
+      border: 1px solid rgba(139, 92, 246, 0.4);
+    }
+    .sample-meta {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      font-family: 'Fira Code', monospace;
+    }
+    .sample-box-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.45rem;
+    }
+    .sample-box-desc {
+      font-size: 0.83rem;
+      color: #94a3b8;
+      line-height: 1.45;
+      margin-bottom: 1.1rem;
+      flex: 1;
+    }
+    .sample-box-desc code {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 0.1rem 0.3rem;
+      border-radius: 4px;
+      color: #38bdf8;
+      font-size: 0.8rem;
+    }
+    .audio-player-wrapper audio {
+      width: 100%;
+      height: 38px;
+      border-radius: 8px;
+      outline: none;
+    }
+    .showcase-cta-bar {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+    .btn-cta-studio {
+      background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+      color: #fff;
+      font-weight: 700;
+      padding: 0.75rem 1.4rem;
+      border-radius: 10px;
+      text-decoration: none;
+      box-shadow: 0 0 20px var(--accent-glow);
+      transition: all 0.2s;
+    }
+    .btn-cta-studio:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 30px rgba(6, 182, 212, 0.6);
+    }
+    .btn-cta-download {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      font-weight: 600;
+      padding: 0.75rem 1.25rem;
+      border-radius: 10px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-cta-download:hover {
+      background: rgba(255, 255, 255, 0.14);
+      transform: translateY(-1px);
+    }
+    .btn-cta-wiki {
+      background: transparent;
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      color: #38bdf8;
+      font-weight: 600;
+      padding: 0.75rem 1.25rem;
+      border-radius: 10px;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-cta-wiki:hover {
+      background: rgba(6, 182, 212, 0.1);
+      transform: translateY(-1px);
+    }
+    .showcase-install-cmd {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 0.5rem 1rem;
+      border-radius: 10px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      color: #67e8f9;
+      max-width: 100%;
+      overflow-x: auto;
+    }
+    .engine-status-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.85);
+      border-bottom: 1px solid var(--card-border);
+      padding: 0.75rem 2rem;
+      font-size: 0.82rem;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .engine-status-left {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .status-indicator-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .status-indicator-dot.demo {
+      background: #38bdf8;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+    }
+    .status-indicator-dot.online {
+      background: #10b981;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.7);
+    }
+    .btn-engine-connect {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #f3f4f6;
+      padding: 0.35rem 0.75rem;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-engine-connect:hover {
+      background: rgba(6, 182, 212, 0.2);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
     /* Modal for Expanded Card View */
     .card-modal-overlay {
       position: fixed;
@@ -1273,12 +1649,13 @@
       </div>
     </a>
     <div class="header-links">
+      <a href="#guest-showcase" class="dock-pill" style="text-decoration: none;">🎧 Próbki Audio</a>
       <!-- 3D Orbit / Classic Switcher -->
       <div class="view-switcher">
         <button id="btn-view-3d" class="btn-toggle active" onclick="setViewMode('3d')">🪐 Bęben 3D</button>
         <button id="btn-view-classic" class="btn-toggle" onclick="setViewMode('classic')">📋 Warsztat</button>
       </div>
-      <span class="badge-pill">Mastering: EBU R128 (-19 LUFS)</span>
+      <a href="https://github.com/jarohull-ai/Audioticon/wiki/Audioticon" target="_blank" class="badge-pill" style="text-decoration: none;">📚 Wiki</a>
       <a href="https://github.com/jarohull-ai/Audioticon" target="_blank" class="btn-github">
         <svg height="15" width="15" viewBox="0 0 16 16" fill="currentColor">
           <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
@@ -1289,6 +1666,105 @@
   </header>
 
   <main>
+    <!-- ========================================== -->
+    <!-- 0. VISITOR SHOWCASE & AUDIO SAMPLES        -->
+    <!-- ========================================== -->
+    <section id="guest-showcase" class="guest-showcase-section">
+      <div class="showcase-container">
+        <div class="showcase-hero-badge">
+          <span class="pulse-dot"></span> Oficjalne Wydanie v0.2.1 • Silnik Audio w Rust
+        </div>
+        <h1 class="showcase-title">Twórz broadcastowe audiobooki tekstem i emotikonami</h1>
+        <p class="showcase-subtitle">
+          Audioticon zamienia tekst, scenariusze i książki (EPUB, DOCX) w profesjonalne, wielogłosowe słuchowiska radiowe. Zapomnij o skomplikowanych programach DAW — reżyseruj pauzy, intonację, emocje i akustykę za pomocą intuicyjnych emotikonów.
+        </p>
+
+        <!-- 3 Prawdziwe Próbki Audio z Prologu "Archiwum Pyłu" -->
+        <div class="samples-showcase-title">
+          <span>🎧 Posłuchaj różnicy: Prolog „Archiwum Pyłu” (Prawdziwy render silnika)</span>
+        </div>
+        
+        <div class="samples-grid">
+          <!-- Karta 1: Lektor Naturalny -->
+          <div class="sample-box">
+            <div class="sample-box-header">
+              <span class="sample-tag natural">Test 1 • Lektor Naturalny</span>
+              <span class="sample-meta">-20.1 LUFS • 44.1 kHz</span>
+            </div>
+            <h3 class="sample-box-title">Głos Męski (Darkman)</h3>
+            <p class="sample-box-desc">
+              Płynne czytanie narracji, autentyczna polska odmiana dat i godzin („dwudziestego czwartego lutego... piętnasta czterdzieści siedem”). Czysty mastering ACX.
+            </p>
+            <div class="audio-player-wrapper">
+              <audio controls preload="none" src="samples/Prolog_Naturalny.mp3"></audio>
+            </div>
+          </div>
+
+          <!-- Karta 2: Reżyseria & Emocje -->
+          <div class="sample-box">
+            <div class="sample-box-header">
+              <span class="sample-tag emotion">Test 2 • Emocje i Kadencja</span>
+              <span class="sample-meta">-19.8 LUFS • EBU R128</span>
+            </div>
+            <h3 class="sample-box-title">Pauzy, Oddechy i Akcenty</h3>
+            <p class="sample-box-desc">
+              Pauzy dramatyczne <code>⏸️</code>, oddech lektorski <code>😮‍💨</code>, akcentowanie fraz <code>💥</code> i zwolnienie tempa <code>🐢</code>.
+            </p>
+            <div class="audio-player-wrapper">
+              <audio controls preload="none" src="samples/Prolog_Emocje.mp3"></audio>
+            </div>
+          </div>
+
+          <!-- Karta 3: Wielogłosowość & DSP -->
+          <div class="sample-box highlight">
+            <div class="sample-box-header">
+              <span class="sample-tag multivoice">Test 3 • Wielogłosowość & FX</span>
+              <span class="sample-meta">Darkman + MC Speech + DSP</span>
+            </div>
+            <h3 class="sample-box-title">Narrator + Strażnik + Telefon</h3>
+            <p class="sample-box-desc">
+              Zmiana postaci w locie: Narrator <code>🎙️</code> (Darkman), Strażnik <code>👨</code> (MC Speech), filtr pasmowy telefonu <code>📱</code> i pogłos.
+            </p>
+            <div class="audio-player-wrapper">
+              <audio controls preload="none" src="samples/Prolog_Wieloglosowy.mp3"></audio>
+            </div>
+          </div>
+        </div>
+
+        <!-- Przyciski akcji -->
+        <div class="showcase-cta-bar">
+          <a href="#view-3d" class="btn-cta-studio" onclick="document.getElementById('view-3d').scrollIntoView({behavior: 'smooth'})">
+            🪐 Otwórz Studio 3D
+          </a>
+          <a href="https://github.com/jarohull-ai/Audioticon/releases/tag/v0.2.1" target="_blank" class="btn-cta-download">
+            📥 Pobierz v0.2.1 (Linux x86_64)
+          </a>
+          <a href="https://github.com/jarohull-ai/Audioticon/wiki/Audioticon" target="_blank" class="btn-cta-wiki">
+            📚 Dokumentacja Wiki
+          </a>
+        </div>
+
+        <div class="showcase-install-cmd">
+          <span style="color: #94a3b8; font-size: 0.8rem;">Instalacja 1-linijkowa (Linux):</span>
+          <code>curl -fsSL https://raw.githubusercontent.com/jarohull-ai/Audioticon/main/scripts/setup.sh | bash</code>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pasek statusu połączenia z silnikiem lokalnym -->
+    <div class="engine-status-bar" id="engine-status-banner">
+      <div class="engine-status-left">
+        <span class="status-indicator-dot demo" id="engine-status-dot"></span>
+        <span id="engine-status-label">
+          <strong>Tryb Podglądu Online (Demo)</strong> — renderowanie demonstracyjne z gotowymi próbkami.
+        </span>
+      </div>
+      <div class="engine-status-right">
+        <button class="btn-engine-connect" id="btn-engine-connect" onclick="checkEngineConnection(true)">
+          🔗 Połącz z lokalnym Audioticon (127.0.0.1:3000)
+        </button>
+      </div>
+    </div>
     <!-- ========================================== -->
     <!-- 1. ORBITAL 3D CYLINDER VIEW                -->
     <!-- ========================================== -->
@@ -1369,7 +1845,7 @@
               <div>
                 <div class="card-icon">🎧</div>
                 <div class="card-title-3d">Mastering EBU R128</div>
-                <div class="card-desc-3d">Norma ACX / Audible: -19 LUFS, True-Peak -3.5 dBTP, pobieranie MP3.</div>
+                <div class="card-desc-3d">Norma ACX: -19.8 do -20.1 LUFS, Peak -5.3 dBFS, True-Peak limiter -3.5 dBTP.</div>
               </div>
               <button class="card-open-btn">Otwórz panel ↗</button>
             </div>
@@ -1722,7 +2198,10 @@
       }
 
       if (!success) {
-        infoBox.innerHTML = `ℹ️ <strong>Brak aktywnego silnika lokalnego.</strong> Aby renderować dowolny własny tekst offline z masteringiem EBU R128, uruchom w terminalu: <br><code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">audioticon studio</code> (lub <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">audioticon serve</code>).<br>W tej chwili możesz odtwarzać i pobierać 5 gotowych próbek demonstracyjnych powyżej!`;
+        infoBox.innerHTML = `ℹ️ <strong>Brak aktywnego silnika lokalnego.</strong> Aby renderować dowolny własny tekst offline z masteringiem EBU R128:<br>
+        1. <a href="https://github.com/jarohull-ai/Audioticon/releases/tag/v0.2.1" target="_blank" style="color: #38bdf8; font-weight: bold; text-decoration: underline;">Pobierz aplikację Audioticon v0.2.1 (Releases)</a><br>
+        2. Uruchom w terminalu: <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">audioticon studio</code> (lub <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px;">audioticon serve</code>).<br>
+        W tej chwili możesz odsłuchać 3 gotowe próbki audio w sekcji na górze strony!`;
       }
 
       btn.disabled = false;
@@ -1748,10 +2227,11 @@
     // ========================================================
     const CARD_COUNT = 8;
     function getCardRadius() {
-      if (window.innerWidth < 640) return 280;
-      if (window.innerWidth < 900) return 340;
-      if (window.innerWidth < 1200) return 390;
-      return 430;
+      if (window.innerWidth < 640) return 270;
+      if (window.innerWidth < 900) return 330;
+      if (window.innerWidth < 1200) return 400;
+      if (window.innerWidth < 1600) return 480;
+      return 540;
     }
 
     let currentOrbitAngle = 0;
@@ -2214,7 +2694,7 @@ room_size = 0.90
 reverb_tail = 0.85
 air = 0.70</pre>
               <div style="display: flex; justify-content: flex-end;">
-                <button onclick="copyTomlToClipboard()" class="btn-download">
+                <button onclick="copyTomlToClipboard(this)" class="btn-download">
                   📋 Kopiuj TOML do schowka
                 </button>
               </div>
@@ -2266,18 +2746,18 @@ air = 0.70</pre>
               <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; text-align: center;">
                 <div style="background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); border-radius: 10px; padding: 0.75rem;">
                   <div style="font-size: 0.75rem; color: #a7f3d0;">Integrated Loudness</div>
-                  <div style="font-size: 1.25rem; font-weight: 800; color: #34d399;">-19.1 LUFS</div>
-                  <div style="font-size: 0.7rem; color: #94a3b8;">Norma: -19.0 LUFS</div>
+                  <div style="font-size: 1.25rem; font-weight: 800; color: #34d399;">-20.0 LUFS</div>
+                  <div style="font-size: 0.7rem; color: #94a3b8;">Norma ACX: -19.0 &plusmn;1 LUFS</div>
                 </div>
                 <div style="background: rgba(6,182,212,0.1); border: 1px solid rgba(6,182,212,0.3); border-radius: 10px; padding: 0.75rem;">
                   <div style="font-size: 0.75rem; color: #bae6fd;">True Peak</div>
-                  <div style="font-size: 1.25rem; font-weight: 800; color: #38bdf8;">-3.5 dBTP</div>
-                  <div style="font-size: 0.7rem; color: #94a3b8;">Wymóg: &le; -3.0 dBTP</div>
+                  <div style="font-size: 1.25rem; font-weight: 800; color: #38bdf8;">-5.3 dBFS</div>
+                  <div style="font-size: 0.7rem; color: #94a3b8;">Limiter ceiling: &le; -3.5 dBTP</div>
                 </div>
                 <div style="background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.3); border-radius: 10px; padding: 0.75rem;">
-                  <div style="font-size: 0.75rem; color: #ddd6fe;">Zakres Dynamiki (LRA)</div>
-                  <div style="font-size: 1.25rem; font-weight: 800; color: #c084fc;">4.2 LU</div>
-                  <div style="font-size: 0.7rem; color: #94a3b8;">Audiobook studyjny</div>
+                  <div style="font-size: 0.75rem; color: #ddd6fe;">Próbkowanie & Bitrate</div>
+                  <div style="font-size: 1.25rem; font-weight: 800; color: #c084fc;">44.1 kHz</div>
+                  <div style="font-size: 0.7rem; color: #94a3b8;">192 kb/s CBR</div>
                 </div>
               </div>
 
@@ -2285,7 +2765,7 @@ air = 0.70</pre>
                 <button onclick="renderCustomAudio(); closeCardModal();" class="btn-render" style="flex: 1; justify-content: center;">
                   ▶ Renderuj i odsłuchaj (EBU R128)
                 </button>
-                <a href="audio/aurora.mp3" download="audioticon_mastered.mp3" class="btn-download" style="flex: 1; justify-content: center;">
+                <a href="samples/Prolog_Naturalny.mp3" download="Prolog_Naturalny_Mastered.mp3" class="btn-download" style="flex: 1; justify-content: center;">
                   ⬇ Pobierz plik MP3
                 </a>
               </div>
@@ -2659,24 +3139,69 @@ air = 0.70</pre>
       fetchOfflineModelsList();
     }
 
+    let hasExplicitEngineConnection = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+    async function checkEngineConnection(showFeedback = false) {
+      const btn = document.getElementById('btn-engine-connect');
+      const dot = document.getElementById('engine-status-dot');
+      const label = document.getElementById('engine-status-label');
+
+      if (btn) btn.innerHTML = '⏳ Łączenie...';
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
+        const res = await fetch('http://127.0.0.1:3000/api/models', { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          hasExplicitEngineConnection = true;
+          if (dot) dot.className = 'status-indicator-dot online';
+          if (label) label.innerHTML = '🟢 <strong>Połączono z silnikiem</strong>: Audioticon Studio (127.0.0.1:3000)';
+          if (btn) {
+            btn.innerHTML = '✅ Połączono';
+            btn.style.borderColor = '#10b981';
+            btn.style.color = '#34d399';
+          }
+          if (showFeedback) alert('Pomyślnie połączono z lokalnym silnikiem Audioticon (127.0.0.1:3000)!');
+          fetchOfflineModelsList();
+          return true;
+        }
+      } catch (err) {}
+
+      hasExplicitEngineConnection = false;
+      if (dot) dot.className = 'status-indicator-dot demo';
+      if (label) label.innerHTML = '🌐 <strong>Tryb Podglądu Online (Demo)</strong> — renderowanie demonstracyjne z gotowymi próbkami.';
+      if (btn) {
+        btn.innerHTML = '🔗 Połącz z lokalnym Audioticon';
+        btn.style.borderColor = 'rgba(255,255,255,0.2)';
+        btn.style.color = '#f3f4f6';
+      }
+      if (showFeedback) {
+        alert('Nie wykryto uruchomionego serwera pod adresem http://127.0.0.1:3000.\n\nAby połączyć przeglądarkę z silnikiem na komputerze:\n1. Otwórz terminal i wpisz: audioticon studio (lub audioticon serve)\n2. Następnie kliknij ponownie „Połącz”.');
+      }
+      return false;
+    }
+
     async function fetchOfflineModelsList() {
       const container = document.getElementById('offline-models-container');
       if (!container) return;
 
-      container.innerHTML = `<div style="color: #94a3b8; font-size: 0.82rem; padding: 0.5rem; text-align: center;">⏳ Sprawdzanie modeli offline...</div>`;
-
       const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const endpoints = isLocalHost ? ['/api/models'] : ['http://127.0.0.1:3000/api/models', '/api/models'];
-
       let models = null;
-      for (const ep of endpoints) {
-        try {
-          const res = await fetch(ep);
-          if (res.ok) {
-            models = await res.json();
-            break;
-          }
-        } catch (e) {}
+
+      if (isLocalHost || hasExplicitEngineConnection) {
+        container.innerHTML = `<div style="color: #94a3b8; font-size: 0.82rem; padding: 0.5rem; text-align: center;">⏳ Sprawdzanie modeli offline...</div>`;
+        const endpoints = isLocalHost ? ['/api/models'] : ['http://127.0.0.1:3000/api/models', '/api/models'];
+        for (const ep of endpoints) {
+          try {
+            const res = await fetch(ep);
+            if (res.ok) {
+              models = await res.json();
+              break;
+            }
+          } catch (e) {}
+        }
       }
 
       if (!models || models.length === 0) {
@@ -2836,10 +3361,16 @@ air = 0.70</pre>
       alert(`Zastosowano konfigurację lektora: ${prov.toUpperCase()} (${lang.toUpperCase()})`);
     }
 
-    function copyTomlToClipboard() {
+    function copyTomlToClipboard(btn) {
       const toml = document.getElementById('toml-preview-box')?.innerText || '';
+      if (!navigator.clipboard) return;
       navigator.clipboard.writeText(toml).then(() => {
-        alert('Skopiowano blok konfiguracji TOML do schowka!');
+        const target = btn || document.querySelector('#modal-body button[onclick*="copyTomlToClipboard"]');
+        if (target) {
+          const original = target.innerHTML;
+          target.innerHTML = '✅ Skopiowano do schowka!';
+          setTimeout(() => { target.innerHTML = original; }, 2000);
+        }
       });
     }
 
@@ -3231,6 +3762,9 @@ air = 0.70</pre>
       initSlashMenu();
       const savedMode = localStorage.getItem('audioticon_view_mode') || '3d';
       setViewMode(savedMode);
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        checkEngineConnection(false);
+      }
       document.getElementById('script-input').addEventListener('input', (e) => {
         updateExports(e.target.value);
       });

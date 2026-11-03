@@ -538,13 +538,27 @@ impl PiperBridge {
             || voice_str.contains("agnieszka")
         {
             "pl_PL-gosia-medium"
-        } else if voice_str.contains("darkman")
-            || voice_str.contains("marek")
+        } else if voice_str.contains("mc_speech")
+            || voice_str.contains("mc")
+            || voice_str.contains("guard")
+            || voice_str.contains("straznik")
+            || voice_str.contains("strażnik")
+        {
+            "pl_PL-mc_speech-medium"
+        } else if voice_str.contains("darkman") {
+            "pl_PL-darkman-medium"
+        } else if voice_str.contains("marek")
             || voice_str.contains("male")
             || voice_str.contains("mezczyzna")
             || voice_str.contains("mężczyzna")
         {
-            "pl_PL-darkman-medium"
+            // If mc_speech model is available, use it for male characters so it differs from narrator (darkman)
+            let mc_candidate = crate::models::models_dir().join("pl_PL-mc_speech-medium.onnx");
+            if mc_candidate.exists() {
+                "pl_PL-mc_speech-medium"
+            } else {
+                "pl_PL-darkman-medium"
+            }
         } else if voice_str.contains("amy") || voice_str.contains("jenny") {
             "en_US-amy-medium"
         } else if voice_str.contains("lessac")
@@ -552,8 +566,6 @@ impl PiperBridge {
             || voice_str.contains("guy")
         {
             "en_US-lessac-medium"
-        } else if voice_str.contains("mc_speech") || voice_str.contains("mc") {
-            "pl_PL-mc_speech-medium"
         } else {
             ""
         };
@@ -1066,9 +1078,12 @@ mod tests {
         let female_path = bridge.resolve_model_path(Some("pl-PL-ZofiaNeural"));
         assert!(female_path.to_string_lossy().contains("gosia") || female_path == dummy_default);
 
-        // Male / Marek alias should resolve to darkman model
+        // Male / Marek alias should resolve to darkman or mc_speech model
         let male_path = bridge.resolve_model_path(Some("pl-PL-MarekNeural"));
-        assert!(male_path.to_string_lossy().contains("darkman"));
+        assert!(
+            male_path.to_string_lossy().contains("darkman")
+                || male_path.to_string_lossy().contains("mc_speech")
+        );
 
         // Default should resolve to default model
         let default_path = bridge.resolve_model_path(None);
