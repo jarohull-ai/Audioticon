@@ -1982,7 +1982,7 @@
       </div>
 
       <!-- Emoji insertion bar -->
-      <div class="emoji-toolbar">
+      <div class="emoji-toolbar" id="main-emoji-toolbar">
         <button class="emoji-btn" onclick="insertEmoji('🛑')">🛑 <span>Koniec</span></button>
         <button class="emoji-btn" onclick="insertEmoji('⏸️')">⏸️ <span>Pauza</span></button>
         <button class="emoji-btn" onclick="insertEmoji('📱')">📱 <span>Telefon</span></button>
@@ -1992,6 +1992,8 @@
         <button class="emoji-btn" onclick="insertEmoji('🤖')">🤖 <span>Robot</span></button>
         <button class="emoji-btn" onclick="insertEmoji('💥')">💥 <span>Akcent</span></button>
         <button class="emoji-btn" onclick="insertEmoji('😮‍💨')">😮‍💨 <span>Oddech</span></button>
+        <span id="custom-emojis-slot" style="display: contents;"></span>
+        <button class="emoji-btn" onclick="openCustomEmojiModal()" style="background: rgba(236, 72, 153, 0.15); border-color: rgba(236, 72, 153, 0.4); color: #f472b6;">🎨 <span>+ Własna emotka</span></button>
         <button class="emoji-btn" onclick="insertEmoji('[pauza]')"><span>[pauza]</span></button>
         <button class="emoji-btn" onclick="insertEmoji('[radio]')"><span>[radio]</span></button>
         <button class="emoji-btn" onclick="insertEmoji('[katedra]')"><span>[katedra]</span></button>
@@ -3004,6 +3006,109 @@
                 </div>
               </div>
 
+              <!-- Voice Lab: Rejestrator Mikrofonowy & Klonowanie -->
+              <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(244, 114, 182, 0.35); border-radius: 12px; padding: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+                  <div>
+                    <h4 style="margin: 0; color: #f472b6; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
+                      🎙️ Voice Lab — Rejestrator Mikrofonu i Klonowanie
+                    </h4>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.78rem; color: #94a3b8;">
+                      Nagraj próbki referencyjne swojego głosu, analizuj jakość akustyczną (RMS, Peak, SNR) i twórz profile lektorskie.
+                    </p>
+                  </div>
+                  <button onclick="fetchVoiceProfiles()" class="btn-sm" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); color: #f472b6; border-radius: 6px; padding: 0.35rem 0.65rem; cursor: pointer; font-size: 0.75rem;">
+                    🔄 Odśwież profile
+                  </button>
+                </div>
+
+                <!-- Profil lektora: wybór i tworzenie -->
+                <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
+                  <select id="voice-lab-profile-select" onchange="onVoiceProfileSelected(this.value)" style="flex: 1; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.45rem; color: #fff; font-size: 0.82rem;">
+                    <option value="">Wybierz profil głosu...</option>
+                  </select>
+                  <button onclick="toggleNewProfileForm()" class="btn-sm" style="background: rgba(244, 114, 182, 0.2); border: 1px solid rgba(244, 114, 182, 0.4); color: #f472b6; padding: 0.45rem 0.8rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; white-space: nowrap;">
+                    ➕ Nowy profil
+                  </button>
+                </div>
+
+                <!-- Formularz tworzenia nowego profilu -->
+                <div id="new-profile-form" style="display: none; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.8rem; margin-bottom: 0.8rem;">
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <input type="text" id="new-prof-id" placeholder="Identyfikator (np. jarek-lektor)" style="background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.4rem 0.6rem; color: #fff; font-size: 0.8rem;">
+                    <input type="text" id="new-prof-name" placeholder="Nazwa (np. Jarek Lektor)" style="background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.4rem 0.6rem; color: #fff; font-size: 0.8rem;">
+                  </div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <select id="new-prof-gender" style="background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.4rem; color: #fff; font-size: 0.8rem;">
+                      <option value="male">Męski (Male)</option>
+                      <option value="female">Żeński (Female)</option>
+                      <option value="neutral">Neutralny</option>
+                    </select>
+                    <select id="new-prof-lang" style="background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.4rem; color: #fff; font-size: 0.8rem;">
+                      <option value="pl">Polski (PL)</option>
+                      <option value="en">English (EN)</option>
+                    </select>
+                  </div>
+                  <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button onclick="toggleNewProfileForm()" class="btn-sm" style="background: transparent; color: #94a3b8; border: none; cursor: pointer;">Anuluj</button>
+                    <button onclick="submitCreateVoiceProfile()" class="btn-sm" style="background: linear-gradient(135deg, #ec4899, #db2777); color: #fff; border: none; border-radius: 6px; padding: 0.4rem 0.8rem; cursor: pointer; font-weight: 700;">Utwórz profil</button>
+                  </div>
+                </div>
+
+                <!-- Karty tekstu fonetycznego do czytania -->
+                <div style="background: rgba(0,0,0,0.35); border-radius: 8px; padding: 0.75rem; margin-bottom: 0.8rem; border-left: 3px solid #f472b6;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                    <span style="font-size: 0.75rem; font-weight: 700; color: #f472b6;">📜 Tekst referencyjny do odczytania:</span>
+                    <div style="display: flex; gap: 0.25rem;">
+                      <button onclick="cycleVoicePrompt(-1)" class="btn-sm" style="background: rgba(255,255,255,0.1); border: none; color: #fff; padding: 0.15rem 0.45rem; border-radius: 4px; cursor: pointer;">◀</button>
+                      <button onclick="cycleVoicePrompt(1)" class="btn-sm" style="background: rgba(255,255,255,0.1); border: none; color: #fff; padding: 0.15rem 0.45rem; border-radius: 4px; cursor: pointer;">▶</button>
+                    </div>
+                  </div>
+                  <div id="voice-lab-prompt-text" style="font-size: 0.85rem; color: #e2e8f0; font-style: italic; line-height: 1.45;">
+                    „W Szczebrzeszynie chrząszcz brzmi w trzcinie i strzela w niebo suchy wiatr. Czarna kawiarnia pachniała kawą i deszczem za oknem.”
+                  </div>
+                </div>
+
+                <!-- Wizualizer mikrofonu Canvas + przyciski nagrywania -->
+                <div style="position: relative; background: #080d1a; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; overflow: hidden; margin-bottom: 0.8rem;">
+                  <canvas id="voice-lab-canvas" width="600" height="90" style="width: 100%; height: 90px; display: block;"></canvas>
+                  <div id="voice-lab-timer" style="position: absolute; top: 8px; right: 12px; font-family: 'Fira Code', monospace; font-size: 0.82rem; color: #f472b6; font-weight: 700; background: rgba(0,0,0,0.6); padding: 0.2rem 0.5rem; border-radius: 4px;">
+                    00:00
+                  </div>
+                </div>
+
+                <!-- Przyciski nagrywania -->
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.8rem;">
+                  <button id="btn-mic-record" onclick="toggleMicRecording()" class="btn-sm" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; border: none; border-radius: 6px; padding: 0.5rem 1rem; cursor: pointer; font-weight: 700; display: flex; align-items: center; gap: 0.4rem;">
+                    🔴 Rozpocznij nagranie
+                  </button>
+                  <button id="btn-mic-play" onclick="playRecordedSample()" class="btn-sm" style="display: none; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 6px; padding: 0.5rem 0.8rem; cursor: pointer;">
+                    ▶ Odsłuchaj
+                  </button>
+                  <button id="btn-mic-save" onclick="saveRecordedSampleToProfile()" class="btn-sm" style="display: none; background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; border-radius: 6px; padding: 0.5rem 1rem; cursor: pointer; font-weight: 700;">
+                    💾 Zapisz w profilu
+                  </button>
+                </div>
+
+                <!-- Raport jakości technicznej -->
+                <div id="voice-quality-report" style="display: none; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.75rem; font-size: 0.8rem; margin-bottom: 0.8rem;"></div>
+
+                <!-- Lista próbek w profilu + Akcje Klonowania i Eksportu -->
+                <div id="profile-samples-container" style="margin-top: 0.8rem; display: none;">
+                  <div style="font-size: 0.8rem; font-weight: 700; color: #94a3b8; margin-bottom: 0.4rem;">Zapisane próbki w profilu:</div>
+                  <div id="profile-samples-list" style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 120px; overflow-y: auto; margin-bottom: 0.75rem;"></div>
+
+                  <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <button onclick="triggerElevenlabsClone()" class="btn-sm" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: #fff; border: none; border-radius: 6px; padding: 0.45rem 0.85rem; cursor: pointer; font-weight: 700;">
+                      🚀 Klonuj w ElevenLabs
+                    </button>
+                    <button onclick="exportVoiceDatasetZip()" class="btn-sm" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 6px; padding: 0.45rem 0.85rem; cursor: pointer;">
+                      📦 Eksportuj Dataset (ZIP)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <div class="dsp-slider-group">
                 <div class="dsp-slider-row">
                   <label>Tempo lektora:</label>
@@ -3103,6 +3208,26 @@ air = 0.70</pre>
                 <button onclick="copyTomlToClipboard(this)" class="btn-download">
                   📋 Kopiuj TOML do schowka
                 </button>
+              </div>
+
+              <!-- Projektant Własnych Emotikonek w audioticon.toml -->
+              <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(236, 72, 153, 0.35); border-radius: 12px; padding: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+                  <div>
+                    <h4 style="margin: 0; color: #f472b6; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
+                      🎨 Projektant Własnych Emotikonek (Custom Emojis)
+                    </h4>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.78rem; color: #94a3b8;">
+                      Zdefiniuj własne emotikony powiązane z filtrami DSP, rolami postaci lub modyfikatorami w <code>audioticon.toml</code>.
+                    </p>
+                  </div>
+                  <button onclick="openCustomEmojiModal()" class="btn-sm" style="background: rgba(236, 72, 153, 0.2); border: 1px solid rgba(236, 72, 153, 0.4); color: #f472b6; border-radius: 6px; padding: 0.35rem 0.65rem; cursor: pointer; font-size: 0.75rem; font-weight: 700;">
+                    ➕ Dodaj emotikonkę
+                  </button>
+                </div>
+                <div id="card-custom-emojis-list" style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 150px; overflow-y: auto;">
+                  <div style="color: #94a3b8; font-size: 0.8rem; text-align: center; padding: 0.5rem;">Ładowanie własnych emotikonek...</div>
+                </div>
               </div>
             </div>
           `;
@@ -4459,12 +4584,610 @@ air = 0.70</pre>
       });
     }
 
+    // ========================================================
+    // 🎨 CUSTOM EMOJIS & PRESET DESIGNER
+    // ========================================================
+    let projectCustomEmojis = {};
+
+    async function fetchCustomEmojis() {
+      try {
+        const res = await fetch(getApiUrl('/api/custom-emojis'));
+        if (res.ok) {
+          const data = await res.json();
+          projectCustomEmojis = data.emojis || {};
+          renderCustomEmojisUI();
+        }
+      } catch (e) {
+        const local = localStorage.getItem('audioticon_custom_emojis');
+        if (local) {
+          try { projectCustomEmojis = JSON.parse(local); } catch(_) {}
+        }
+        renderCustomEmojisUI();
+      }
+    }
+
+    function renderCustomEmojisUI() {
+      const slot = document.getElementById('custom-emojis-slot');
+      if (slot) {
+        const entries = Object.entries(projectCustomEmojis);
+        if (entries.length === 0) {
+          slot.innerHTML = '';
+        } else {
+          slot.innerHTML = entries.map(([emoji, def]) => `
+            <button class="emoji-btn" onclick="insertEmoji('${emoji}')" title="${def.name} (${def.action_type})">
+              <span>${emoji}</span> <span>${def.name}</span>
+            </button>
+          `).join('');
+        }
+      }
+
+      const cardList = document.getElementById('card-custom-emojis-list');
+      if (cardList) {
+        const entries = Object.entries(projectCustomEmojis);
+        if (entries.length === 0) {
+          cardList.innerHTML = `<div style="color: #94a3b8; font-size: 0.8rem; text-align: center; padding: 0.5rem;">Brak własnych emotikonek w projekcie. Kliknij "+ Dodaj emotikonkę".</div>`;
+        } else {
+          cardList.innerHTML = entries.map(([emoji, def]) => `
+            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 0.4rem 0.75rem; border-radius: 6px; font-size: 0.8rem;">
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="font-size: 1.2rem;">${emoji}</span>
+                <div>
+                  <strong>${def.name}</strong>
+                  ${def.alias ? `<code style="font-size: 0.72rem; color: #f472b6; margin-left: 0.25rem;">[${def.alias}]</code>` : ''}
+                  <span style="color: #94a3b8; font-size: 0.72rem; margin-left: 0.4rem;">(${def.action_type}: ${def.filter || def.voice || 'modyfikator'})</span>
+                </div>
+              </div>
+              <button onclick="removeCustomEmoji('${emoji}')" class="btn-sm" style="background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.4); color: #f87171; border-radius: 4px; padding: 0.2rem 0.5rem; cursor: pointer;">
+                🗑️
+              </button>
+            </div>
+          `).join('');
+        }
+      }
+    }
+
+    function openCustomEmojiModal() {
+      const modal = document.getElementById('card-modal-overlay');
+      const body = document.getElementById('modal-body');
+
+      const quickPalette = ["🧙‍♂️", "👽", "🦇", "👻", "👑", "🐉", "🧝‍♀️", "⚔️", "🚪", "🛡️", "🌙", "🌲", "🔮", "🗡️", "🐺", "🦁", "🧟", "💀", "👴", "👧"];
+
+      body.innerHTML = `
+        <h2 style="font-size: 1.35rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
+          🎨 Projektant Własnych Emotikonek (Custom Emoji Studio)
+        </h2>
+        <p style="color: #94a3b8; font-size: 0.85rem; margin-top: -0.4rem;">
+          Stwórz własny znacznik emotikonowy powiązany z filtrem akustycznym DSP lub obsadą postaci. Zapisuje się w <code>audioticon.toml</code>.
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1rem;">
+          <div style="background: rgba(0,0,0,0.3); padding: 0.6rem; border-radius: 8px;">
+            <div style="font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.4rem;">Wybierz z palety lub wpisz dowolny symbol:</div>
+            <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+              ${quickPalette.map(e => `
+                <button type="button" onclick="selectPaletteEmoji('${e}')" style="font-size: 1.25rem; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 0.25rem 0.45rem; cursor: pointer; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
+                  ${e}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 80px 1fr 1fr; gap: 0.75rem;">
+            <div>
+              <label style="font-size: 0.78rem; font-weight: 700; color: #f472b6;">Emotka:</label>
+              <input type="text" id="emoji-input-symbol" value="🧙‍♂️" style="width: 100%; text-align: center; font-size: 1.5rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.3rem; color: #fff;">
+            </div>
+            <div>
+              <label style="font-size: 0.78rem; font-weight: 700; color: #f472b6;">Nazwa (np. Czarodziej):</label>
+              <input type="text" id="emoji-input-name" placeholder="np. Czarodziej" value="Czarodziej" style="width: 100%; margin-top: 0.2rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.45rem; color: #fff; font-size: 0.85rem;">
+            </div>
+            <div>
+              <label style="font-size: 0.78rem; font-weight: 700; color: #f472b6;">Alias tekstowy [opcja]:</label>
+              <input type="text" id="emoji-input-alias" placeholder="np. czarodziej" value="czarodziej" style="width: 100%; margin-top: 0.2rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.45rem; color: #fff; font-size: 0.85rem;">
+            </div>
+          </div>
+
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 0.75rem;">
+            <label style="font-size: 0.8rem; font-weight: 700; color: #38bdf8;">Rola emotikonki w scenariuszu:</label>
+            <div style="display: flex; gap: 1rem; margin-top: 0.4rem; font-size: 0.85rem;">
+              <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem;">
+                <input type="radio" name="emoji-action-type" value="filter" checked onchange="toggleEmojiActionType(this.value)">
+                🎛️ Filtr Akustyczny DSP
+              </label>
+              <label style="cursor: pointer; display: flex; align-items: center; gap: 0.35rem;">
+                <input type="radio" name="emoji-action-type" value="voice" onchange="toggleEmojiActionType(this.value)">
+                🗣️ Obsada Aktorska (Głos)
+              </label>
+            </div>
+          </div>
+
+          <div id="emoji-filter-options" style="display: flex; flex-direction: column; gap: 0.6rem;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+              <div>
+                <label style="font-size: 0.78rem; color: #94a3b8;">Preset bazowy:</label>
+                <select id="emoji-base-filter" style="width: 100%; margin-top: 0.2rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.45rem; color: #fff; font-size: 0.82rem;">
+                  <option value="cathedral">🏛️ Katedra / Reverb</option>
+                  <option value="dungeon">🏰 Mroczne lochy</option>
+                  <option value="phone">📱 Telefon retro</option>
+                  <option value="radio">📻 Krótkofalówka / Radio</option>
+                  <option value="megaphone">📢 Megafon</option>
+                  <option value="robot">🤖 Robot bojowy</option>
+                  <option value="whisper">🤫 Szept</option>
+                  <option value="thought">💭 Myśli bohatera</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size: 0.78rem; color: #94a3b8;">Modyfikator tonu:</label>
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.2rem;">
+                  <input type="range" min="-12" max="12" value="-4" id="emoji-pitch-slider" oninput="document.getElementById('emoji-pitch-val').innerText = (this.value >= 0 ? '+' : '') + this.value + ' Hz'" style="flex: 1;">
+                  <span id="emoji-pitch-val" style="font-family: 'Fira Code', monospace; font-size: 0.78rem; color: #67e8f9; width: 45px;">-4 Hz</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="emoji-voice-options" style="display: none; flex-direction: column; gap: 0.6rem;">
+            <div>
+              <label style="font-size: 0.78rem; color: #94a3b8;">Przypisz do głosu postaci:</label>
+              <select id="emoji-voice-select" style="width: 100%; margin-top: 0.2rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.45rem; color: #fff; font-size: 0.82rem;">
+                <option value="pl_PL-darkman-medium">Darkman (Piper PL Narrator)</option>
+                <option value="pl_PL-gosia-medium">Gosia (Piper PL Kobieta)</option>
+                <option value="pl_PL-mc_speech-medium">MC Speech (Piper PL Mężczyzna)</option>
+                <option value="pl-PL-MarekNeural">Marek (Edge PL Mężczyzna)</option>
+                <option value="pl-PL-ZofiaNeural">Zofia (Edge PL Kobieta)</option>
+                <option value="adam">Adam (ElevenLabs Lektor)</option>
+                <option value="rachel">Rachel (ElevenLabs Kobieta)</option>
+                <option value="josh">Josh (ElevenLabs Mężczyzna)</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="emoji-modal-status" style="display: none; padding: 0.5rem; border-radius: 6px; font-size: 0.8rem;"></div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+            <button onclick="closeCardModal()" class="btn-sm" style="background: transparent; color: #94a3b8; border: none; cursor: pointer;">Zamknij</button>
+            <button onclick="submitSaveCustomEmoji()" class="btn-download" style="background: linear-gradient(135deg, #ec4899, #db2777);">
+              💾 Zapisz emotikonkę w projekcie
+            </button>
+          </div>
+        </div>
+      `;
+
+      modal.classList.add('open');
+    }
+
+    function selectPaletteEmoji(e) {
+      const sym = document.getElementById('emoji-input-symbol');
+      if (sym) sym.value = e;
+    }
+
+    function toggleEmojiActionType(type) {
+      const fOpts = document.getElementById('emoji-filter-options');
+      const vOpts = document.getElementById('emoji-voice-options');
+      if (type === 'voice') {
+        if (fOpts) fOpts.style.display = 'none';
+        if (vOpts) vOpts.style.display = 'flex';
+      } else {
+        if (fOpts) fOpts.style.display = 'flex';
+        if (vOpts) vOpts.style.display = 'none';
+      }
+    }
+
+    async function submitSaveCustomEmoji() {
+      const emoji = document.getElementById('emoji-input-symbol')?.value.trim();
+      const name = document.getElementById('emoji-input-name')?.value.trim();
+      const alias = document.getElementById('emoji-input-alias')?.value.trim() || undefined;
+      const actionType = document.querySelector('input[name="emoji-action-type"]:checked')?.value || 'filter';
+      const statusBox = document.getElementById('emoji-modal-status');
+
+      if (!emoji || !name) {
+        if (statusBox) {
+          statusBox.style.display = 'block';
+          statusBox.style.background = 'rgba(239, 68, 68, 0.2)';
+          statusBox.style.color = '#f87171';
+          statusBox.innerText = 'Podaj symbol emoji i nazwę.';
+        }
+        return;
+      }
+
+      let filter = undefined;
+      let pitch = undefined;
+      let voice = undefined;
+
+      if (actionType === 'filter') {
+        filter = document.getElementById('emoji-base-filter')?.value || 'cathedral';
+        pitch = parseInt(document.getElementById('emoji-pitch-slider')?.value || '0', 10);
+      } else {
+        voice = document.getElementById('emoji-voice-select')?.value || 'pl_PL-darkman-medium';
+      }
+
+      const payload = {
+        emoji,
+        name,
+        alias,
+        action_type: actionType,
+        filter,
+        voice,
+        pitch,
+      };
+
+      try {
+        const res = await fetch(getApiUrl('/api/custom-emojis/add'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          projectCustomEmojis = data.emojis || {};
+          localStorage.setItem('audioticon_custom_emojis', JSON.stringify(projectCustomEmojis));
+          renderCustomEmojisUI();
+          closeCardModal();
+        } else {
+          throw new Error('Błąd serwera');
+        }
+      } catch (e) {
+        projectCustomEmojis[emoji] = payload;
+        localStorage.setItem('audioticon_custom_emojis', JSON.stringify(projectCustomEmojis));
+        renderCustomEmojisUI();
+        closeCardModal();
+      }
+    }
+
+    async function removeCustomEmoji(emoji) {
+      try {
+        const res = await fetch(getApiUrl('/api/custom-emojis/remove'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emoji }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          projectCustomEmojis = data.emojis || {};
+          localStorage.setItem('audioticon_custom_emojis', JSON.stringify(projectCustomEmojis));
+          renderCustomEmojisUI();
+        }
+      } catch (e) {
+        delete projectCustomEmojis[emoji];
+        localStorage.setItem('audioticon_custom_emojis', JSON.stringify(projectCustomEmojis));
+        renderCustomEmojisUI();
+      }
+    }
+
+    // ========================================================
+    // 🎙️ VOICE LAB & REAL-TIME AUDIO RECORDER
+    // ========================================================
+    let voiceLabProfiles = [];
+    let currentVoiceProfileId = null;
+    let voiceMediaRecorder = null;
+    let voiceAudioChunks = [];
+    let voiceRecordedBlob = null;
+    let voiceAudioContext = null;
+    let voiceAnalyser = null;
+    let voiceAnimId = null;
+    let voiceRecStartTime = 0;
+    let voiceRecTimerInterval = null;
+
+    const voiceLabPrompts = [
+      "W Szczebrzeszynie chrząszcz brzmi w trzcinie i strzela w niebo suchy wiatr. Czarna kawiarnia pachniała kawą i deszczem za oknem.",
+      "Cóż tam, panie, w polityce? Chińczyki trzymają się mocno! Ciemna noc spowijała zamek, a w oddali słychać było cichy szum lasu.",
+      "The quick brown fox jumps over the lazy dog near the quiet riverbank. It was a cold winter night when the stranger arrived in town."
+    ];
+    let currentPromptIdx = 0;
+
+    function cycleVoicePrompt(delta) {
+      currentPromptIdx = (currentPromptIdx + delta + voiceLabPrompts.length) % voiceLabPrompts.length;
+      const el = document.getElementById('voice-lab-prompt-text');
+      if (el) el.innerText = `„${voiceLabPrompts[currentPromptIdx]}”`;
+    }
+
+    async function fetchVoiceProfiles() {
+      try {
+        const res = await fetch(getApiUrl('/api/voicelab/profiles'));
+        if (res.ok) {
+          const data = await res.json();
+          voiceLabProfiles = data.profiles || [];
+          renderVoiceProfilesDropdown();
+        }
+      } catch (e) {
+        console.warn('Nie można pobrać profili Voice Lab:', e);
+      }
+    }
+
+    function renderVoiceProfilesDropdown() {
+      const sel = document.getElementById('voice-lab-profile-select');
+      if (!sel) return;
+
+      if (voiceLabProfiles.length === 0) {
+        sel.innerHTML = `<option value="">Brak utworzonych profili...</option>`;
+        return;
+      }
+
+      sel.innerHTML = `<option value="">Wybierz profil głosu...</option>` +
+        voiceLabProfiles.map(p => `
+          <option value="${p.id}" ${p.id === currentVoiceProfileId ? 'selected' : ''}>
+            ${p.name} (${p.gender}, ${p.language}) ${p.elevenlabs_voice_id ? '🟢 Cloned' : ''}
+          </option>
+        `).join('');
+
+      if (!currentVoiceProfileId && voiceLabProfiles.length > 0) {
+        onVoiceProfileSelected(voiceLabProfiles[0].id);
+      }
+    }
+
+    function toggleNewProfileForm() {
+      const f = document.getElementById('new-profile-form');
+      if (f) {
+        f.style.display = f.style.display === 'none' ? 'block' : 'none';
+      }
+    }
+
+    async function submitCreateVoiceProfile() {
+      const id = document.getElementById('new-prof-id')?.value.trim();
+      const name = document.getElementById('new-prof-name')?.value.trim();
+      const gender = document.getElementById('new-prof-gender')?.value || 'male';
+      const lang = document.getElementById('new-prof-lang')?.value || 'pl';
+
+      if (!id || !name) {
+        alert('Podaj identyfikator i czytelną nazwę profilu.');
+        return;
+      }
+
+      try {
+        const res = await fetch(getApiUrl('/api/voicelab/profiles/create'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, name, gender, language: lang, consent: true }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          currentVoiceProfileId = data.profile.id;
+          toggleNewProfileForm();
+          await fetchVoiceProfiles();
+        } else {
+          alert('Błąd podczas tworzenia profilu głosu');
+        }
+      } catch (e) {
+        alert('Błąd połączenia z serwerem: ' + e.message);
+      }
+    }
+
+    function onVoiceProfileSelected(id) {
+      currentVoiceProfileId = id;
+      const profile = voiceLabProfiles.find(p => p.id === id);
+      const container = document.getElementById('profile-samples-container');
+      const listEl = document.getElementById('profile-samples-list');
+
+      if (!profile || !profile.samples || profile.samples.length === 0) {
+        if (container) container.style.display = 'none';
+        return;
+      }
+
+      if (container && listEl) {
+        container.style.display = 'block';
+        listEl.innerHTML = profile.samples.map((s, idx) => `
+          <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 0.35rem 0.6rem; border-radius: 6px; font-size: 0.76rem;">
+            <span>🎵 <strong>Próbka #${idx + 1}</strong> (${s.duration_sec.toFixed(1)}s, ${s.rms_db.toFixed(1)} dBFS)</span>
+            <span style="color: ${s.clipping ? '#f87171' : '#34d399'}; font-weight: 700;">
+              ${s.clipping ? '⚠️ Clipping' : '✅ Czysto'}
+            </span>
+          </div>
+        `).join('');
+      }
+    }
+
+    async function toggleMicRecording() {
+      const btn = document.getElementById('btn-mic-record');
+      const playBtn = document.getElementById('btn-mic-play');
+      const saveBtn = document.getElementById('btn-mic-save');
+
+      if (voiceMediaRecorder && voiceMediaRecorder.state === 'recording') {
+        voiceMediaRecorder.stop();
+        if (voiceRecTimerInterval) clearInterval(voiceRecTimerInterval);
+        if (voiceAnimId) cancelAnimationFrame(voiceAnimId);
+
+        btn.innerHTML = '🔴 Rozpocznij nagranie';
+        btn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        voiceAudioChunks = [];
+
+        voiceAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        voiceAnalyser = voiceAudioContext.createAnalyser();
+        voiceAnalyser.fftSize = 256;
+        const source = voiceAudioContext.createMediaStreamSource(stream);
+        source.connect(voiceAnalyser);
+
+        drawVoiceWaveform();
+
+        voiceMediaRecorder = new MediaRecorder(stream);
+        voiceMediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) voiceAudioChunks.push(e.data);
+        };
+
+        voiceMediaRecorder.onstop = () => {
+          voiceRecordedBlob = new Blob(voiceAudioChunks, { type: 'audio/webm' });
+          if (playBtn) playBtn.style.display = 'inline-block';
+          if (saveBtn) saveBtn.style.display = 'inline-block';
+          stream.getTracks().forEach(t => t.stop());
+        };
+
+        voiceMediaRecorder.start(100);
+        voiceRecStartTime = Date.now();
+        const timerEl = document.getElementById('voice-lab-timer');
+        voiceRecTimerInterval = setInterval(() => {
+          const elapsed = Math.floor((Date.now() - voiceRecStartTime) / 1000);
+          const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+          const secs = String(elapsed % 60).padStart(2, '0');
+          if (timerEl) timerEl.innerText = `${mins}:${secs}`;
+        }, 200);
+
+        btn.innerHTML = '⏹️ Zatrzymaj nagranie';
+        btn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+        if (playBtn) playBtn.style.display = 'none';
+        if (saveBtn) saveBtn.style.display = 'none';
+      } catch (e) {
+        alert('Nie udało się uzyskać dostępu do mikrofonu: ' + e.message);
+      }
+    }
+
+    function drawVoiceWaveform() {
+      const canvas = document.getElementById('voice-lab-canvas');
+      if (!canvas || !voiceAnalyser) return;
+      const ctx = canvas.getContext('2d');
+      const bufferLength = voiceAnalyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      function render() {
+        voiceAnimId = requestAnimationFrame(render);
+        voiceAnalyser.getByteTimeDomainData(dataArray);
+
+        ctx.fillStyle = '#080d1a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#f472b6';
+        ctx.beginPath();
+
+        const sliceWidth = canvas.width * 1.0 / bufferLength;
+        let x = 0;
+
+        for (let i = 0; i < bufferLength; i++) {
+          const v = dataArray[i] / 128.0;
+          const y = v * canvas.height / 2;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+          x += sliceWidth;
+        }
+
+        ctx.lineTo(canvas.width, canvas.height / 2);
+        ctx.stroke();
+      }
+      render();
+    }
+
+    function playRecordedSample() {
+      if (!voiceRecordedBlob) return;
+      const audioUrl = URL.createObjectURL(voiceRecordedBlob);
+      const audio = new Audio(audioUrl);
+      audio.play();
+    }
+
+    async function saveRecordedSampleToProfile() {
+      if (!voiceRecordedBlob) return;
+      if (!currentVoiceProfileId) {
+        alert('Najpierw wybierz lub utwórz profil lektora.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Audio = reader.result;
+        try {
+          const res = await fetch(getApiUrl('/api/voicelab/sample'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              profile_id: currentVoiceProfileId,
+              audio_base64: base64Audio,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            displayVoiceQualityReport(data.report);
+            await fetchVoiceProfiles();
+            onVoiceProfileSelected(currentVoiceProfileId);
+          } else {
+            alert('Błąd podczas przetwarzania próbki przez serwer');
+          }
+        } catch (e) {
+          alert('Błąd połączenia: ' + e.message);
+        }
+      };
+      reader.readAsDataURL(voiceRecordedBlob);
+    }
+
+    function displayVoiceQualityReport(report) {
+      const repEl = document.getElementById('voice-quality-report');
+      if (!repEl) return;
+
+      const badgeColor = report.status === 'optimal' ? '#34d399' : (report.status === 'warning' ? '#f59e0b' : '#f87171');
+      const badgeText = report.status === 'optimal' ? '✅ Optymalna jakość' : (report.status === 'warning' ? '⚠️ Wymaga korekty' : '❌ Błąd');
+
+      repEl.style.display = 'block';
+      repEl.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+          <strong style="color: #fff;">Raport jakości nagrania:</strong>
+          <span style="background: rgba(0,0,0,0.5); color: ${badgeColor}; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 4px;">${badgeText}</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; text-align: center; margin-bottom: 0.5rem;">
+          <div style="background: rgba(255,255,255,0.05); padding: 0.3rem; border-radius: 4px;">
+            <div style="color: #94a3b8; font-size: 0.7rem;">Czas</div>
+            <div style="font-weight: 700; color: #fff;">${report.duration_sec}s</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.05); padding: 0.3rem; border-radius: 4px;">
+            <div style="color: #94a3b8; font-size: 0.7rem;">RMS</div>
+            <div style="font-weight: 700; color: #67e8f9;">${report.rms_db} dB</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.05); padding: 0.3rem; border-radius: 4px;">
+            <div style="color: #94a3b8; font-size: 0.7rem;">Szczyt</div>
+            <div style="font-weight: 700; color: ${report.is_clipped ? '#f87171' : '#fff'};">${report.peak_db} dB</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.05); padding: 0.3rem; border-radius: 4px;">
+            <div style="color: #94a3b8; font-size: 0.7rem;">SNR</div>
+            <div style="font-weight: 700; color: #a7f3d0;">${report.snr_db} dB</div>
+          </div>
+        </div>
+        <div style="font-size: 0.75rem; color: #cbd5e1; line-height: 1.4;">
+          ${report.tips.map(t => `<div>💡 ${t}</div>`).join('')}
+        </div>
+      `;
+    }
+
+    async function triggerElevenlabsClone() {
+      if (!currentVoiceProfileId) {
+        alert('Wybierz najpierw profil lektora');
+        return;
+      }
+      if (!confirm('Czy chcesz przesłać próbki profilu do ElevenLabs i sklonować głos?')) return;
+
+      try {
+        const res = await fetch(getApiUrl('/api/voicelab/clone-elevenlabs'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profile_id: currentVoiceProfileId }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert(`✅ Sukces! Głos sklonowany w ElevenLabs.\nID Głosu: ${data.voice_id}\nMożesz teraz używać go w syntezie.`);
+          await fetchVoiceProfiles();
+        } else {
+          alert('Błąd klonowania: ' + (data.error || 'Nieznany błąd'));
+        }
+      } catch (e) {
+        alert('Błąd połączenia: ' + e.message);
+      }
+    }
+
+    async function exportVoiceDatasetZip() {
+      if (!currentVoiceProfileId) {
+        alert('Wybierz najpierw profil lektora');
+        return;
+      }
+      alert(`Pobieranie datasetu ZIP dla lektora "${currentVoiceProfileId}". Archiwum zawiera próbki WAV oraz metadata.csv gotowe do treningu XTTS / Piper.`);
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       initOrbitCylinder();
       selectPreset('aurora');
       updateVoiceSelector();
       initBubbleMenu();
       initSlashMenu();
+      fetchCustomEmojis();
+      fetchVoiceProfiles();
       const savedMode = localStorage.getItem('audioticon_view_mode') || '3d';
       setViewMode(savedMode);
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {

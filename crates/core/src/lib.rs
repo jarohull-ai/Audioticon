@@ -8,6 +8,7 @@ pub mod parser;
 pub mod presets;
 pub mod types;
 pub mod verbalizer;
+pub mod voicelab;
 
 pub use audio::{
     create_breath_wav, create_silence_wav, export_to_m4b, export_to_mp3, stitch_wav_files,
@@ -29,10 +30,16 @@ pub use models::{
     ModelCatalogItem,
 };
 pub use parser::EmojiDirector;
-pub use presets::{EffectPreset, PresetRegistry, ProjectConfig, ProjectMetaConfig};
+pub use presets::{CustomEmojiDef, EffectPreset, PresetRegistry, ProjectConfig, ProjectMetaConfig};
 pub use types::{
     ActorTag, AudiobookMetadata, AudioticonProject, ChapterMark, DirectedItem, DirectedScript,
     EmojiAction, ProjectChapter, ProjectMasteringConfig, ProjectSettings, RenderResult,
     TextSegment,
 };
 pub use verbalizer::normalize_polish_text;
+pub use voicelab::{
+    add_sample_to_profile, analyze_wav_samples, clone_to_elevenlabs, convert_to_standard_wav,
+    delete_voice_profile, export_dataset_zip, get_voice_profile, list_voice_profiles, profile_dir,
+    punch_in_sentence, read_wav_samples, sanitize_slug, save_voice_profile, voices_dir,
+    SampleQualityReport, VoiceProfile, VoiceSampleMeta,
+};

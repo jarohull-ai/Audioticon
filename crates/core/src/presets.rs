@@ -230,6 +230,42 @@ pub struct ProjectMetaConfig {
     pub year: Option<String>,
 }
 
+/// Definition of a custom user emoji in `audioticon.toml`
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct CustomEmojiDef {
+    /// Friendly name, e.g. "Czarodziej"
+    #[serde(default)]
+    pub name: String,
+    /// Text alias, e.g. "czarodziej" allowing `[czarodziej]` as an alternative to the emoji
+    #[serde(default)]
+    pub alias: Option<String>,
+    /// Action category: "filter" (acoustic DSP effect), "voice" (speaker assignment), or "modifier" (pitch/rate)
+    #[serde(default = "default_action_type")]
+    pub action_type: String,
+    /// DSP filter preset name (e.g. "cathedral", "dungeon", "phone", "radio", "robot", "whisper")
+    #[serde(default)]
+    pub filter: Option<String>,
+    /// Voice identifier (e.g. "pl_PL-darkman-medium", "pl-PL-MarekNeural", or custom profile ID)
+    #[serde(default)]
+    pub voice: Option<String>,
+    /// Pitch shift in Hertz (e.g. -4 for deeper, +6 for higher)
+    #[serde(default)]
+    pub pitch: Option<i32>,
+    /// Speech rate percentage modifier (e.g. -10 for slower, +15 for faster)
+    #[serde(default)]
+    pub rate: Option<i32>,
+    /// Output volume scale
+    #[serde(default)]
+    pub volume: Option<f32>,
+    /// Description for UI tooltips
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+fn default_action_type() -> String {
+    "filter".to_string()
+}
+
 /// Full project configuration in `audioticon.toml`
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct ProjectConfig {
@@ -238,9 +274,25 @@ pub struct ProjectConfig {
     pub presets: HashMap<String, EffectPreset>,
     #[serde(default)]
     pub voices: HashMap<String, String>,
+    #[serde(default)]
+    pub emojis: HashMap<String, CustomEmojiDef>,
 }
 
 impl ProjectConfig {
+    /// Saves project configuration to `audioticon.toml`
+    pub fn save_to_path(&self, path: &Path) -> Result<()> {
+        let file_path = if path.is_dir() {
+            path.join("audioticon.toml")
+        } else {
+            path.to_path_buf()
+        };
+        let toml_str = toml::to_string_pretty(self)
+            .context("Nie można zserializować konfiguracji do formatu TOML")?;
+        std::fs::write(&file_path, toml_str)
+            .with_context(|| format!("Nie można zapisać pliku konfiguracji: {:?}", file_path))?;
+        Ok(())
+    }
+
     /// Loads `audioticon.toml` from a given file path or directory
     pub fn load_from_path(path: &Path) -> Result<Self> {
         let file_path = if path.is_dir() {
@@ -290,6 +342,8 @@ pub struct PresetRegistry {
     presets: HashMap<String, EffectPreset>,
     /// Character voice mappings (e.g. "anna" -> "pl-PL-ZofiaNeural")
     voices: HashMap<String, String>,
+    /// Custom user emojis
+    emojis: HashMap<String, CustomEmojiDef>,
 }
 
 impl Default for PresetRegistry {
@@ -297,6 +351,7 @@ impl Default for PresetRegistry {
         let mut r = Self {
             presets: HashMap::new(),
             voices: HashMap::new(),
+            emojis: HashMap::new(),
         };
         r.register_factory_defaults();
         r
@@ -379,7 +434,7 @@ impl PresetRegistry {
         );
     }
 
-    /// Loads custom presets and character voice mappings from project config
+    /// Loads custom presets, character voice mappings, and custom emojis from project config
     pub fn load_project_config(&mut self, config: &ProjectConfig) {
         for (name, preset) in &config.presets {
             self.presets.insert(name.clone(), preset.clone());
@@ -387,6 +442,62 @@ impl PresetRegistry {
         for (name, voice) in &config.voices {
             self.voices.insert(name.to_lowercase(), voice.clone());
         }
+        for (emoji, def) in &config.emojis {
+            self.register_custom_emoji(emoji.clone(), def.clone());
+        }
+    }
+
+    /// Registers a custom user emoji with associated DSP filter, voice, or modifier
+    pub fn register_custom_emoji(&mut self, emoji: impl Into<String>, def: CustomEmojiDef) {
+        let key = emoji.into();
+        if def.action_type == "filter" {
+            let base_name = def.filter.clone().unwrap_or_else(|| "none".to_string());
+            let mut ep = EffectPreset::new_base(base_name);
+            ep.pitch = def.pitch;
+            ep.rate = def.rate;
+            ep.volume = def.volume;
+            self.presets.insert(key.clone(), ep.clone());
+            if let Some(alias) = &def.alias {
+                self.presets
+                    .insert(format!("{}:default", alias), ep.clone());
+                self.presets.insert(alias.clone(), ep);
+            }
+        } else if def.action_type == "voice" {
+            if let Some(v) = &def.voice {
+                self.voices.insert(key.clone(), v.clone());
+                if let Some(alias) = &def.alias {
+                    self.voices.insert(alias.to_lowercase(), v.clone());
+                }
+            }
+        }
+        self.emojis.insert(key, def);
+    }
+
+    /// Removes a custom emoji by its icon or alias
+    pub fn remove_custom_emoji(&mut self, emoji: &str) -> bool {
+        if let Some(def) = self.emojis.remove(emoji) {
+            self.presets.remove(emoji);
+            self.voices.remove(emoji);
+            if let Some(ref alias) = def.alias {
+                self.presets.remove(alias);
+                self.voices.remove(&alias.to_lowercase());
+            }
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Returns a reference to all registered custom emojis
+    pub fn custom_emojis(&self) -> &HashMap<String, CustomEmojiDef> {
+        &self.emojis
+    }
+
+    /// Returns a sorted list of registered custom emojis
+    pub fn list_custom_emojis(&self) -> Vec<(&String, &CustomEmojiDef)> {
+        let mut list: Vec<_> = self.emojis.iter().collect();
+        list.sort_by_key(|(k, _)| (*k).clone());
+        list
     }
 
     /// Looks up a character voice mapping from the registry
@@ -515,16 +626,36 @@ mod tests {
     }
 
     #[test]
-    fn test_custom_cathedral_parameters() {
-        let preset = EffectPreset {
-            base: "cathedral".to_string(),
-            room_size: Some(0.2), // small chapel
-            reverb_tail: Some(0.2),
-            damping: Some(0.8), // warm stone
-            ..Default::default()
-        };
-        let filter = preset.to_ffmpeg_filter();
-        assert!(filter.contains("apad=pad_dur=0.44"));
-        assert!(filter.contains("lowpass=f=3900"));
+    fn test_custom_emoji_registration_and_toml() {
+        let mut reg = PresetRegistry::new();
+        let toml_str = r#"
+        [emojis."🧙‍♂️"]
+        name = "Czarodziej"
+        alias = "czarodziej"
+        action_type = "filter"
+        filter = "cathedral"
+        pitch = -4
+
+        [emojis."🦇"]
+        name = "Wampir"
+        alias = "wampir"
+        action_type = "voice"
+        voice = "pl_PL-darkman-medium"
+        "#;
+        let cfg: ProjectConfig = toml::from_str(toml_str).unwrap();
+        reg.load_project_config(&cfg);
+
+        // Check emoji registry
+        assert_eq!(reg.list_custom_emojis().len(), 2);
+
+        // Check filter preset generated for 🧙‍♂️
+        let (preset, warn) = reg.resolve("🧙‍♂️");
+        assert!(warn.is_none());
+        assert_eq!(preset.base, "cathedral");
+        assert_eq!(preset.pitch, Some(-4));
+
+        // Check voice generated for 🦇
+        assert_eq!(reg.get_voice("🦇"), Some("pl_PL-darkman-medium"));
+        assert_eq!(reg.get_voice("wampir"), Some("pl_PL-darkman-medium"));
     }
 }

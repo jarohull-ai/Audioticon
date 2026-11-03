@@ -149,10 +149,58 @@ impl EmojiDirector {
     }
 
     pub fn with_registry(registry: PresetRegistry) -> Self {
-        Self {
-            registry,
-            ..Default::default()
+        let mut director = Self::default();
+        for (emoji, def) in registry.custom_emojis() {
+            director.register_custom_emoji_def(emoji, def);
         }
+        director.registry = registry;
+        director
+    }
+
+    /// Registers a custom emoji definition into active parser actions and updates regex
+    pub fn register_custom_emoji_def(&mut self, emoji: &str, def: &crate::presets::CustomEmojiDef) {
+        if def.action_type == "voice" {
+            let v_name = def.voice.clone().unwrap_or_else(|| "default".to_string());
+            self.actions
+                .insert(emoji.to_string(), EmojiAction::Voice(v_name.clone()));
+            if let Some(alias) = &def.alias {
+                self.actions
+                    .insert(format!("[{}]", alias), EmojiAction::Voice(v_name));
+            }
+        } else if def.action_type == "filter" {
+            let f_name = emoji.to_string();
+            self.actions
+                .insert(emoji.to_string(), EmojiAction::Filter(f_name.clone()));
+            if let Some(alias) = &def.alias {
+                self.actions
+                    .insert(format!("[{}]", alias), EmojiAction::Filter(f_name));
+            }
+        } else if def.action_type == "modifier" {
+            if let Some(p) = def.pitch {
+                self.actions
+                    .insert(emoji.to_string(), EmojiAction::PitchMod(p));
+                if let Some(alias) = &def.alias {
+                    self.actions
+                        .insert(format!("[{}]", alias), EmojiAction::PitchMod(p));
+                }
+            } else if let Some(r) = def.rate {
+                self.actions
+                    .insert(emoji.to_string(), EmojiAction::RateMod(r));
+                if let Some(alias) = &def.alias {
+                    self.actions
+                        .insert(format!("[{}]", alias), EmojiAction::RateMod(r));
+                }
+            } else if let Some(v) = def.volume {
+                let vol_mod = ((v - 1.0) * 100.0) as i32;
+                self.actions
+                    .insert(emoji.to_string(), EmojiAction::VolumeMod(vol_mod));
+                if let Some(alias) = &def.alias {
+                    self.actions
+                        .insert(format!("[{}]", alias), EmojiAction::VolumeMod(vol_mod));
+                }
+            }
+        }
+        self.compiled_regex = Self::build_regex(&self.actions);
     }
 
     /// Resolves character names or voice aliases to concrete neural voice models
@@ -905,5 +953,51 @@ mod tests {
 
         // narrator / default
         assert_eq!(EmojiDirector::base_acoustics_for_speaker(None), (-4, -6));
+    }
+
+    #[test]
+    fn test_custom_emoji_director_parsing() {
+        let mut reg = PresetRegistry::new();
+        let toml_str = r#"
+        [emojis."🧙‍♂️"]
+        name = "Czarodziej"
+        alias = "czarodziej"
+        action_type = "filter"
+        filter = "cathedral"
+        pitch = -5
+
+        [emojis."🦇"]
+        name = "Wampir"
+        alias = "wampir"
+        action_type = "voice"
+        voice = "pl_PL-darkman-medium"
+        "#;
+        let cfg: crate::presets::ProjectConfig = toml::from_str(toml_str).unwrap();
+        reg.load_project_config(&cfg);
+
+        let director = EmojiDirector::with_registry(reg);
+        let script = director.parse("🧙‍♂️ Witaj wędrowcze! 🦇 Nadeszła ciemność.");
+
+        let speeches: Vec<&TextSegment> = script
+            .items
+            .iter()
+            .filter_map(|it| match it {
+                DirectedItem::Speech(seg) => Some(seg),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(speeches.len(), 2);
+        // First speech: wizard custom emoji
+        assert_eq!(speeches[0].text, "Witaj wędrowcze!");
+        assert_eq!(speeches[0].filter.as_deref(), Some("🧙‍♂️"));
+        assert_eq!(speeches[0].pitch_mod, -5);
+
+        // Second speech: vampire custom voice
+        assert_eq!(speeches[1].text, "Nadeszła ciemność.");
+        assert_eq!(
+            speeches[1].voice.as_deref().unwrap().to_lowercase(),
+            "pl_pl-darkman-medium"
+        );
     }
 }

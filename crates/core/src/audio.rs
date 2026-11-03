@@ -1090,16 +1090,30 @@ impl AudioDirectorEngine {
                         .synthesizer
                         .resolve_voice_label(segment.voice.as_deref());
                     let hash = compute_segment_hash(segment, &voice_name);
-                    let cached_wav = self.cache_dir.join(format!("{}.wav", hash));
+                    let punch_in_wav = self.cache_dir.join(format!("recorded_{}.wav", hash));
+                    let (cached_wav, is_punch_in) = if punch_in_wav.exists() {
+                        (punch_in_wav, true)
+                    } else {
+                        (self.cache_dir.join(format!("{}.wav", hash)), false)
+                    };
 
                     if cached_wav.exists() {
                         cache_hits += 1;
-                        println!(
-                            "  [{:02}] ⚡ CACHE HIT (0ms): \"{}\" [{}]",
-                            idx,
-                            segment.text,
-                            &hash[0..8]
-                        );
+                        if is_punch_in {
+                            println!(
+                                "  [{:02}] 🎙️ PUNCH-IN HIT: \"{}\" [{}]",
+                                idx,
+                                segment.text,
+                                &hash[0..8]
+                            );
+                        } else {
+                            println!(
+                                "  [{:02}] ⚡ CACHE HIT (0ms): \"{}\" [{}]",
+                                idx,
+                                segment.text,
+                                &hash[0..8]
+                            );
+                        }
                     } else {
                         missing_tasks.push((idx, segment.clone(), cached_wav.clone(), hash));
                     }

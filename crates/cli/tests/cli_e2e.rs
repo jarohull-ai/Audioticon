@@ -510,3 +510,114 @@ fn test_api_csrf_protection_and_origin_validation() {
     let _ = child.wait();
     let _ = audioticon_core::remove_api_key("elevenlabs");
 }
+
+#[test]
+fn test_cli_voicelab_lifecycle() {
+    let tmp = std::env::temp_dir().join(format!("test_cli_vl_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+
+    // List empty
+    let output = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .env("AUDIOTICON_VOICES_DIR", tmp.to_str().unwrap())
+        .args(["voicelab", "list"])
+        .output()
+        .expect("Failed to execute voicelab list");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Profile głosowe lektorów"));
+
+    // Create profile
+    let output_create = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .env("AUDIOTICON_VOICES_DIR", tmp.to_str().unwrap())
+        .args([
+            "voicelab",
+            "create",
+            "tomek-lektor",
+            "--name",
+            "Tomek (Lektor)",
+            "--gender",
+            "male",
+            "--lang",
+            "pl",
+        ])
+        .output()
+        .expect("Failed to execute voicelab create");
+    assert!(output_create.status.success());
+    let stdout_create = String::from_utf8_lossy(&output_create.stdout);
+    assert!(stdout_create.contains("Pomyślnie utworzono profil głosu"));
+
+    // List again to verify presence
+    let output_list2 = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .env("AUDIOTICON_VOICES_DIR", tmp.to_str().unwrap())
+        .args(["voicelab", "list"])
+        .output()
+        .expect("Failed to execute voicelab list");
+    assert!(output_list2.status.success());
+    let stdout_list2 = String::from_utf8_lossy(&output_list2.stdout);
+    assert!(stdout_list2.contains("Tomek (Lektor)"));
+    assert!(stdout_list2.contains("tomek-lektor"));
+
+    // Delete profile
+    let output_del = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .env("AUDIOTICON_VOICES_DIR", tmp.to_str().unwrap())
+        .args(["voicelab", "delete", "tomek-lektor"])
+        .output()
+        .expect("Failed to execute voicelab delete");
+    assert!(output_del.status.success());
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn test_cli_emojis_lifecycle() {
+    let tmp = std::env::temp_dir().join(format!("test_cli_emojis_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+
+    // List
+    let output = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .current_dir(&tmp)
+        .args(["emojis", "list"])
+        .output()
+        .expect("Failed to execute emojis list");
+    assert!(output.status.success());
+
+    // Add custom emoji
+    let output_add = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .current_dir(&tmp)
+        .args([
+            "emojis",
+            "add",
+            "🧙‍♂️",
+            "Czarodziej",
+            "--filter",
+            "cathedral",
+            "--pitch",
+            "-4",
+        ])
+        .output()
+        .expect("Failed to execute emojis add");
+    assert!(output_add.status.success());
+    let stdout_add = String::from_utf8_lossy(&output_add.stdout);
+    assert!(stdout_add.contains("Pomyślnie zapisano własną emotikonkę"));
+
+    // List again
+    let output_list2 = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .current_dir(&tmp)
+        .args(["emojis", "list"])
+        .output()
+        .expect("Failed to execute emojis list");
+    assert!(output_list2.status.success());
+    let stdout_list2 = String::from_utf8_lossy(&output_list2.stdout);
+    assert!(stdout_list2.contains("Czarodziej"));
+    assert!(stdout_list2.contains("cathedral"));
+
+    // Remove
+    let output_rem = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .current_dir(&tmp)
+        .args(["emojis", "remove", "🧙‍♂️"])
+        .output()
+        .expect("Failed to execute emojis remove");
+    assert!(output_rem.status.success());
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}

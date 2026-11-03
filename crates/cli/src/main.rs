@@ -2,9 +2,9 @@ use anyhow::{Context, Result};
 use audioticon_core::{
     base64_decode, compute_segment_hash, credentials, download_model, estimate_cost, export_to_m4b,
     export_to_mp3, find_model, list_models, models_dir, presets, remove_model,
-    update_voices_catalog, AudioDirectorEngine, AudiobookMetadata, CostEstimate, DirectedItem,
-    EdgeTtsBridge, ElevenLabsBridge, EmojiDirector, ImportedBook, PiperBridge, PresetRegistry,
-    ProjectConfig, SpeechSynthesizer,
+    update_voices_catalog, voicelab, AudioDirectorEngine, AudiobookMetadata, CostEstimate,
+    CustomEmojiDef, DirectedItem, EdgeTtsBridge, ElevenLabsBridge, EmojiDirector, ImportedBook,
+    PiperBridge, PresetRegistry, ProjectConfig, SpeechSynthesizer, VoiceProfile,
 };
 use clap::{Parser, Subcommand, ValueEnum};
 use std::collections::HashMap;
@@ -221,6 +221,121 @@ enum Commands {
         /// Własny katalog cache
         #[arg(short, long)]
         cache_dir: Option<PathBuf>,
+    },
+    /// Zarządzanie profilami głosowymi lektorów, próbkami referencyjnymi, punch-in i klonowaniem (Voice Lab)
+    #[command(alias = "voicelab")]
+    VoiceLab {
+        #[command(subcommand)]
+        action: Option<VoiceLabAction>,
+    },
+    /// Zarządzanie i projektowanie własnych emotikonek (DSP i obsada lektorska)
+    Emojis {
+        #[command(subcommand)]
+        action: Option<EmojisAction>,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
+enum VoiceLabAction {
+    /// Wyświetla listę profili głosowych i próbek referencyjnych
+    List,
+    /// Tworzy nowy profil głosu
+    Create {
+        /// Identyfikator profilu (np. jarek-lektor)
+        id: String,
+        /// Czytelna nazwa wyświetlana (np. "Jarek (Lektor)")
+        #[arg(short, long)]
+        name: String,
+        /// Płeć głosu: male, female, neutral
+        #[arg(short, long, default_value = "male")]
+        gender: String,
+        /// Kod języka (np. pl, en)
+        #[arg(short, long, default_value = "pl")]
+        lang: String,
+        /// Krótki opis profilu głosu
+        #[arg(short, long)]
+        desc: Option<String>,
+    },
+    /// Dodaje i analizuje próbkę audio (.wav, .mp3, .ogg) do profilu
+    AddSample {
+        /// Identyfikator profilu głosu
+        profile: String,
+        /// Ścieżka do pliku audio
+        input: PathBuf,
+        /// Opcjonalna nazwa próbki
+        #[arg(short, long)]
+        name: Option<String>,
+    },
+    /// Podmienia zdanie w buforze audio na nagranie lektorskie (punch-in)
+    PunchIn {
+        /// Identyfikator profilu lektora
+        profile: String,
+        /// Hash zdania (fingerprint SHA-256)
+        hash: String,
+        /// Ścieżka do nagrania audio lektora
+        input: PathBuf,
+        /// Własny katalog bufora
+        #[arg(short, long)]
+        cache_dir: Option<PathBuf>,
+    },
+    /// Klonuje profil głosu do ElevenLabs (Instant Voice Cloning)
+    CloneElevenlabs {
+        /// Identyfikator profilu głosu
+        profile: String,
+    },
+    /// Eksportuje próbki i metadane do archiwum ZIP (format LJSpeech / XTTS)
+    ExportDataset {
+        /// Identyfikator profilu głosu
+        profile: String,
+        /// Ścieżka wyjściowego pliku ZIP
+        output: PathBuf,
+    },
+    /// Usuwa profil głosu i powiązane próbki
+    Delete {
+        /// Identyfikator profilu do usunięcia
+        profile: String,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
+enum EmojisAction {
+    /// Wyświetla listę zdefiniowanych emotikonek
+    List,
+    /// Dodaje lub aktualizuje własną emotikonkę w audioticon.toml
+    Add {
+        /// Emotikonka (np. "🧙‍♂️", "👽", "🦇")
+        emoji: String,
+        /// Nazwa własna (np. "Czarodziej")
+        name: String,
+        /// Typ akcji: filter (preset DSP), voice (głos lektora), modifier (tempo/ton)
+        #[arg(long, default_value = "filter")]
+        action_type: String,
+        /// Tekstowy alias w nawiasach (np. "czarodziej" -> [czarodziej])
+        #[arg(short, long)]
+        alias: Option<String>,
+        /// Nazwa filtru bazowego (np. cathedral, dungeon, robot, radio, phone)
+        #[arg(short, long)]
+        filter: Option<String>,
+        /// Identyfikator głosu (np. darkman, gosia, pl-PL-MarekNeural)
+        #[arg(short, long)]
+        voice: Option<String>,
+        /// Modyfikator tonu w Hz (np. -4, +6)
+        #[arg(short, long, allow_hyphen_values = true)]
+        pitch: Option<i32>,
+        /// Modyfikator tempa w % (np. -10, +15)
+        #[arg(short, long, allow_hyphen_values = true)]
+        rate: Option<i32>,
+        /// Mnożnik głośności (np. 1.25)
+        #[arg(long)]
+        volume: Option<f32>,
+        /// Krótki opis dla podpowiedzi
+        #[arg(short, long)]
+        desc: Option<String>,
+    },
+    /// Usuwa własną emotikonkę z audioticon.toml
+    Remove {
+        /// Emotikonka do usunięcia
+        emoji: String,
     },
 }
 
@@ -1146,6 +1261,221 @@ async fn main() -> Result<()> {
                 }
             }
         }
+        Commands::VoiceLab { action } => {
+            match action.unwrap_or(VoiceLabAction::List) {
+                VoiceLabAction::List => {
+                    let profiles = voicelab::list_voice_profiles()?;
+                    let root = voicelab::voices_dir();
+                    println!("🎙️ Profile głosowe lektorów (Voice Lab)");
+                    println!("📁 Katalog profili: {}", root.display());
+                    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    if profiles.is_empty() {
+                        println!("  Brak utworzonych profili głosowych.");
+                        println!("  💡 Utwórz profil: audioticon voicelab create jarek-lektor --name \"Jarek (Lektor)\"");
+                    } else {
+                        for p in &profiles {
+                            let clone_badge = match &p.elevenlabs_voice_id {
+                                Some(id) => format!("🟢 ElevenLabs: {}", id),
+                                None => "⚪ Tylko lokalny".to_string(),
+                            };
+                            println!("  👤 {} [{}] ({}, {})", p.name, p.id, p.gender, p.language);
+                            println!(
+                                "     Próbki:  {} plików (łącznie {:.1}s)",
+                                p.samples.len(),
+                                p.total_duration()
+                            );
+                            println!("     Status:  {}", clone_badge);
+                            if let Some(ref desc) = p.description {
+                                println!("     Opis:    {}", desc);
+                            }
+                        }
+                    }
+                    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                }
+                VoiceLabAction::Create {
+                    id,
+                    name,
+                    gender,
+                    lang,
+                    desc,
+                } => {
+                    let mut p = VoiceProfile::new(id, name, gender, lang);
+                    p.description = desc;
+                    voicelab::save_voice_profile(&p)?;
+                    println!(
+                        "✅ Pomyślnie utworzono profil głosu '{}' [{}]",
+                        p.name, p.id
+                    );
+                    println!(
+                        "📁 Katalog profilu: {}",
+                        voicelab::profile_dir(&p.id).display()
+                    );
+                }
+                VoiceLabAction::AddSample {
+                    profile,
+                    input,
+                    name,
+                } => {
+                    if !input.exists() {
+                        anyhow::bail!("Plik audio nie istnieje: {:?}", input);
+                    }
+                    let bytes = std::fs::read(&input)
+                        .with_context(|| format!("Nie można odczytać pliku: {:?}", input))?;
+                    println!("🎧 Analizuję i normalizuję próbkę audio: {:?}", input);
+                    let (meta, report) =
+                        voicelab::add_sample_to_profile(&profile, &bytes, name.as_deref())?;
+                    println!("✅ Próbka została zapisana w profilu '{}'", profile);
+                    println!("   Plik:       {}", meta.filename);
+                    println!("   Czas:       {:.2} s", report.duration_sec);
+                    println!("   Głośność:   {:.1} dBFS (RMS)", report.rms_db);
+                    println!("   Szczyt:     {:.1} dBFS (Peak)", report.peak_db);
+                    println!("   Dynamika:   {:.1} dB (SNR)", report.snr_db);
+                    println!("   Status:     {}", report.status.to_uppercase());
+                    for tip in &report.tips {
+                        println!("   💡 {}", tip);
+                    }
+                }
+                VoiceLabAction::PunchIn {
+                    profile,
+                    hash,
+                    input,
+                    cache_dir,
+                } => {
+                    if !input.exists() {
+                        anyhow::bail!("Plik nagrania audio nie istnieje: {:?}", input);
+                    }
+                    let bytes = std::fs::read(&input)
+                        .with_context(|| format!("Nie można odczytać pliku: {:?}", input))?;
+                    let cache_path = cache_dir.unwrap_or_else(get_default_cache_dir);
+                    let punch_wav =
+                        voicelab::punch_in_sentence(&profile, &hash, &bytes, &cache_path)?;
+                    println!(
+                        "✅ Zapisano nagranie punch-in dla zdania [{}] lektora '{}'",
+                        &hash[0..8],
+                        profile
+                    );
+                    println!("📁 Plik w buforze: {:?}", punch_wav);
+                    println!("💡 Wszystkie kolejne rendery tego zdania użyją Twojego autentycznego nagrania lektorskiego.");
+                }
+                VoiceLabAction::CloneElevenlabs { profile } => {
+                    let key = credentials::get_api_key("elevenlabs").ok_or_else(|| {
+                        anyhow::anyhow!("Brak klucza API ElevenLabs. Użyj: audioticon providers set elevenlabs --key <KLUCZ>")
+                    })?;
+                    println!("🚀 Rozpoczynam procedurę klonowania głosu w ElevenLabs...");
+                    let voice_id = voicelab::clone_to_elevenlabs(&profile, &key)?;
+                    println!("✅ Głos został pomyślnie sklonowany w ElevenLabs!");
+                    println!("   ID głosu: {}", voice_id);
+                    println!("💡 Możesz teraz renderować audiobooka tym głosem, podając flagę --voice {}", voice_id);
+                }
+                VoiceLabAction::ExportDataset { profile, output } => {
+                    println!(
+                        "📦 Eksportuję próbki lektora '{}' do archiwum ZIP...",
+                        profile
+                    );
+                    let zip_path = voicelab::export_dataset_zip(&profile, &output)?;
+                    println!(
+                        "✅ Wyeksportowano dataset gotowy do treningu XTTS / Piper: {:?}",
+                        zip_path
+                    );
+                }
+                VoiceLabAction::Delete { profile } => {
+                    voicelab::delete_voice_profile(&profile)?;
+                    println!(
+                        "✅ Profil głosu '{}' został usunięty wraz z próbkami.",
+                        profile
+                    );
+                }
+            }
+        }
+        Commands::Emojis { action } => {
+            match action.unwrap_or(EmojisAction::List) {
+                EmojisAction::List => {
+                    let cfg = ProjectConfig::discover(None);
+                    println!("🎨 Zdefiniowane emotikonki w projekcie (audioticon.toml)");
+                    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    if cfg.emojis.is_empty() {
+                        println!("  Brak własnych emotikonek w audioticon.toml.");
+                        println!("  Dostępne są fabryczne emotikony akustyczne (np. 📱, 📻, 📢, 🏛️, 🏰, 💭, 🤖, 🤫).");
+                        println!("  💡 Dodaj własną: audioticon emojis add --emoji \"🧙‍♂️\" --name \"Czarodziej\" --filter cathedral --pitch -4");
+                    } else {
+                        let mut sorted: Vec<_> = cfg.emojis.iter().collect();
+                        sorted.sort_by_key(|(k, _)| (*k).clone());
+                        for (emoji, def) in sorted {
+                            let alias_str = def.alias.as_deref().unwrap_or("—");
+                            println!(
+                                "  {} {} [{}] (typ: {})",
+                                emoji, def.name, alias_str, def.action_type
+                            );
+                            if let Some(ref f) = def.filter {
+                                println!("     Filtr:   {}", f);
+                            }
+                            if let Some(ref v) = def.voice {
+                                println!("     Głos:    {}", v);
+                            }
+                            if let Some(p) = def.pitch {
+                                println!("     Ton:     {:+}", p);
+                            }
+                            if let Some(r) = def.rate {
+                                println!("     Tempo:   {:+}", r);
+                            }
+                            if let Some(v) = def.volume {
+                                println!("     Głośn:   {:.2}x", v);
+                            }
+                        }
+                    }
+                    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                }
+                EmojisAction::Add {
+                    emoji,
+                    name,
+                    action_type,
+                    alias,
+                    filter,
+                    voice,
+                    pitch,
+                    rate,
+                    volume,
+                    desc,
+                } => {
+                    let mut cfg = ProjectConfig::discover(None);
+                    let def = CustomEmojiDef {
+                        name: name.clone(),
+                        alias,
+                        action_type,
+                        filter,
+                        voice,
+                        pitch,
+                        rate,
+                        volume,
+                        description: desc,
+                    };
+                    cfg.emojis.insert(emoji.clone(), def.clone());
+                    cfg.save_to_path(std::path::Path::new("audioticon.toml"))?;
+                    let mut reg = presets::get_active_registry();
+                    reg.register_custom_emoji(emoji.clone(), def);
+                    presets::set_active_registry(reg);
+                    println!(
+                        "✅ Pomyślnie zapisano własną emotikonkę {} [{}] w audioticon.toml!",
+                        emoji, name
+                    );
+                }
+                EmojisAction::Remove { emoji } => {
+                    let mut cfg = ProjectConfig::discover(None);
+                    if cfg.emojis.remove(&emoji).is_some() {
+                        cfg.save_to_path(std::path::Path::new("audioticon.toml"))?;
+                        let mut reg = presets::get_active_registry();
+                        reg.remove_custom_emoji(&emoji);
+                        presets::set_active_registry(reg);
+                        println!("✅ Usunięto emotikonkę {} z audioticon.toml.", emoji);
+                    } else {
+                        println!(
+                            "ℹ️ Emotikonka {} nie była zdefiniowana w audioticon.toml.",
+                            emoji
+                        );
+                    }
+                }
+            }
+        }
     }
 
     Ok(())
@@ -1462,6 +1792,8 @@ async fn handle_studio_request(
             || url.starts_with("/api/estimate")
             || url.starts_with("/api/import")
             || url.starts_with("/api/parse")
+            || url.starts_with("/api/voicelab")
+            || url.starts_with("/api/custom-emojis")
             || url.starts_with("/api/cache"))
         && !has_json_content_type(&request)
     {
@@ -2705,6 +3037,635 @@ async fn handle_studio_request(
                 let _ = request.respond(resp.with_status_code(500));
                 return;
             }
+        }
+    }
+
+    // Route: GET /api/voicelab/profiles
+    if method == tiny_http::Method::Get && url == "/api/voicelab/profiles" {
+        let profiles = voicelab::list_voice_profiles().unwrap_or_default();
+        let json_resp = serde_json::json!({
+            "profiles": profiles
+        });
+        let json_header =
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
+        let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+        resp.add_header(json_header);
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: POST /api/voicelab/profiles/create
+    if method == tiny_http::Method::Post && url == "/api/voicelab/profiles/create" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct CreateProfileReq {
+            id: String,
+            name: String,
+            gender: Option<String>,
+            language: Option<String>,
+            description: Option<String>,
+            consent: Option<bool>,
+        }
+
+        let parsed: CreateProfileReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd parsowania JSON: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let mut prof = VoiceProfile::new(
+            parsed.id,
+            parsed.name,
+            parsed.gender.unwrap_or_else(|| "male".to_string()),
+            parsed.language.unwrap_or_else(|| "pl".to_string()),
+        );
+        prof.description = parsed.description;
+        prof.consent = parsed.consent.unwrap_or(true);
+
+        if let Err(e) = voicelab::save_voice_profile(&prof) {
+            let err_json = serde_json::json!({ "error": format!("Błąd zapisu profilu: {}", e) });
+            let mut resp = tiny_http::Response::from_string(err_json.to_string());
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(500));
+            return;
+        }
+
+        let json_resp = serde_json::json!({
+            "success": true,
+            "profile": prof
+        });
+        let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: POST /api/voicelab/profiles/delete
+    if method == tiny_http::Method::Post && url == "/api/voicelab/profiles/delete" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct DeleteProfileReq {
+            id: String,
+        }
+
+        if let Ok(parsed) = serde_json::from_str::<DeleteProfileReq>(&body_str) {
+            let _ = voicelab::delete_voice_profile(&parsed.id);
+            let json_resp = serde_json::json!({ "success": true });
+            let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp);
+            return;
+        }
+    }
+
+    // Route: POST /api/voicelab/sample
+    if method == tiny_http::Method::Post && url == "/api/voicelab/sample" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(50 * 1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp = tiny_http::Response::from_string(
+                "{\"error\": \"Nie można odczytać próbki audio\"}",
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct AddSampleReq {
+            profile_id: String,
+            audio_base64: String,
+            filename: Option<String>,
+        }
+
+        let parsed: AddSampleReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd parsowania JSON: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let raw_b64 = if let Some(idx) = parsed.audio_base64.find(";base64,") {
+            &parsed.audio_base64[idx + 8..]
+        } else {
+            &parsed.audio_base64
+        };
+
+        let audio_bytes = match base64_decode(raw_b64) {
+            Ok(b) => b,
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd dekodowania base64: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        match voicelab::add_sample_to_profile(
+            &parsed.profile_id,
+            &audio_bytes,
+            parsed.filename.as_deref(),
+        ) {
+            Ok((meta, report)) => {
+                let updated = voicelab::get_voice_profile(&parsed.profile_id).ok();
+                let json_resp = serde_json::json!({
+                    "success": true,
+                    "sample": meta,
+                    "report": report,
+                    "profile": updated
+                });
+                let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd przetwarzania próbki: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(500));
+                return;
+            }
+        }
+    }
+
+    // Route: GET /api/voicelab/sample/audio?...
+    if method == tiny_http::Method::Get && url.starts_with("/api/voicelab/sample/audio") {
+        let query = url.split_once('?').map(|(_, q)| q).unwrap_or("");
+        let mut params = std::collections::HashMap::new();
+        for pair in query.split('&') {
+            if let Some((k, v)) = pair.split_once('=') {
+                params.insert(k, url_decode(v));
+            }
+        }
+        let profile = params.get("profile").cloned().unwrap_or_default();
+        let file = params.get("file").cloned().unwrap_or_default();
+        if !profile.contains("..")
+            && !file.contains("..")
+            && !file.contains('\\')
+            && !profile.is_empty()
+            && !file.is_empty()
+        {
+            let p_dir = voicelab::profile_dir(&profile);
+            let full_path = p_dir.join(&file);
+            if full_path.exists() && full_path.is_file() {
+                if let Ok(bytes) = std::fs::read(&full_path) {
+                    let mut resp = tiny_http::Response::from_data(bytes);
+                    resp.add_header(
+                        Header::from_bytes(&b"Content-Type"[..], &b"audio/wav"[..]).unwrap(),
+                    );
+                    if let Some(ref h) = cors_header {
+                        resp.add_header(h.clone());
+                    }
+                    let _ = request.respond(resp);
+                    return;
+                }
+            }
+        }
+        let mut resp = tiny_http::Response::from_string("Nie odnaleziono próbki dźwiękowej");
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp.with_status_code(404));
+        return;
+    }
+
+    // Route: POST /api/voicelab/punch-in
+    if method == tiny_http::Method::Post && url == "/api/voicelab/punch-in" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(50 * 1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp = tiny_http::Response::from_string(
+                "{\"error\": \"Nie można odczytać audio punch-in\"}",
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct PunchInReq {
+            profile_id: String,
+            segment_hash: String,
+            audio_base64: String,
+        }
+
+        let parsed: PunchInReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd parsowania JSON: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let raw_b64 = if let Some(idx) = parsed.audio_base64.find(";base64,") {
+            &parsed.audio_base64[idx + 8..]
+        } else {
+            &parsed.audio_base64
+        };
+
+        let audio_bytes = match base64_decode(raw_b64) {
+            Ok(b) => b,
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd dekodowania base64: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let cache_dir = get_default_cache_dir();
+        match voicelab::punch_in_sentence(
+            &parsed.profile_id,
+            &parsed.segment_hash,
+            &audio_bytes,
+            &cache_dir,
+        ) {
+            Ok(punch_path) => {
+                let json_resp = serde_json::json!({
+                    "success": true,
+                    "segment_hash": parsed.segment_hash,
+                    "path": punch_path.to_string_lossy()
+                });
+                let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd zapisu punch-in: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(500));
+                return;
+            }
+        }
+    }
+
+    // Route: POST /api/voicelab/clone-elevenlabs
+    if method == tiny_http::Method::Post && url == "/api/voicelab/clone-elevenlabs" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct CloneReq {
+            profile_id: String,
+        }
+
+        let parsed: CloneReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd parsowania JSON: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let api_key = match credentials::get_api_key("elevenlabs") {
+            Some(k) => k,
+            None => {
+                let err_json = serde_json::json!({
+                    "error": "Brak klucza API ElevenLabs. Skonfiguruj klucz w panelu Dostawców (audioticon providers set elevenlabs --key <KLUCZ>)"
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        match voicelab::clone_to_elevenlabs(&parsed.profile_id, &api_key) {
+            Ok(voice_id) => {
+                let updated = voicelab::get_voice_profile(&parsed.profile_id).ok();
+                let json_resp = serde_json::json!({
+                    "success": true,
+                    "voice_id": voice_id,
+                    "profile": updated
+                });
+                let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd klonowania w ElevenLabs: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(500));
+                return;
+            }
+        }
+    }
+
+    // Route: GET /api/custom-emojis
+    if method == tiny_http::Method::Get && url == "/api/custom-emojis" {
+        let cfg = ProjectConfig::discover(None);
+        let json_resp = serde_json::json!({
+            "emojis": cfg.emojis
+        });
+        let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: POST /api/custom-emojis/add
+    if method == tiny_http::Method::Post && url == "/api/custom-emojis/add" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct AddEmojiReq {
+            emoji: String,
+            name: String,
+            alias: Option<String>,
+            action_type: Option<String>,
+            filter: Option<String>,
+            voice: Option<String>,
+            pitch: Option<i32>,
+            rate: Option<i32>,
+            volume: Option<f32>,
+            description: Option<String>,
+        }
+
+        let parsed: AddEmojiReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd parsowania JSON: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let mut cfg = ProjectConfig::discover(None);
+        let def = CustomEmojiDef {
+            name: parsed.name,
+            alias: parsed.alias,
+            action_type: parsed.action_type.unwrap_or_else(|| "filter".to_string()),
+            filter: parsed.filter,
+            voice: parsed.voice,
+            pitch: parsed.pitch,
+            rate: parsed.rate,
+            volume: parsed.volume,
+            description: parsed.description,
+        };
+
+        cfg.emojis.insert(parsed.emoji.clone(), def.clone());
+        let _ = cfg.save_to_path(std::path::Path::new("audioticon.toml"));
+
+        let mut reg = presets::get_active_registry();
+        reg.register_custom_emoji(parsed.emoji, def);
+        presets::set_active_registry(reg);
+
+        let json_resp = serde_json::json!({
+            "success": true,
+            "emojis": cfg.emojis
+        });
+        let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: POST /api/custom-emojis/remove
+    if method == tiny_http::Method::Post && url == "/api/custom-emojis/remove" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct RemoveEmojiReq {
+            emoji: String,
+        }
+
+        if let Ok(parsed) = serde_json::from_str::<RemoveEmojiReq>(&body_str) {
+            let mut cfg = ProjectConfig::discover(None);
+            cfg.emojis.remove(&parsed.emoji);
+            let _ = cfg.save_to_path(std::path::Path::new("audioticon.toml"));
+
+            let mut reg = presets::get_active_registry();
+            reg.remove_custom_emoji(&parsed.emoji);
+            presets::set_active_registry(reg);
+
+            let json_resp = serde_json::json!({
+                "success": true,
+                "emojis": cfg.emojis
+            });
+            let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp);
+            return;
         }
     }
 
