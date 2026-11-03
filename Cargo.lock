@@ -86,7 +86,7 @@ dependencies = [
 
 [[package]]
 name = "audioticon-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "audioticon-core",
@@ -100,7 +100,7 @@ dependencies = [
 
 [[package]]
 name = "audioticon-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "async-trait",

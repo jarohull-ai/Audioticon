@@ -1,9 +1,77 @@
 use anyhow::{bail, Context, Result};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::io::{Cursor, Read};
 use std::path::Path;
 use zip::ZipArchive;
+
+/// Usuwa powtórzony nagłówek/tytuł rozdziału z początku jego treści
+pub fn strip_leading_title(content: &str, title: &str) -> String {
+    let clean_title = title.trim();
+    if clean_title.is_empty() {
+        return content.trim().to_string();
+    }
+    let norm_title = clean_title.to_lowercase();
+    let lines: Vec<&str> = content.lines().collect();
+    let mut start_idx = 0;
+
+    while start_idx < lines.len() {
+        let line = lines[start_idx].trim();
+        if line.is_empty() {
+            start_idx += 1;
+            continue;
+        }
+        let line_lower = line.to_lowercase();
+        let stripped_line = line_lower.trim_start_matches('#').trim();
+
+        if stripped_line == norm_title
+            || line_lower == norm_title
+            || (norm_title.starts_with("rozdział") && line_lower.starts_with("rozdział"))
+            || (norm_title.starts_with("chapter") && line_lower.starts_with("chapter"))
+            || (norm_title == "prolog" && line_lower == "prolog")
+            || (norm_title == "epilog" && line_lower == "epilog")
+        {
+            start_idx += 1;
+        } else {
+            break;
+        }
+    }
+
+    lines[start_idx..].join("\n").trim().to_string()
+}
+
+/// Rozpoznaje język tekstu (domyślnie 'pl', a przy dominacji słów angielskich i braku polskich znaków 'en')
+pub fn detect_text_language(text: &str) -> String {
+    let polish_chars = ['ą', 'ć', 'ę', 'ł', 'ń', 'ó', 'ś', 'ź', 'ż'];
+    let lower = text.to_lowercase();
+    let pl_char_count = lower.chars().filter(|c| polish_chars.contains(c)).count();
+
+    if pl_char_count > 0 {
+        return "pl".to_string();
+    }
+
+    // Sprawdź częste angielskie słówka stopwords
+    let words: Vec<&str> = lower.split_whitespace().take(300).collect();
+    let mut en_matches = 0;
+    for w in &words {
+        let clean = w.trim_matches(|c: char| !c.is_alphabetic());
+        match clean {
+            "the" | "and" | "of" | "to" | "in" | "is" | "that" | "it" | "was" | "for" | "on"
+            | "are" | "as" | "with" | "his" | "they" | "at" | "be" | "this" | "from"
+            | "chapter" => {
+                en_matches += 1;
+            }
+            _ => {}
+        }
+    }
+
+    if en_matches >= 5 {
+        "en".to_string()
+    } else {
+        "pl".to_string()
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ImportedChapter {
@@ -101,14 +169,15 @@ impl ImportedBook {
                     } else {
                         title.clone()
                     };
-                    let words = body.split_whitespace().count();
+                    let clean_body = strip_leading_title(&body, &actual_title);
+                    let words = clean_body.split_whitespace().count();
                     // Średnia prędkość czytania lektora: ~140 słów na minutę (~2.33 słowa/sek)
                     let est_sec = (words as f32 / 2.33).ceil() as u32;
 
                     chapters.push(ImportedChapter {
                         index: chapters.len() + 1,
                         title: actual_title,
-                        content: body,
+                        content: clean_body,
                         word_count: words,
                         estimated_seconds: est_sec,
                     });
@@ -153,10 +222,12 @@ impl ImportedBook {
             });
         }
 
+        let detected_lang = detect_text_language(raw_text);
+
         ImportedBook {
             title: title_hint.map(|s| s.to_string()),
             author: None,
-            language: Some("pl".to_string()),
+            language: Some(detected_lang),
             chapters,
         }
     }
@@ -171,7 +242,17 @@ impl ImportedBook {
         let mut book_author = None;
         let mut book_lang = Some("pl".to_string());
 
-        // 1. Spróbuj odczytać metadane z content.opf jeśli istnieje
+        let mut manifest_items: HashMap<String, String> = HashMap::new();
+        let mut spine_order: Vec<String> = Vec::new();
+        let mut opf_found = false;
+
+        let item_regex = Regex::new(
+            r#"<item\b[^>]*\bid="([^"]+)"[^>]*\bhref="([^"]+)"|<item\b[^>]*\bhref="([^"]+)"[^>]*\bid="([^"]+)""#,
+        )
+        .expect("Valid regex");
+        let spine_regex = Regex::new(r#"<itemref\b[^>]*\bidref="([^"]+)""#).expect("Valid regex");
+
+        // 1. Spróbuj odczytać metadane z content.opf oraz zmapować manifest i spine
         for i in 0..archive.len() {
             let file_name = match archive.by_index(i) {
                 Ok(entry) => entry.name().map(|n| n.to_string()).unwrap_or_default(),
@@ -181,6 +262,8 @@ impl ImportedBook {
                 if let Ok(mut opf_file) = archive.by_name(&file_name) {
                     let mut opf_xml = String::new();
                     let _ = opf_file.read_to_string(&mut opf_xml);
+                    opf_found = true;
+
                     if let Some(t) = extract_xml_tag(&opf_xml, "dc:title") {
                         if !t.is_empty() {
                             book_title = Some(decode_html_entities(&t));
@@ -196,28 +279,81 @@ impl ImportedBook {
                             book_lang = Some(l.trim().to_lowercase());
                         }
                     }
+
+                    // Katalog relatywny dla plików zadeklarowanych w OPF
+                    let opf_dir = if let Some(pos) = file_name.rfind('/') {
+                        file_name[..=pos].to_string()
+                    } else {
+                        String::new()
+                    };
+
+                    // Parsowanie <manifest>
+                    for cap in item_regex.captures_iter(&opf_xml) {
+                        let (id, href) = if let (Some(id), Some(href)) = (cap.get(1), cap.get(2)) {
+                            (id.as_str(), href.as_str())
+                        } else if let (Some(href), Some(id)) = (cap.get(3), cap.get(4)) {
+                            (id.as_str(), href.as_str())
+                        } else {
+                            continue;
+                        };
+                        let clean_href = href.split('#').next().unwrap_or(href);
+                        let full_path = if clean_href.starts_with('/') {
+                            clean_href.trim_start_matches('/').to_string()
+                        } else {
+                            format!("{}{}", opf_dir, clean_href)
+                        };
+                        manifest_items.insert(id.to_string(), full_path);
+                    }
+
+                    // Parsowanie <spine>
+                    for cap in spine_regex.captures_iter(&opf_xml) {
+                        spine_order.push(cap[1].to_string());
+                    }
                 }
                 break;
             }
         }
 
-        // 2. Znajdź i posortuj pliki z treścią (.xhtml, .html)
+        // 2. Wyznacz kolejność plików z treścią na podstawie <spine> lub fallback na sortowanie nazw plików
         let mut content_entries: Vec<String> = Vec::new();
-        for i in 0..archive.len() {
-            let name = match archive.by_index(i) {
-                Ok(entry) => entry.name().map(|n| n.to_string()).unwrap_or_default(),
-                Err(_) => continue,
-            };
-            let lower = name.to_lowercase();
-            if (lower.ends_with(".xhtml") || lower.ends_with(".html"))
-                && !lower.contains("cover")
-                && !lower.contains("toc")
-                && !lower.contains("nav")
-            {
-                content_entries.push(name);
+
+        if opf_found && !spine_order.is_empty() {
+            for idref in &spine_order {
+                if let Some(target_path) = manifest_items.get(idref) {
+                    let lower = target_path.to_lowercase();
+                    if (lower.ends_with(".xhtml")
+                        || lower.ends_with(".html")
+                        || lower.ends_with(".htm"))
+                        && !lower.contains("cover")
+                        && !lower.contains("toc")
+                        && !lower.contains("nav")
+                        && archive.by_name(target_path).is_ok()
+                        && !content_entries.contains(target_path)
+                    {
+                        content_entries.push(target_path.clone());
+                    }
+                }
             }
         }
-        content_entries.sort();
+
+        // Fallback: jeśli spine nie dało plików, przeskanuj archiwum ZIP alfabetycznie
+        if content_entries.is_empty() {
+            for i in 0..archive.len() {
+                let name = match archive.by_index(i) {
+                    Ok(entry) => entry.name().map(|n| n.to_string()).unwrap_or_default(),
+                    Err(_) => continue,
+                };
+                let lower = name.to_lowercase();
+                if (lower.ends_with(".xhtml") || lower.ends_with(".html"))
+                    && !lower.contains("cover")
+                    && !lower.contains("toc")
+                    && !lower.contains("nav")
+                {
+                    content_entries.push(name);
+                }
+            }
+            content_entries.sort();
+        }
 
         let mut chapters: Vec<ImportedChapter> = Vec::new();
 
@@ -246,13 +382,15 @@ impl ImportedBook {
                             title.trim().to_string()
                         };
 
-                        let words = text.split_whitespace().count();
+                        // Usuń zduplikowany tytuł z początku treści rozdziału
+                        let clean_text = strip_leading_title(&text, &actual_title);
+                        let words = clean_text.split_whitespace().count();
                         let est_sec = (words as f32 / 2.33).ceil() as u32;
 
                         chapters.push(ImportedChapter {
                             index: chapters.len() + 1,
                             title: actual_title,
-                            content: text,
+                            content: clean_text,
                             word_count: words,
                             estimated_seconds: est_sec,
                         });
@@ -327,13 +465,14 @@ impl ImportedBook {
                 } else {
                     title.clone()
                 };
-                let words = body.split_whitespace().count();
+                let clean_body = strip_leading_title(&body, &actual_title);
+                let words = clean_body.split_whitespace().count();
                 let est_sec = (words as f32 / 2.33).ceil() as u32;
 
                 chapters.push(ImportedChapter {
                     index: chapters.len() + 1,
                     title: actual_title,
-                    content: body,
+                    content: clean_body,
                     word_count: words,
                     estimated_seconds: est_sec,
                 });
@@ -579,5 +718,83 @@ Kapitan spojrzał na radar.
         assert_eq!(book.chapters.len(), 1);
         assert_eq!(book.chapters[0].title, "Rozdział 1: Wstęp");
         assert!(book.chapters[0].content.contains("Akapit pierwszy"));
+    }
+
+    #[test]
+    fn test_strip_duplicate_titles() {
+        let content =
+            "Prolog\n\nProlog\n\nWielka przestrzeń kosmiczna rozpościerała się w nieskończoność.";
+        let cleaned = strip_leading_title(content, "Prolog");
+        assert_eq!(
+            cleaned,
+            "Wielka przestrzeń kosmiczna rozpościerała się w nieskończoność."
+        );
+
+        let md_content = "## Rozdział 1\nRozdział 1\nTekst właściwy rozdziału.";
+        let cleaned_md = strip_leading_title(md_content, "Rozdział 1");
+        assert_eq!(cleaned_md, "Tekst właściwy rozdziału.");
+    }
+
+    #[test]
+    fn test_language_detection_pl_en() {
+        let pl_text = "To jest wspaniała książka pełna przygód, emocji i niezwykłych bohaterów.";
+        assert_eq!(detect_text_language(pl_text), "pl");
+
+        let en_text = "This is a great book with exciting characters and adventures in the galaxy.";
+        assert_eq!(detect_text_language(en_text), "en");
+    }
+
+    #[test]
+    fn test_epub_spine_canonical_order() {
+        use std::io::Write;
+        use zip::write::SimpleFileOptions;
+
+        let mut buf = Vec::new();
+        {
+            let mut zip = zip::ZipWriter::new(Cursor::new(&mut buf));
+            let options = SimpleFileOptions::default();
+
+            zip.start_file("mimetype", options).unwrap();
+            zip.write_all(b"application/epub+zip").unwrap();
+
+            // OPF z manifestem i spine definiującym kolejność inną niż alfabetyczna:
+            // z_dedication.xhtml (id: ded) -> a_ch01.xhtml (id: ch1)
+            zip.start_file("OEBPS/content.opf", options).unwrap();
+            let opf = r#"<package><metadata>
+                <dc:title>Kolejność Spine</dc:title>
+            </metadata>
+            <manifest>
+                <item id="ch1" href="a_ch01.xhtml" media-type="application/xhtml+xml"/>
+                <item id="ded" href="z_dedication.xhtml" media-type="application/xhtml+xml"/>
+            </manifest>
+            <spine>
+                <itemref idref="ded"/>
+                <itemref idref="ch1"/>
+            </spine>
+            </package>"#;
+            zip.write_all(opf.as_bytes()).unwrap();
+
+            zip.start_file("OEBPS/a_ch01.xhtml", options).unwrap();
+            zip.write_all(
+                r#"<html><body><h1>Rozdział 1</h1><p>Tekst rozdziału 1.</p></body></html>"#
+                    .as_bytes(),
+            )
+            .unwrap();
+
+            zip.start_file("OEBPS/z_dedication.xhtml", options).unwrap();
+            zip.write_all(
+                r#"<html><body><h1>Dedykacja</h1><p>Dla wszystkich czytelników.</p></body></html>"#
+                    .as_bytes(),
+            )
+            .unwrap();
+
+            zip.finish().unwrap();
+        }
+
+        let book = ImportedBook::from_epub_bytes(&buf, None).expect("Should parse EPUB with spine");
+        assert_eq!(book.chapters.len(), 2);
+        // Dedykacja musi być pierwsza zgodnie ze spine, mimo że nazwa pliku z_dedication.xhtml jest alfabetycznie na końcu!
+        assert_eq!(book.chapters[0].title, "Dedykacja");
+        assert_eq!(book.chapters[1].title, "Rozdział 1");
     }
 }

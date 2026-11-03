@@ -24,8 +24,13 @@ pub struct ModelCatalogItem {
 pub fn models_dir() -> PathBuf {
     if let Some(data_dir) = dirs::data_dir() {
         data_dir.join("audioticon").join("models")
+    } else if let Some(home) = dirs::home_dir() {
+        home.join(".local")
+            .join("share")
+            .join("audioticon")
+            .join("models")
     } else {
-        PathBuf::from("/home/jaro/.local/share/audioticon/models")
+        PathBuf::from("./models")
     }
 }
 

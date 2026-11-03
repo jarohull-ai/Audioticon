@@ -4,6 +4,7 @@ use crate::types::{
 };
 use anyhow::{Context, Result};
 use hound::{SampleFormat, WavReader, WavSpec, WavWriter};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -407,11 +408,11 @@ const PIPER_WORKER_CODE: &str = include_str!("piper_worker.py");
 
 /// Offline Local Synthesizer bridge using a persistent Piper worker (100% offline, model kept in RAM).
 pub struct PiperBridge {
-    pub model_path: PathBuf,
+    pub default_model_path: PathBuf,
     pub voice_id: String,
     pub python_bin: PathBuf,
     pub worker_script: PathBuf,
-    worker: Mutex<Option<PiperWorkerProcess>>,
+    workers: Mutex<HashMap<PathBuf, PiperWorkerProcess>>,
 }
 
 impl PiperBridge {
@@ -426,11 +427,11 @@ impl PiperBridge {
         let script = Self::ensure_worker_script();
 
         Self {
-            model_path,
+            default_model_path: model_path,
             voice_id: format!("piper-{}", name),
             python_bin: py,
             worker_script: script,
-            worker: Mutex::new(None),
+            workers: Mutex::new(HashMap::new()),
         }
     }
 
@@ -480,18 +481,18 @@ impl PiperBridge {
         PathBuf::from("python3")
     }
 
-    fn spawn_worker(&self) -> Result<PiperWorkerProcess> {
+    fn spawn_worker_for(&self, model_path: &Path) -> Result<PiperWorkerProcess> {
         let mut child = std::process::Command::new(&self.python_bin)
             .arg(&self.worker_script)
-            .arg(&self.model_path)
+            .arg(model_path)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::inherit())
             .spawn()
             .with_context(|| {
                 format!(
-                    "Błąd startu procesu pomocniczego Piper: {:?}",
-                    self.worker_script
+                    "Błąd startu procesu pomocniczego Piper dla modelu {:?}: {:?}",
+                    model_path, self.worker_script
                 )
             })?;
 
@@ -507,6 +508,65 @@ impl PiperBridge {
             stdin,
             reader,
         })
+    }
+
+    /// Resolves character voice strings or aliases to on-disk Piper ONNX model paths
+    pub fn resolve_model_path(&self, requested_voice: Option<&str>) -> PathBuf {
+        let voice_str = match requested_voice {
+            Some(v) if !v.trim().is_empty() && v != "default" => v.trim().to_lowercase(),
+            _ => return self.default_model_path.clone(),
+        };
+
+        // 1. Direct model lookup via models catalog
+        if let Some(item) = crate::models::find_model(&voice_str) {
+            if let Some(ref p) = item.onnx_path {
+                if p.exists() {
+                    return p.clone();
+                }
+            }
+            let p = crate::models::models_dir().join(format!("{}.onnx", item.id));
+            if p.exists() {
+                return p;
+            }
+        }
+
+        // 2. Mapping from Edge neural voice names or actor tags to Piper models
+        let target_id = if voice_str.contains("zofia")
+            || voice_str.contains("gosia")
+            || voice_str.contains("female")
+            || voice_str.contains("kobieta")
+            || voice_str.contains("agnieszka")
+        {
+            "pl_PL-gosia-medium"
+        } else if voice_str.contains("darkman")
+            || voice_str.contains("marek")
+            || voice_str.contains("male")
+            || voice_str.contains("mezczyzna")
+            || voice_str.contains("mężczyzna")
+        {
+            "pl_PL-darkman-medium"
+        } else if voice_str.contains("amy") || voice_str.contains("jenny") {
+            "en_US-amy-medium"
+        } else if voice_str.contains("lessac")
+            || voice_str.contains("ryan")
+            || voice_str.contains("guy")
+        {
+            "en_US-lessac-medium"
+        } else if voice_str.contains("mc_speech") || voice_str.contains("mc") {
+            "pl_PL-mc_speech-medium"
+        } else {
+            ""
+        };
+
+        if !target_id.is_empty() {
+            let candidate = crate::models::models_dir().join(format!("{}.onnx", target_id));
+            if candidate.exists() {
+                return candidate;
+            }
+        }
+
+        // 3. Fallback to default model
+        self.default_model_path.clone()
     }
 }
 
@@ -538,14 +598,17 @@ impl SpeechSynthesizer for PiperBridge {
             "volume": volume_scale
         });
 
+        let target_model_path = self.resolve_model_path(segment.voice.as_deref());
+
         // Acquire worker and synthesize in-memory
         {
-            let mut worker_guard = self.worker.lock().await;
-            if worker_guard.is_none() {
-                *worker_guard = Some(self.spawn_worker()?);
+            let mut workers_guard = self.workers.lock().await;
+            if !workers_guard.contains_key(&target_model_path) {
+                let worker = self.spawn_worker_for(&target_model_path)?;
+                workers_guard.insert(target_model_path.clone(), worker);
             }
 
-            let worker = worker_guard.as_mut().unwrap();
+            let worker = workers_guard.get_mut(&target_model_path).unwrap();
             let mut line = req_json.to_string();
             line.push('\n');
 
@@ -992,5 +1055,23 @@ mod tests {
             max_amp
         );
         let _ = std::fs::remove_file(tmp);
+    }
+
+    #[test]
+    fn test_piper_voice_resolution() {
+        let dummy_default = PathBuf::from("/tmp/models/pl_PL-darkman-medium.onnx");
+        let bridge = PiperBridge::new(dummy_default.clone());
+
+        // Female / Zofia alias should resolve to gosia model
+        let female_path = bridge.resolve_model_path(Some("pl-PL-ZofiaNeural"));
+        assert!(female_path.to_string_lossy().contains("gosia") || female_path == dummy_default);
+
+        // Male / Marek alias should resolve to darkman model
+        let male_path = bridge.resolve_model_path(Some("pl-PL-MarekNeural"));
+        assert!(male_path.to_string_lossy().contains("darkman"));
+
+        // Default should resolve to default model
+        let default_path = bridge.resolve_model_path(None);
+        assert_eq!(default_path, dummy_default);
     }
 }

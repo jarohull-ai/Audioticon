@@ -2,7 +2,7 @@ use std::process::Command;
 
 #[test]
 fn test_cli_help() {
-    let output = Command::new(env!("CARGO_BIN_EXE_audioticon-cli"))
+    let output = Command::new(env!("CARGO_BIN_EXE_audioticon"))
         .arg("--help")
         .output()
         .expect("Failed to execute audioticon --help");
@@ -17,7 +17,7 @@ fn test_cli_help() {
 
 #[test]
 fn test_cli_presets_list() {
-    let output = Command::new(env!("CARGO_BIN_EXE_audioticon-cli"))
+    let output = Command::new(env!("CARGO_BIN_EXE_audioticon"))
         .arg("presets")
         .output()
         .expect("Failed to execute audioticon presets");
@@ -31,7 +31,7 @@ fn test_cli_presets_list() {
 
 #[test]
 fn test_cli_script_timeline_export() {
-    let output = Command::new(env!("CARGO_BIN_EXE_audioticon-cli"))
+    let output = Command::new(env!("CARGO_BIN_EXE_audioticon"))
         .args(["script", "--demo", "-f", "timeline"])
         .output()
         .expect("Failed to execute audioticon script");
@@ -44,7 +44,7 @@ fn test_cli_script_timeline_export() {
 
 #[test]
 fn test_cli_script_elevenlabs_export() {
-    let output = Command::new(env!("CARGO_BIN_EXE_audioticon-cli"))
+    let output = Command::new(env!("CARGO_BIN_EXE_audioticon"))
         .args(["script", "--demo", "-f", "elevenlabs"])
         .output()
         .expect("Failed to execute audioticon script elevenlabs");
@@ -56,7 +56,7 @@ fn test_cli_script_elevenlabs_export() {
 
 #[test]
 fn test_cli_lang_validation() {
-    let output = Command::new(env!("CARGO_BIN_EXE_audioticon-cli"))
+    let output = Command::new(env!("CARGO_BIN_EXE_audioticon"))
         .args(["script", "--demo", "--lang", "de"])
         .output()
         .expect("Failed to execute script with unsupported lang");
@@ -69,7 +69,7 @@ fn test_cli_lang_validation() {
 
 #[test]
 fn test_cli_models_list() {
-    let output = Command::new(env!("CARGO_BIN_EXE_audioticon-cli"))
+    let output = Command::new(env!("CARGO_BIN_EXE_audioticon"))
         .arg("models")
         .output()
         .expect("Failed to execute audioticon models");
@@ -89,7 +89,7 @@ fn test_cli_import_text() {
     let sample_content = "Rozdział 1: Świt nad Arktyką\nZimny wiatr wiał od bieguna.\n\nRozdział 2: Lądowanie\nStatek dotknął pokrywy lodowej.";
     std::fs::write(&sample_file, sample_content).expect("Write test sample");
 
-    let output = Command::new(env!("CARGO_BIN_EXE_audioticon-cli"))
+    let output = Command::new(env!("CARGO_BIN_EXE_audioticon"))
         .args([
             "import",
             "--input",

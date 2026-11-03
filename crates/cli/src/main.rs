@@ -227,14 +227,7 @@ fn get_default_piper_model(lang: &str) -> PathBuf {
     } else {
         "pl_PL-darkman-medium.onnx"
     };
-    if let Some(data_dir) = dirs::data_dir() {
-        data_dir.join("audioticon").join("models").join(filename)
-    } else {
-        PathBuf::from(format!(
-            "/home/jaro/.local/share/audioticon/models/{}",
-            filename
-        ))
-    }
+    audioticon_core::models::models_dir().join(filename)
 }
 
 const DEMO_SCENE: &str = r#"
@@ -462,7 +455,7 @@ async fn main() -> Result<()> {
             let book_author = author
                 .or(imported_author)
                 .or_else(|| project_meta.and_then(|p| p.author.clone()))
-                .unwrap_or_else(|| "Jarosław Kuchta".to_string());
+                .unwrap_or_else(|| "Audioticon Author".to_string());
             let book_narrator = narrator
                 .or_else(|| project_meta.and_then(|p| p.narrator.clone()))
                 .unwrap_or_else(|| synthesizer.voice_name().to_string());

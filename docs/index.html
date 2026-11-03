@@ -1782,37 +1782,64 @@
       const cylinder = document.getElementById('orbit-cylinder');
 
       // Pointer drag interaction — tylko lewy przycisk myszy lub dotyk!
+      let activePointerId = null;
+      let isPointerDown = false;
+
       stage.addEventListener('pointerdown', (e) => {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
-        isDragging = true;
+        isPointerDown = true;
+        isDragging = false;
+        activePointerId = e.pointerId;
         startX = e.clientX;
         baseAngle = currentOrbitAngle;
         dragDistance = 0;
-        cylinder.classList.add('dragging');
-        stage.setPointerCapture(e.pointerId);
       });
 
       stage.addEventListener('pointermove', (e) => {
-        if (!isDragging) return;
+        if (!isPointerDown) return;
         const dx = e.clientX - startX;
         dragDistance = Math.abs(dx);
-        // Drag sensitivity: 0.35 deg per px
-        currentOrbitAngle = baseAngle + dx * 0.35;
-        applyOrbitAngle(currentOrbitAngle);
-        updateActiveCardStatus(currentOrbitAngle);
+        if (!isDragging && dragDistance > 6) {
+          isDragging = true;
+          cylinder.classList.add('dragging');
+          try {
+            stage.setPointerCapture(activePointerId);
+          } catch (_) {}
+        }
+        if (isDragging) {
+          // Drag sensitivity: 0.35 deg per px
+          currentOrbitAngle = baseAngle + dx * 0.35;
+          applyOrbitAngle(currentOrbitAngle);
+          updateActiveCardStatus(currentOrbitAngle);
+        }
       });
 
       const stopDrag = (e) => {
-        if (!isDragging) return;
-        isDragging = false;
-        cylinder.classList.remove('dragging');
+        if (!isPointerDown) return;
+        isPointerDown = false;
 
-        // Snap to nearest 45 deg step
-        const step = 360 / CARD_COUNT;
-        targetOrbitAngle = Math.round(currentOrbitAngle / step) * step;
-        currentOrbitAngle = targetOrbitAngle;
-        applyOrbitAngle(currentOrbitAngle);
-        updateActiveCardStatus(currentOrbitAngle);
+        if (isDragging) {
+          isDragging = false;
+          cylinder.classList.remove('dragging');
+          try {
+            stage.releasePointerCapture(activePointerId);
+          } catch (_) {}
+
+          // Snap to nearest 45 deg step
+          const step = 360 / CARD_COUNT;
+          targetOrbitAngle = Math.round(currentOrbitAngle / step) * step;
+          currentOrbitAngle = targetOrbitAngle;
+          applyOrbitAngle(currentOrbitAngle);
+          updateActiveCardStatus(currentOrbitAngle);
+        } else if (dragDistance <= 6) {
+          // Czyste kliknięcie bez przeciągania
+          const card = e.target.closest('.orbit-card');
+          if (card && card.dataset.index !== undefined) {
+            const idx = parseInt(card.dataset.index, 10);
+            openCard(idx);
+          }
+        }
+        activePointerId = null;
       };
 
       stage.addEventListener('pointerup', stopDrag);

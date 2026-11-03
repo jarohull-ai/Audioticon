@@ -337,6 +337,35 @@ fn normalize_dates(text: &str) -> String {
     .to_string()
 }
 
+/// Normalizuje daty słowne w dopełniaczu (np. "24 lutego 2024" -> "dwudziestego czwartego lutego dwa tysiące dwudziestego czwartego roku")
+fn normalize_textual_dates(text: &str) -> String {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| {
+        Regex::new(r"(?i)\b([0-3]?[0-9])\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)(?:\s+([1-2][0-9]{3})(?:\s*(?:roku|r\.?))?)?\b")
+            .expect("Valid textual date regex")
+    });
+
+    re.replace_all(text, |caps: &Captures| {
+        let day: u32 = caps[1].parse().unwrap_or(0);
+        let month_str = caps[2].to_lowercase();
+        let year_opt: Option<u32> = caps.get(3).and_then(|m| m.as_str().parse().ok());
+
+        if (1..=31).contains(&day) {
+            let day_word = ORDINAL_DAYS_GENITIVE[day as usize];
+            if let Some(year) = year_opt {
+                if year >= 1000 {
+                    let year_words = year_to_words_genitive(year);
+                    return format!("{} {} {}", day_word, month_str, year_words);
+                }
+            }
+            format!("{} {}", day_word, month_str)
+        } else {
+            caps[0].to_string()
+        }
+    })
+    .to_string()
+}
+
 /// Normalizuje godziny w formacie HH:MM (z uwzględnieniem przyimków miejscownika np. "o 15:47" -> "o piętnastej czterdzieści siedem")
 fn normalize_times(text: &str) -> String {
     static RE_PREP: OnceLock<Regex> = OnceLock::new();
@@ -423,13 +452,30 @@ fn normalize_standalone_numbers(text: &str) -> String {
 /// 3. Konwertuje samodzielne liczby (np. 1500 -> "tysiąc pięćset")
 pub fn normalize_polish_text(raw_text: &str) -> String {
     let step1 = normalize_dates(raw_text);
-    let step2 = normalize_times(&step1);
+    let step1b = normalize_textual_dates(&step1);
+    let step2 = normalize_times(&step1b);
     normalize_standalone_numbers(&step2)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_normalize_textual_date() {
+        assert_eq!(
+            normalize_polish_text("Kijów, 24 lutego 2024."),
+            "Kijów, dwudziestego czwartego lutego dwa tysiące dwudziestego czwartego roku."
+        );
+        assert_eq!(
+            normalize_polish_text("Spotkanie 15 stycznia 2026 r."),
+            "Spotkanie piętnastego stycznia dwa tysiące dwudziestego szóstego roku."
+        );
+        assert_eq!(
+            normalize_polish_text("Święto 1 maja"),
+            "Święto pierwszego maja"
+        );
+    }
 
     #[test]
     fn test_number_to_words() {
