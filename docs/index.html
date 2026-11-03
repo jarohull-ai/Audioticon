@@ -232,6 +232,251 @@
       border-color: var(--accent);
     }
 
+    /* Pływające Bubble Menu (kontekstowe po zaznaczeniu tekstu) */
+    .bubble-menu {
+      position: absolute;
+      display: none;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(6, 182, 212, 0.5);
+      border-radius: 12px;
+      padding: 0.35rem 0.5rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(6, 182, 212, 0.25);
+      z-index: 10000;
+      gap: 0.3rem;
+      align-items: center;
+      transform: translate(-50%, -100%);
+      margin-top: -8px;
+      animation: bubblePop 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes bubblePop {
+      0% { opacity: 0; transform: translate(-50%, -85%) scale(0.95); }
+      100% { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+    }
+
+    .bubble-menu::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 6px 6px 0 6px;
+      border-style: solid;
+      border-color: rgba(6, 182, 212, 0.5) transparent transparent transparent;
+    }
+
+    .bubble-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #fff;
+      border-radius: 8px;
+      padding: 0.3rem 0.6rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .bubble-btn:hover {
+      background: rgba(6, 182, 212, 0.25);
+      border-color: rgba(6, 182, 212, 0.6);
+      transform: translateY(-1px);
+      color: #38bdf8;
+    }
+
+    /* Slash Menu (/ commands jak w Notion / Slack) */
+    .slash-menu {
+      position: absolute;
+      display: none;
+      background: rgba(15, 23, 42, 0.96);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(6, 182, 212, 0.45);
+      border-radius: 12px;
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7), 0 0 25px rgba(6, 182, 212, 0.2);
+      z-index: 10001;
+      width: 290px;
+      max-height: 320px;
+      overflow-y: auto;
+      padding: 0.4rem;
+      font-size: 0.82rem;
+      animation: bubblePop 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .slash-header {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #94a3b8;
+      padding: 0.4rem 0.6rem 0.3rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      margin-bottom: 0.3rem;
+    }
+
+    .slash-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.45rem 0.65rem;
+      border-radius: 8px;
+      color: #f1f5f9;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .slash-item.selected, .slash-item:hover {
+      background: rgba(6, 182, 212, 0.2);
+      color: #38bdf8;
+    }
+
+    .slash-item-left {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .slash-item-icon {
+      font-size: 1.15rem;
+    }
+
+    .slash-item-tag {
+      font-size: 0.7rem;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+
+    /* Wizualna Oś Czasu (Audio Blocks Timeline) */
+    .timeline-container {
+      background: rgba(10, 15, 26, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 0.85rem 1.1rem;
+      margin-top: 0.75rem;
+      margin-bottom: 0.85rem;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+
+    .timeline-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.65rem;
+      font-size: 0.8rem;
+    }
+
+    .timeline-title {
+      font-weight: 700;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .timeline-stats {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+    }
+
+    .timeline-blocks {
+      display: flex;
+      gap: 0.5rem;
+      overflow-x: auto;
+      padding-bottom: 0.4rem;
+      scrollbar-width: thin;
+    }
+
+    .timeline-block {
+      flex-shrink: 0;
+      padding: 0.45rem 0.7rem;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.05);
+      user-select: none;
+    }
+
+    .timeline-block:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      filter: brightness(1.2);
+    }
+
+    .timeline-block.type-chapter {
+      background: rgba(99, 102, 241, 0.25);
+      border-color: rgba(99, 102, 241, 0.6);
+      color: #a5b4fc;
+    }
+
+    .timeline-block.type-normal {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.3);
+      color: #bae6fd;
+    }
+
+    .timeline-block.type-whisper {
+      background: rgba(6, 182, 212, 0.2);
+      border-color: rgba(6, 182, 212, 0.5);
+      color: #67e8f9;
+    }
+
+    .timeline-block.type-phone {
+      background: rgba(168, 85, 247, 0.2);
+      border-color: rgba(168, 85, 247, 0.5);
+      color: #d8b4fe;
+    }
+
+    .timeline-block.type-radio {
+      background: rgba(234, 179, 8, 0.2);
+      border-color: rgba(234, 179, 8, 0.5);
+      color: #fde047;
+    }
+
+    .timeline-block.type-cathedral {
+      background: rgba(245, 158, 11, 0.25);
+      border-color: rgba(245, 158, 11, 0.6);
+      color: #fcd34d;
+    }
+
+    .timeline-block.type-robot {
+      background: rgba(148, 163, 184, 0.2);
+      border-color: rgba(148, 163, 184, 0.5);
+      color: #e2e8f0;
+    }
+
+    .timeline-block.type-shout {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #fca5a5;
+    }
+
+    .timeline-block.type-pause {
+      background: rgba(100, 116, 139, 0.2);
+      border-color: rgba(100, 116, 139, 0.4);
+      color: #94a3b8;
+    }
+
+    .timeline-block.type-breath {
+      background: rgba(20, 184, 166, 0.2);
+      border-color: rgba(20, 184, 166, 0.5);
+      color: #5eead4;
+    }
+
     /* Player & Download Bar */
     .player-action-bar {
       background: rgba(0, 0, 0, 0.4);
@@ -981,6 +1226,24 @@
 </head>
 <body>
 
+  <!-- Floating Contextual Bubble Menu (po zaznaczeniu tekstu) -->
+  <div id="bubble-menu" class="bubble-menu">
+    <button type="button" class="bubble-btn" onclick="applyBubbleAction('wrap', '🤫', '🛑')">🤫 Szept</button>
+    <button type="button" class="bubble-btn" onclick="applyBubbleAction('wrap', '💥', '🛑')">💥 Krzyk</button>
+    <button type="button" class="bubble-btn" onclick="applyBubbleAction('wrap', '📱', '🛑')">📱 Telefon</button>
+    <button type="button" class="bubble-btn" onclick="applyBubbleAction('wrap', '📻', '🛑')">📻 Radio</button>
+    <button type="button" class="bubble-btn" onclick="applyBubbleAction('wrap', '🏛️', '🛑')">🏛️ Katedra</button>
+    <button type="button" class="bubble-btn" onclick="applyBubbleAction('wrap', '🤖', '🛑')">🤖 Robot</button>
+    <button type="button" class="bubble-btn" onclick="applyBubbleAction('insert', '⏸️ ')">⏸️ Pauza</button>
+    <button type="button" class="bubble-btn" onclick="applyBubbleAction('insert', '😮‍💨 ')">😮‍💨 Oddech</button>
+  </div>
+
+  <!-- Slash Command Menu (/ commands jak w Notion) -->
+  <div id="slash-menu" class="slash-menu">
+    <div class="slash-header">⚡ Komendy Reżyserskie (wpisz np. /pauza)</div>
+    <div class="slash-items" id="slash-items"></div>
+  </div>
+
   <header>
     <a href="https://github.com/jarohull-ai/Audioticon" target="_blank" class="brand">
       <img src="logo.png" alt="Audioticon Logo">
@@ -1195,6 +1458,17 @@
 
       <textarea id="script-input" spellcheck="false"></textarea>
 
+      <!-- Wizualna Oś Czasu (Audio Blocks Timeline) -->
+      <div class="timeline-container" id="timeline-container">
+        <div class="timeline-header">
+          <span class="timeline-title">📊 Wizualna Oś Czasu (Audio Blocks)</span>
+          <span class="timeline-stats" id="timeline-stats">0 bloków • ~0:00</span>
+        </div>
+        <div class="timeline-blocks" id="timeline-blocks">
+          <!-- Dynamically populated audio blocks -->
+        </div>
+      </div>
+
       <!-- Clean Audio Player & Download Button -->
       <div class="player-action-bar">
         <div class="player-wrap">
@@ -1347,6 +1621,7 @@
 
       window.exportData = { eleven, chattts, cli };
       showActiveTab();
+      updateTimeline(text);
     }
 
     async function renderCustomAudio() {
@@ -2123,9 +2398,338 @@ air = 0.70</pre>
       }
     }
 
+    // ========================================================
+    // 📊 WIZUALNA OŚ CZASU (AUDIO BLOCKS TIMELINE)
+    // ========================================================
+    function updateTimeline(text) {
+      const container = document.getElementById('timeline-blocks');
+      const stats = document.getElementById('timeline-stats');
+      if (!container || !stats) return;
+
+      const lines = text.split('\n');
+      const blocks = [];
+      let wordCountTotal = 0;
+      let pauseSecTotal = 0;
+      let charOffset = 0;
+
+      for (let l = 0; l < lines.length; l++) {
+        const rawLine = lines[l];
+        const line = rawLine.trim();
+        if (!line) {
+          charOffset += rawLine.length + 1;
+          continue;
+        }
+
+        if (line.includes('📖') || line.includes('[rozdział]') || line.includes('[rozdzial]')) {
+          const cleanTitle = line.replace(/[📖🛑⏸️\[\]rozdziałrozdzial:]/gi, '').trim() || 'Rozdział';
+          blocks.push({
+            type: 'chapter',
+            icon: '📖',
+            label: cleanTitle,
+            start: charOffset,
+            end: charOffset + rawLine.length
+          });
+          charOffset += rawLine.length + 1;
+          continue;
+        }
+
+        let activeType = 'normal';
+        let activeIcon = '🗣️';
+        let activeLabel = 'Narracja';
+
+        if (line.includes('📱') || line.includes('[telefon]')) {
+          activeType = 'phone'; activeIcon = '📱'; activeLabel = 'Telefon';
+        } else if (line.includes('📻') || line.includes('[radio]')) {
+          activeType = 'radio'; activeIcon = '📻'; activeLabel = 'Radio';
+        } else if (line.includes('🏛️') || line.includes('[katedra]')) {
+          activeType = 'cathedral'; activeIcon = '🏛️'; activeLabel = 'Katedra';
+        } else if (line.includes('🤫') || line.includes('[szept]')) {
+          activeType = 'whisper'; activeIcon = '🤫'; activeLabel = 'Szept';
+        } else if (line.includes('🤖') || line.includes('[robot]')) {
+          activeType = 'robot'; activeIcon = '🤖'; activeLabel = 'Robot';
+        } else if (line.includes('💥') || line.includes('[krzyk]')) {
+          activeType = 'shout'; activeIcon = '💥'; activeLabel = 'Krzyk';
+        }
+
+        if (line.includes('⏸️') || line.includes('[pauza]')) {
+          pauseSecTotal += 0.8;
+        }
+        if (line.includes('😮‍💨') || line.includes('[oddech]')) {
+          pauseSecTotal += 0.4;
+        }
+
+        const words = line.replace(/[^\wąćęłńóśźżĄĆĘŁŃÓŚŹŻ\s]/g, '').trim().split(/\s+/).filter(Boolean).length;
+        wordCountTotal += words;
+
+        let displayLabel = activeLabel;
+        if (words > 0) {
+          displayLabel += ` (${words} sł.)`;
+        }
+
+        blocks.push({
+          type: activeType,
+          icon: activeIcon,
+          label: displayLabel,
+          start: charOffset,
+          end: charOffset + rawLine.length
+        });
+
+        if (line.includes('⏸️') || line.includes('[pauza]')) {
+          blocks.push({
+            type: 'pause',
+            icon: '⏸️',
+            label: 'Pauza 0.8s',
+            start: charOffset,
+            end: charOffset + rawLine.length
+          });
+        }
+
+        if (line.includes('😮‍💨') || line.includes('[oddech]')) {
+          blocks.push({
+            type: 'breath',
+            icon: '😮‍💨',
+            label: 'Oddech 0.4s',
+            start: charOffset,
+            end: charOffset + rawLine.length
+          });
+        }
+
+        charOffset += rawLine.length + 1;
+      }
+
+      const estSec = Math.round((wordCountTotal / 130) * 60 + pauseSecTotal);
+      const min = Math.floor(estSec / 60);
+      const sec = estSec % 60;
+      const timeStr = `~${min}:${String(sec).padStart(2, '0')}`;
+
+      stats.textContent = `${blocks.length} bloków • ${wordCountTotal} słów • ${timeStr}`;
+
+      container.innerHTML = blocks.map((b) => `
+        <div class="timeline-block type-${b.type}" onclick="jumpToTimelineBlock(${b.start}, ${b.end})" title="Kliknij, aby przejść do fragmentu w tekście">
+          <span>${b.icon}</span>
+          <span>${b.label}</span>
+        </div>
+      `).join('');
+    }
+
+    function jumpToTimelineBlock(start, end) {
+      const ta = document.getElementById('script-input');
+      if (!ta) return;
+      ta.focus();
+      ta.setSelectionRange(start, Math.min(ta.value.length, end));
+      const lineHeight = 24;
+      const linesBefore = ta.value.substring(0, start).split('\n').length;
+      ta.scrollTop = Math.max(0, (linesBefore - 2) * lineHeight);
+    }
+
+    // ========================================================
+    // 💬 PŁYWAJĄCE BUBBLE MENU (KONTEKSTOWE PO ZAZNACZENIU)
+    // ========================================================
+    let activeEditor = null;
+
+    function initBubbleMenu() {
+      const menu = document.getElementById('bubble-menu');
+      if (!menu) return;
+
+      function handleSelection(ta) {
+        if (!ta) return;
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        if (start !== undefined && end !== undefined && end > start) {
+          activeEditor = ta;
+          const selText = ta.value.substring(start, end).trim();
+          if (selText.length > 0) {
+            const rect = ta.getBoundingClientRect();
+            const linesBefore = ta.value.substring(0, start).split('\n').length;
+            const lineHeight = 24;
+            const cursorTop = rect.top + window.scrollY + Math.min(rect.height - 40, linesBefore * lineHeight) - ta.scrollTop;
+            const menuLeft = rect.left + window.scrollX + Math.min(rect.width - 150, Math.max(150, rect.width / 2));
+            
+            menu.style.left = `${menuLeft}px`;
+            menu.style.top = `${cursorTop}px`;
+            menu.style.display = 'flex';
+            return;
+          }
+        }
+        hideBubbleMenu();
+      }
+
+      const ta = document.getElementById('script-input');
+      if (ta) {
+        ta.addEventListener('mouseup', () => handleSelection(ta));
+        ta.addEventListener('keyup', (e) => {
+          if (e.shiftKey && (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End')) {
+            handleSelection(ta);
+          }
+        });
+      }
+
+      document.addEventListener('mousedown', (e) => {
+        if (!menu.contains(e.target) && e.target !== activeEditor) {
+          hideBubbleMenu();
+        }
+      });
+    }
+
+    function hideBubbleMenu() {
+      const menu = document.getElementById('bubble-menu');
+      if (menu) menu.style.display = 'none';
+    }
+
+    function applyBubbleAction(action, prefix, suffix) {
+      const ta = activeEditor || document.getElementById('script-input');
+      if (!ta) return;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const val = ta.value;
+
+      if (action === 'wrap') {
+        const selected = val.substring(start, end);
+        const replacement = `${prefix} ${selected} ${suffix || '🛑'}`;
+        ta.value = val.substring(0, start) + replacement + val.substring(end);
+        ta.focus();
+        ta.selectionStart = start + prefix.length + 1;
+        ta.selectionEnd = start + prefix.length + 1 + selected.length;
+      } else if (action === 'insert') {
+        ta.value = val.substring(0, start) + prefix + val.substring(start);
+        ta.focus();
+        ta.selectionStart = ta.selectionEnd = start + prefix.length;
+      }
+
+      hideBubbleMenu();
+      updateExports(ta.value);
+    }
+
+    // ========================================================
+    // ⚡ SLASH COMMAND MENU (/ W NOTION STYLE)
+    // ========================================================
+    const SLASH_COMMANDS = [
+      { cmd: 'pauza', tag: '⏸️ ', label: 'Pauza lektora (0.8s)', icon: '⏸️' },
+      { cmd: 'szept', tag: '🤫 ', label: 'Szept narracji', icon: '🤫' },
+      { cmd: 'krzyk', tag: '💥 ', label: 'Krzyk / Akcent emocjonalny', icon: '💥' },
+      { cmd: 'telefon', tag: '📱 ', label: 'Filtr telefoniczny DSP', icon: '📱' },
+      { cmd: 'radio', tag: '📻 ', label: 'Radio wojskowe / CB', icon: '📻' },
+      { cmd: 'katedra', tag: '🏛️ ', label: 'Pogłos katedralny', icon: '🏛️' },
+      { cmd: 'robot', tag: '🤖 ', label: 'Głos robota / androida', icon: '🤖' },
+      { cmd: 'oddech', tag: '😮‍💨 ', label: 'Westchnienie / oddech', icon: '😮‍💨' },
+      { cmd: 'rozdzial', tag: '📖 Rozdział ', label: 'Nowy rozdział audiobooka', icon: '📖' },
+      { cmd: 'wolno', tag: '[wolno] ', label: 'Zwolnienie tempa mowy', icon: '🐢' },
+      { cmd: 'szybko', tag: '[szybko] ', label: 'Przyspieszenie tempa', icon: '⏩' },
+      { cmd: 'koniec', tag: '🛑 ', label: 'Koniec efektu aktorskiego', icon: '🛑' },
+    ];
+
+    let slashActiveIdx = 0;
+    let slashFiltered = [];
+    let slashPos = null;
+
+    function initSlashMenu() {
+      const menu = document.getElementById('slash-menu');
+      const itemsContainer = document.getElementById('slash-items');
+      const ta = document.getElementById('script-input');
+      if (!menu || !itemsContainer || !ta) return;
+
+      function renderSlashItems() {
+        itemsContainer.innerHTML = slashFiltered.map((item, idx) => `
+          <div class="slash-item ${idx === slashActiveIdx ? 'selected' : ''}" onclick="selectSlashItem(${idx})">
+            <div class="slash-item-left">
+              <span class="slash-item-icon">${item.icon}</span>
+              <span>${item.label}</span>
+            </div>
+            <span class="slash-item-tag">/${item.cmd}</span>
+          </div>
+        `).join('');
+      }
+
+      window.selectSlashItem = function(idx) {
+        if (!slashFiltered[idx] || slashPos === null) return;
+        const item = slashFiltered[idx];
+        const targetTa = activeEditor || ta;
+        const val = targetTa.value;
+        const beforeSlash = val.substring(0, slashPos);
+        const afterCursor = val.substring(targetTa.selectionStart);
+        targetTa.value = beforeSlash + item.tag + afterCursor;
+        targetTa.focus();
+        const newPos = slashPos + item.tag.length;
+        targetTa.selectionStart = targetTa.selectionEnd = newPos;
+        closeSlashMenu();
+        updateExports(targetTa.value);
+      };
+
+      function closeSlashMenu() {
+        menu.style.display = 'none';
+        slashPos = null;
+        slashFiltered = [];
+      }
+
+      ta.addEventListener('keydown', (e) => {
+        if (menu.style.display === 'block') {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            slashActiveIdx = (slashActiveIdx + 1) % slashFiltered.length;
+            renderSlashItems();
+            return;
+          }
+          if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            slashActiveIdx = (slashActiveIdx - 1 + slashFiltered.length) % slashFiltered.length;
+            renderSlashItems();
+            return;
+          }
+          if (e.key === 'Enter' || e.key === 'Tab') {
+            e.preventDefault();
+            selectSlashItem(slashActiveIdx);
+            return;
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            closeSlashMenu();
+            return;
+          }
+        }
+      });
+
+      ta.addEventListener('input', () => {
+        const cursor = ta.selectionStart;
+        const val = ta.value;
+        const lastSlash = val.lastIndexOf('/', cursor - 1);
+        
+        if (lastSlash !== -1 && (lastSlash === 0 || val[lastSlash - 1] === ' ' || val[lastSlash - 1] === '\n')) {
+          const query = val.substring(lastSlash + 1, cursor).toLowerCase().trim();
+          if (!query.includes('\n') && query.length <= 15) {
+            slashPos = lastSlash;
+            slashFiltered = SLASH_COMMANDS.filter(c => c.cmd.startsWith(query) || c.label.toLowerCase().includes(query));
+            if (slashFiltered.length > 0) {
+              slashActiveIdx = 0;
+              renderSlashItems();
+              
+              const rect = ta.getBoundingClientRect();
+              const linesBefore = val.substring(0, lastSlash).split('\n').length;
+              const lineHeight = 24;
+              const menuTop = rect.top + window.scrollY + Math.min(rect.height - 30, linesBefore * lineHeight + 28) - ta.scrollTop;
+              const menuLeft = rect.left + window.scrollX + Math.min(rect.width - 300, 30);
+              
+              menu.style.top = `${menuTop}px`;
+              menu.style.left = `${menuLeft}px`;
+              menu.style.display = 'block';
+              return;
+            }
+          }
+        }
+        closeSlashMenu();
+      });
+
+      document.addEventListener('mousedown', (e) => {
+        if (!menu.contains(e.target) && e.target !== ta) {
+          closeSlashMenu();
+        }
+      });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       initOrbitCylinder();
       selectPreset('aurora');
+      initBubbleMenu();
+      initSlashMenu();
       const savedMode = localStorage.getItem('audioticon_view_mode') || '3d';
       setViewMode(savedMode);
       document.getElementById('script-input').addEventListener('input', (e) => {
