@@ -265,7 +265,7 @@ fn test_api_server_endpoints_e2e() {
 
 #[test]
 fn test_api_cache_status_disk_verification() {
-    let port = 30000 + (std::process::id() % 10000) as u16 + 14;
+    let port = get_free_port();
     let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
         .args(["serve", "--port", &port.to_string(), "--no-browser"])
         .spawn()
@@ -322,8 +322,19 @@ fn test_api_cache_status_disk_verification() {
 
 #[test]
 fn test_cli_providers_lifecycle() {
+    let tmp_home = std::env::temp_dir().join(format!(
+        "test_cli_prov_home_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = std::fs::create_dir_all(&tmp_home);
+
     // 1. Set mock API key
     let set_out = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .env("HOME", &tmp_home)
         .args([
             "providers",
             "set",
@@ -339,6 +350,7 @@ fn test_cli_providers_lifecycle() {
 
     // 2. List providers and verify masking
     let list_out = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .env("HOME", &tmp_home)
         .args(["providers", "list"])
         .output()
         .expect("Failed to execute audioticon providers list");
@@ -350,12 +362,15 @@ fn test_cli_providers_lifecycle() {
 
     // 3. Remove provider
     let rem_out = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .env("HOME", &tmp_home)
         .args(["providers", "remove", "elevenlabs"])
         .output()
         .expect("Failed to execute audioticon providers remove");
     assert!(rem_out.status.success());
     let stdout_rem = String::from_utf8_lossy(&rem_out.stdout);
     assert!(stdout_rem.contains("Usunięto konfigurację dostawcy 'elevenlabs'"));
+
+    let _ = std::fs::remove_dir_all(&tmp_home);
 }
 
 #[test]
@@ -441,8 +456,18 @@ fn http_roundtrip_with_headers(
 
 #[test]
 fn test_api_csrf_protection_and_origin_validation() {
-    let port = 39000 + (std::process::id() as u16 % 1000);
+    let port = get_free_port();
+    let tmp_home = std::env::temp_dir().join(format!(
+        "test_api_csrf_home_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = std::fs::create_dir_all(&tmp_home);
     let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .env("HOME", &tmp_home)
         .args(["serve", "--port", &port.to_string(), "--no-browser"])
         .spawn()
         .expect("Failed to start audioticon serve");
@@ -508,7 +533,7 @@ fn test_api_csrf_protection_and_origin_validation() {
     // Clean up
     let _ = child.kill();
     let _ = child.wait();
-    let _ = audioticon_core::remove_api_key("elevenlabs");
+    let _ = std::fs::remove_dir_all(&tmp_home);
 }
 
 #[test]
