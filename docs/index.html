@@ -914,6 +914,30 @@
       box-shadow: 0 0 15px var(--accent-glow);
     }
 
+    .model-filter-chip {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #94a3b8;
+      border-radius: 6px;
+      padding: 0.25rem 0.55rem;
+      font-size: 0.72rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    .model-filter-chip:hover {
+      background: rgba(6, 182, 212, 0.15);
+      color: #38bdf8;
+      border-color: rgba(6, 182, 212, 0.4);
+    }
+    .model-filter-chip.active {
+      background: rgba(6, 182, 212, 0.2);
+      border-color: #06b6d4;
+      color: #38bdf8;
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+    }
+
     /* Glassmorphic 3D Card (Architecture of Clarity Style) */
     .orbit-card {
       position: absolute;
@@ -2937,6 +2961,14 @@
                   </button>
                 </div>
 
+                <div style="display: flex; gap: 0.35rem; margin-bottom: 0.6rem; flex-wrap: wrap; align-items: center;">
+                  <input type="text" id="model-search-input" placeholder="🔍 Szukaj modelu (np. darkman, gosia, uk, de)..." oninput="filterOfflineModelsList()" style="flex: 1; min-width: 140px; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.75rem; color: #fff;">
+                  <button type="button" class="model-filter-chip active" onclick="setModelFilter('all', this)">Wszystkie</button>
+                  <button type="button" class="model-filter-chip" onclick="setModelFilter('pl', this)">🇵🇱 PL</button>
+                  <button type="button" class="model-filter-chip" onclick="setModelFilter('en', this)">🇺🇸 EN</button>
+                  <button type="button" class="model-filter-chip" onclick="setModelFilter('installed', this)">✅ Zainstalowane</button>
+                </div>
+
                 <div id="offline-models-container" style="display: flex; flex-direction: column; gap: 0.6rem; max-height: 220px; overflow-y: auto; padding-right: 0.3rem;">
                   <div style="color: #94a3b8; font-size: 0.82rem; padding: 0.5rem; text-align: center;">Ładowanie listy modeli offline...</div>
                 </div>
@@ -3415,11 +3447,11 @@ air = 0.70</pre>
     }
 
     const CURATED_MODELS = [
-      { id: "pl_PL-darkman-medium", name: "Darkman (Polski męski)", lang: "pl", lang_name: "Polski", gender: "👨", desc: "Głęboki, dojrzały tembr lektorski" },
-      { id: "pl_PL-gosia-medium", name: "Gosia (Polski żeński)", lang: "pl", lang_name: "Polski", gender: "👩", desc: "Naturalny, ciepły głos kobiecy" },
-      { id: "pl_PL-mc_speech-medium", name: "MC Speech (Polski lektor)", lang: "pl", lang_name: "Polski", gender: "🎙️", desc: "Wyrazisty, klasyczny lektor audio" },
-      { id: "en_US-lessac-medium", name: "Lessac (English US Male)", lang: "en", lang_name: "English (US)", gender: "👨", desc: "Clear American male narrator" },
-      { id: "en_US-amy-medium", name: "Amy (English US Female)", lang: "en", lang_name: "English (US)", gender: "👩", desc: "Warm American female voice" }
+      { id: "pl_PL-darkman-medium", name: "Darkman (Polski męski)", lang: "pl", lang_name: "Polski", gender: "👨", license: "CC0 (Public Domain)", desc: "Głęboki, dojrzały tembr lektorski" },
+      { id: "pl_PL-gosia-medium", name: "Gosia (Polski żeński)", lang: "pl", lang_name: "Polski", gender: "👩", license: "CC0 (Public Domain)", desc: "Naturalny, ciepły głos kobiecy" },
+      { id: "pl_PL-mc_speech-medium", name: "MC Speech (Polski lektor)", lang: "pl", lang_name: "Polski", gender: "🎙️", license: "CC0 (Public Domain)", desc: "Wyrazisty, klasyczny lektor audio" },
+      { id: "en_US-lessac-medium", name: "Lessac (English US Male)", lang: "en", lang_name: "English (US)", gender: "👨", license: "Non-commercial (Blizzard)", desc: "Clear American male narrator" },
+      { id: "en_US-amy-medium", name: "Amy (English US Female)", lang: "en", lang_name: "English (US)", gender: "👩", license: "CC0 (Public Domain)", desc: "Warm American female voice" }
     ];
 
     const EDGE_VOICES = {
@@ -3569,37 +3601,81 @@ air = 0.70</pre>
           lang: m.lang,
           lang_name: m.lang_name,
           gender: m.gender === '👩' ? 'female' : 'male',
+          license: m.license || 'CC0',
           size_mb: 63,
           installed: false
         }));
       }
 
-      renderOfflineModels(models);
+      window.allOfflineModels = models;
+      filterAndRenderOfflineModels();
+    }
+
+    let currentModelFilter = 'all';
+    let currentModelSearch = '';
+
+    function setModelFilter(filter, btn) {
+      currentModelFilter = filter;
+      document.querySelectorAll('.model-filter-chip').forEach(c => c.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      filterAndRenderOfflineModels();
+    }
+
+    function filterOfflineModelsList() {
+      const input = document.getElementById('model-search-input');
+      currentModelSearch = input ? input.value.trim().toLowerCase() : '';
+      filterAndRenderOfflineModels();
+    }
+
+    function filterAndRenderOfflineModels() {
+      if (!window.allOfflineModels) return;
+      let filtered = window.allOfflineModels;
+      if (currentModelFilter === 'pl') {
+        filtered = filtered.filter(m => m.lang && m.lang.startsWith('pl'));
+      } else if (currentModelFilter === 'en') {
+        filtered = filtered.filter(m => m.lang && m.lang.startsWith('en'));
+      } else if (currentModelFilter === 'installed') {
+        filtered = filtered.filter(m => m.installed);
+      }
+      if (currentModelSearch) {
+        filtered = filtered.filter(m =>
+          (m.id && m.id.toLowerCase().includes(currentModelSearch)) ||
+          (m.name && m.name.toLowerCase().includes(currentModelSearch)) ||
+          (m.lang_name && m.lang_name.toLowerCase().includes(currentModelSearch))
+        );
+      }
+      renderOfflineModels(filtered);
     }
 
     function renderOfflineModels(models) {
       const container = document.getElementById('offline-models-container');
       if (!container) return;
 
+      if (!models || models.length === 0) {
+        container.innerHTML = `<div style="color: #94a3b8; font-size: 0.82rem; padding: 1rem; text-align: center;">Nie znaleziono modeli spełniających kryteria wyszukiwania.</div>`;
+        return;
+      }
+
       const activeVoice = document.getElementById('tts-voice')?.value || 'pl_PL-darkman-medium';
 
       container.innerHTML = models.map(m => {
         const isCurrentActive = activeVoice === m.id;
         const genderIcon = m.gender === 'female' ? '👩' : (m.gender === 'male' ? '👨' : '🎙️');
-        const langFlag = m.lang.startsWith('pl') ? '🇵🇱' : '🇺🇸';
+        const langFlag = m.lang && m.lang.startsWith('pl') ? '🇵🇱' : (m.lang && m.lang.startsWith('en') ? '🇺🇸' : '🌐');
         const installedBadge = m.installed
           ? `<span style="background: rgba(16, 185, 129, 0.15); color: #34d399; padding: 0.2rem 0.5rem; border-radius: 6px; font-size: 0.72rem; border: 1px solid rgba(16, 185, 129, 0.3); font-weight: 600;">✅ Zainstalowany (~${m.size_mb} MB)</span>`
           : `<span style="background: rgba(148, 163, 184, 0.1); color: #94a3b8; padding: 0.2rem 0.5rem; border-radius: 6px; font-size: 0.72rem; border: 1px solid rgba(148, 163, 184, 0.25);">☁️ W chmurze (~${m.size_mb} MB)</span>`;
+        const licenseBadge = `<span style="background: rgba(56, 189, 248, 0.1); color: #38bdf8; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.68rem; border: 1px solid rgba(56, 189, 248, 0.25);">📜 ${m.license || 'Open'}</span>`;
 
         let actionBtn = '';
         if (m.installed) {
           if (isCurrentActive) {
             actionBtn = `<span style="color: #38bdf8; font-size: 0.75rem; font-weight: 700; padding: 0.3rem 0.6rem; background: rgba(56, 189, 248, 0.15); border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.3);">⭐ Aktywny</span>`;
           } else {
-            actionBtn = `<button onclick="selectPiperModel('${m.id}')" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; padding: 0.3rem 0.7rem; font-size: 0.75rem; cursor: pointer; font-weight: 600; transition: all 0.2s;">🎯 Wybierz</button>`;
+            actionBtn = `<button type="button" onclick="selectPiperModel('${m.id}')" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 6px; padding: 0.3rem 0.7rem; font-size: 0.75rem; cursor: pointer; font-weight: 600; transition: all 0.2s;">🎯 Wybierz</button>`;
           }
         } else {
-          actionBtn = `<button id="btn-dl-${m.id}" onclick="downloadModelFromModal('${m.id}')" style="background: linear-gradient(135deg, #0284c7, #06b6d4); color: #fff; border: none; border-radius: 6px; padding: 0.35rem 0.75rem; font-size: 0.75rem; cursor: pointer; font-weight: 600; box-shadow: 0 2px 8px rgba(6,182,212,0.3); transition: all 0.2s;">⬇️ Pobierz model</button>`;
+          actionBtn = `<button type="button" id="btn-dl-${m.id}" onclick="downloadModelFromModal('${m.id}')" style="background: linear-gradient(135deg, #0284c7, #06b6d4); color: #fff; border: none; border-radius: 6px; padding: 0.35rem 0.75rem; font-size: 0.75rem; cursor: pointer; font-weight: 600; box-shadow: 0 2px 8px rgba(6,182,212,0.3); transition: all 0.2s;">⬇️ Pobierz model</button>`;
         }
 
         return `
@@ -3607,12 +3683,13 @@ air = 0.70</pre>
             <div style="display: flex; align-items: center; gap: 0.6rem; min-width: 0;">
               <span style="font-size: 1.25rem;">${genderIcon}</span>
               <div>
-                <div style="font-weight: 700; font-size: 0.85rem; color: #fff; display: flex; align-items: center; gap: 0.4rem;">
+                <div style="font-weight: 700; font-size: 0.85rem; color: #fff; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
                   ${m.name || m.id}
                   <span style="font-size: 0.75rem; color: #94a3b8; font-weight: 400;">(${langFlag} ${m.lang_name || m.lang})</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 0.4rem; margin-top: 0.2rem;">
+                <div style="display: flex; align-items: center; gap: 0.4rem; margin-top: 0.25rem; flex-wrap: wrap;">
                   ${installedBadge}
+                  ${licenseBadge}
                   <span style="font-size: 0.7rem; color: #64748b; font-family: monospace;">${m.id}</span>
                 </div>
               </div>

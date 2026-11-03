@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
 use audioticon_core::{
     base64_decode, compute_segment_hash, download_model, export_to_m4b, export_to_mp3, find_model,
-    list_models, models_dir, presets, remove_model, AudioDirectorEngine, AudiobookMetadata,
-    DirectedItem, EdgeTtsBridge, EmojiDirector, ImportedBook, PiperBridge, PresetRegistry,
-    ProjectConfig, SpeechSynthesizer,
+    list_models, models_dir, presets, remove_model, update_voices_catalog, AudioDirectorEngine,
+    AudiobookMetadata, DirectedItem, EdgeTtsBridge, EmojiDirector, ImportedBook, PiperBridge,
+    PresetRegistry, ProjectConfig, SpeechSynthesizer,
 };
 use clap::{Parser, Subcommand, ValueEnum};
 use std::collections::HashMap;
@@ -197,7 +197,14 @@ enum Commands {
 #[derive(Subcommand, Debug, Clone)]
 enum ModelsAction {
     /// Wyświetla listę dostępnych w katalogu i zainstalowanych modeli offline
-    List,
+    List {
+        /// Filtruj po kodzie języka (np. pl, en, de, uk, es)
+        #[arg(short, long)]
+        lang: Option<String>,
+        /// Pokaż tylko zainstalowane modele
+        #[arg(short, long)]
+        installed: bool,
+    },
     /// Pobiera wybrany model z oficjalnego repozytorium HuggingFace
     Download {
         /// Identyfikator lub alias modelu (np. gosia, darkman, lessac, amy, pl_PL-gosia-medium)
@@ -211,6 +218,8 @@ enum ModelsAction {
         /// Identyfikator lub alias modelu do usunięcia
         name: String,
     },
+    /// Pobiera najnowszą bazę voices.json z oficjalnego repozytorium Piper
+    Update,
 }
 
 fn get_default_cache_dir() -> PathBuf {
@@ -708,20 +717,39 @@ async fn main() -> Result<()> {
             run_studio_server(host, port, provider, lang, model, no_browser).await?;
         }
         Commands::Models { action } => {
-            let act = action.unwrap_or(ModelsAction::List);
+            let act = action.unwrap_or(ModelsAction::List {
+                lang: None,
+                installed: false,
+            });
             match act {
-                ModelsAction::List => {
+                ModelsAction::List { lang, installed } => {
                     let dir = audioticon_core::models_dir();
-                    println!("=========================================================================================");
-                    println!("🤖 AUDIOTICON — Menedżer Modeli Neuronowych Piper TTS (Offline)");
-                    println!("Folder modeli: {}", dir.display());
-                    println!("=========================================================================================");
+                    let filter_info = match (&lang, installed) {
+                        (Some(l), true) => format!(" (Filtr: język '{}', tylko zainstalowane)", l),
+                        (Some(l), false) => format!(" (Filtr: język '{}')", l),
+                        (None, true) => " (Tylko zainstalowane)".to_string(),
+                        (None, false) => String::new(),
+                    };
+                    println!("=========================================================================================================");
                     println!(
-                        "{:<4} {:<24} {:<10} {:<12} {:<10} Status",
-                        "Lp.", "Identyfikator", "Język", "Głos", "Rozmiar"
+                        "🤖 AUDIOTICON — Menedżer Modeli Neuronowych Piper TTS (Offline){}",
+                        filter_info
                     );
-                    println!("-----------------------------------------------------------------------------------------");
-                    let models = audioticon_core::list_models();
+                    println!("Folder modeli: {}", dir.display());
+                    println!("=========================================================================================================");
+                    println!(
+                        "{:<4} {:<26} {:<12} {:<12} {:<26} {:<8} Status",
+                        "Lp.", "Identyfikator", "Język", "Głos", "Licencja", "Rozmiar"
+                    );
+                    println!("---------------------------------------------------------------------------------------------------------");
+                    let mut models = audioticon_core::list_models();
+                    if let Some(ref l) = lang {
+                        let l_clean = l.trim().to_lowercase();
+                        models.retain(|m| m.lang.to_lowercase().starts_with(&l_clean));
+                    }
+                    if installed {
+                        models.retain(|m| m.installed);
+                    }
                     for (idx, m) in models.iter().enumerate() {
                         let status_str = if m.installed {
                             "✅ Zainstalowany (Gotowy)"
@@ -734,19 +762,20 @@ async fn main() -> Result<()> {
                             _ => "Inny 🎙️",
                         };
                         println!(
-                            "{:02}.  {:<24} {:<10} {:<12} ~{:>2} MB    {}",
+                            "{:02}.  {:<26} {:<12} {:<12} {:<26} ~{:>2} MB  {}",
                             idx + 1,
                             m.id,
                             m.lang_name,
                             gender_str,
+                            m.license,
                             m.size_mb,
                             status_str
                         );
                     }
-                    println!("=========================================================================================");
+                    println!("=========================================================================================================");
                     println!("💡 Wskazówka: pobierz model poleceniem:");
                     println!("   audioticon models download <nazwa>  (np. audioticon models download gosia)");
-                    println!("=========================================================================================");
+                    println!("=========================================================================================================");
                 }
                 ModelsAction::Download { name, force } => {
                     println!(
@@ -773,6 +802,21 @@ async fn main() -> Result<()> {
                         std::process::exit(1);
                     }
                 },
+                ModelsAction::Update => {
+                    println!("⏳ Pobieranie najnowszej bazy modeli voices.json z HuggingFace...");
+                    match audioticon_core::update_voices_catalog() {
+                        Ok(count) => {
+                            println!(
+                                "✅ Baza modeli zaktualizowana pomyślnie! Liczba dostępnych głosów: {}",
+                                count
+                            );
+                        }
+                        Err(err) => {
+                            eprintln!("❌ Błąd aktualizacji bazy modeli: {}", err);
+                            std::process::exit(1);
+                        }
+                    }
+                }
             }
         }
         Commands::Import {
@@ -1252,6 +1296,48 @@ async fn handle_studio_request(
                 resp.add_header(h.clone());
             }
             let _ = request.respond(resp);
+        }
+        return;
+    }
+
+    // Route: POST /api/models/update
+    if method == tiny_http::Method::Post && url == "/api/models/update" {
+        match update_voices_catalog() {
+            Ok(count) => {
+                let res_json = serde_json::json!({
+                    "status": "ok",
+                    "count": count,
+                    "message": format!("Baza modeli zaktualizowana! Dostępne głosy: {}", count)
+                });
+                let json_header = Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap();
+                let mut resp = tiny_http::Response::from_string(res_json.to_string());
+                resp.add_header(json_header);
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+            }
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": "Błąd aktualizacji bazy modeli",
+                    "details": e.to_string()
+                });
+                let json_header = Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap();
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(json_header);
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(500));
+            }
         }
         return;
     }

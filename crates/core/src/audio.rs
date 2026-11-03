@@ -345,17 +345,25 @@ impl SpeechSynthesizer for EdgeTtsBridge {
     fn resolve_voice_label(&self, requested: Option<&str>) -> String {
         match requested {
             Some(v) if !v.trim().is_empty() && v != "default" => {
-                let clean = v.trim().to_lowercase();
-                if clean.contains("zofia") || clean.contains("kobieta") || clean.contains("female")
+                let trimmed = v.trim();
+                let clean = if let Some(stripped) = trimmed.strip_prefix("edge:") {
+                    stripped.trim()
+                } else if let Some(stripped) = trimmed.strip_prefix("piper:") {
+                    stripped.trim()
+                } else {
+                    trimmed
+                };
+                let lower = clean.to_lowercase();
+                if lower.contains("zofia") || lower.contains("kobieta") || lower.contains("female")
                 {
                     "pl-PL-ZofiaNeural".to_string()
-                } else if clean.contains("marek")
-                    || clean.contains("mezczyzna")
-                    || clean.contains("male")
+                } else if lower.contains("marek")
+                    || lower.contains("mezczyzna")
+                    || lower.contains("male")
                 {
                     "pl-PL-MarekNeural".to_string()
                 } else {
-                    v.to_string()
+                    clean.to_string()
                 }
             }
             _ => self.voice.clone(),
@@ -563,25 +571,56 @@ impl PiperBridge {
 
     /// Resolves character voice strings or aliases to on-disk Piper ONNX model paths
     pub fn resolve_model_path(&self, requested_voice: Option<&str>) -> PathBuf {
-        let voice_str = match requested_voice {
-            Some(v) if !v.trim().is_empty() && v != "default" => v.trim().to_lowercase(),
+        let raw_voice = match requested_voice {
+            Some(v) if !v.trim().is_empty() && v != "default" => v.trim(),
             _ => return self.default_model_path.clone(),
         };
 
-        // 1. Direct model lookup via models catalog
-        if let Some(item) = crate::models::find_model(&voice_str) {
+        // 1. Strip provider prefix if present (e.g. "piper:pl_PL-mc_speech-medium" -> "pl_PL-mc_speech-medium")
+        let clean = if let Some(stripped) = raw_voice.strip_prefix("piper:") {
+            stripped.trim()
+        } else if let Some(stripped) = raw_voice.strip_prefix("edge:") {
+            stripped.trim()
+        } else {
+            raw_voice
+        };
+
+        // 2. Direct path to .onnx file (relative or absolute)
+        let direct_path = PathBuf::from(clean);
+        if direct_path.exists() && direct_path.extension().and_then(|s| s.to_str()) == Some("onnx")
+        {
+            return direct_path;
+        }
+
+        // 3. Direct filename in models_dir
+        let models_dir = crate::models::models_dir();
+        let direct_in_models = models_dir.join(clean);
+        if direct_in_models.exists()
+            && direct_in_models.extension().and_then(|s| s.to_str()) == Some("onnx")
+        {
+            return direct_in_models;
+        }
+        let onnx_in_models = models_dir.join(format!("{}.onnx", clean));
+        if onnx_in_models.exists() {
+            return onnx_in_models;
+        }
+
+        // 4. Direct model lookup via models catalog
+        if let Some(item) = crate::models::find_model(clean) {
             if let Some(ref p) = item.onnx_path {
                 if p.exists() {
                     return p.clone();
                 }
             }
-            let p = crate::models::models_dir().join(format!("{}.onnx", item.id));
+            let p = models_dir.join(format!("{}.onnx", item.id));
             if p.exists() {
                 return p;
             }
         }
 
-        // 2. Mapping from Edge neural voice names or actor tags to Piper models
+        let voice_str = clean.to_lowercase();
+
+        // 5. Mapping from Edge neural voice names or actor tags to Piper models
         let target_id = if voice_str.contains("zofia")
             || voice_str.contains("gosia")
             || voice_str.contains("female")
@@ -1138,6 +1177,12 @@ mod tests {
         // Female / Zofia alias should resolve to gosia model
         let female_path = bridge.resolve_model_path(Some("pl-PL-ZofiaNeural"));
         assert!(female_path.to_string_lossy().contains("gosia") || female_path == dummy_default);
+
+        // Explicit provider prefix "piper:pl_PL-gosia-medium"
+        let prefixed_path = bridge.resolve_model_path(Some("piper:pl_PL-gosia-medium"));
+        assert!(
+            prefixed_path.to_string_lossy().contains("gosia") || prefixed_path == dummy_default
+        );
 
         // Male / Marek alias should resolve to darkman or mc_speech model
         let male_path = bridge.resolve_model_path(Some("pl-PL-MarekNeural"));

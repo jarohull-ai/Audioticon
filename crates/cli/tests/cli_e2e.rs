@@ -83,6 +83,21 @@ fn test_cli_models_list() {
 }
 
 #[test]
+fn test_cli_models_list_filter_lang() {
+    let output = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .args(["models", "list", "--lang", "pl"])
+        .output()
+        .expect("Failed to execute audioticon models list --lang pl");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("pl_PL-darkman-medium"));
+    assert!(stdout.contains("pl_PL-gosia-medium"));
+    assert!(!stdout.contains("en_US-lessac-medium"));
+    assert!(stdout.contains("CC0"));
+}
+
+#[test]
 fn test_cli_import_text() {
     let tmp_dir = std::env::temp_dir();
     let sample_file = tmp_dir.join("test_book_sample.txt");

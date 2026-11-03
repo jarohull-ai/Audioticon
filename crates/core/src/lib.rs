@@ -16,7 +16,8 @@ pub use importer::{
     base64_decode, decode_html_entities, strip_html_tags, ImportedBook, ImportedChapter,
 };
 pub use models::{
-    download_model, find_model, list_models, models_dir, remove_model, ModelCatalogItem,
+    download_model, find_model, list_models, models_dir, remove_model, update_voices_catalog,
+    ModelCatalogItem,
 };
 pub use parser::EmojiDirector;
 pub use presets::{EffectPreset, PresetRegistry, ProjectConfig, ProjectMetaConfig};
