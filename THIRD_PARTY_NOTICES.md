@@ -15,17 +15,29 @@ This project incorporates third-party software components, neural voice models, 
 
 ## 2. Voice Models (Piper Voices)
 
-Voice models are hosted and distributed via the [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices) repository. Each model carries its own training data attribution:
+Voice models are hosted and distributed via the [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices) repository (catalog version 1.0.0, containing 142 open neural voice models across 42 languages). Each voice model in the catalog carries its own dataset provenance and license:
 
-### Polish: `pl_PL-darkman-medium`
-- **Source:** Hugging Face `rhasspy/piper-voices/pl/pl_PL/darkman/medium`
-- **Voice Artist / Contributor:** Darkman
-- **License:** Open Access / Permissive Community Model. Intended for personal, research, and general audio production. Check dataset provenance before using in strict commercial broadcast syndication.
+### Polish Models (`pl_PL`):
+- **`pl_PL-darkman-medium`**
+  - **Dataset:** NabuCasa / voice-datasets
+  - **License:** CC0 (Public Domain) — safe for commercial audiobooks and open distribution.
+- **`pl_PL-gosia-medium`**
+  - **Dataset:** NabuCasa / voice-datasets
+  - **License:** CC0 (Public Domain) — safe for commercial audiobooks and open distribution.
+- **`pl_PL-mc_speech-medium`**
+  - **Dataset:** MC Speech Corpus
+  - **License:** CC0 (Public Domain) — safe for commercial audiobooks and open distribution.
+- **`pl_PL-mls_6892-low`**
+  - **Dataset:** Multilingual LibriSpeech (MLS)
+  - **License:** Creative Commons Attribution 4.0 International (CC-BY-4.0).
 
-### English: `en_US-lessac-medium`
-- **Source:** Hugging Face `rhasspy/piper-voices/en/en_US/lessac/medium`
-- **Dataset:** Lessac Voice Dataset
-- **License:** BSD / Open Access.
+### English & Multilingual Models:
+- **`en_US-amy-medium`** — CC0 (Public Domain).
+- **`en_US-lessac-medium`** — Non-commercial educational/research license (Blizzard Challenge 2013).
+- **`en_US-ryan-medium`** / **`en_US-ryan-high`** — CC0 (Public Domain).
+- **`de_DE-thorsten-medium`** — CC0 (Public Domain).
+
+Before distributing or selling commercial audiobook productions, verify the specific license tag displayed in the Audioticon model manager (`audioticon models list` or Web Studio `Głosy & Silnik`). Models marked with `CC0` or `MIT` allow unrestricted commercial distribution.
 
 ---
 

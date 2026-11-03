@@ -438,6 +438,10 @@ fn download_file(url: &str, target_path: &Path) -> Result<()> {
 
 /// Pobiera wybrany model (.onnx oraz .onnx.json) z oficjalnego repozytorium HuggingFace
 pub fn download_model(name_or_id: &str, force: bool) -> Result<PathBuf> {
+    if name_or_id.contains("..") || name_or_id.contains('/') || name_or_id.contains('\\') {
+        bail!("Nieprawidłowy identyfikator modelu: zabronione znaki ścieżki");
+    }
+
     let item = find_model(name_or_id).ok_or_else(|| {
         anyhow::anyhow!(
             "Nieznany model: '{}'. Dostępne: pl_PL-darkman-medium, pl_PL-gosia-medium, pl_PL-mc_speech-medium, en_US-lessac-medium, en_US-amy-medium",
@@ -479,6 +483,10 @@ pub fn download_model(name_or_id: &str, force: bool) -> Result<PathBuf> {
 
 /// Usuwa pobrany model offline z dysku
 pub fn remove_model(name_or_id: &str) -> Result<()> {
+    if name_or_id.contains("..") || name_or_id.contains('/') || name_or_id.contains('\\') {
+        bail!("Nieprawidłowy identyfikator modelu: zabronione znaki ścieżki");
+    }
+
     let item = find_model(name_or_id)
         .ok_or_else(|| anyhow::anyhow!("Nieznany model do usunięcia: '{}'", name_or_id))?;
 

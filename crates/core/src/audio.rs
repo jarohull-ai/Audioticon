@@ -587,22 +587,26 @@ impl PiperBridge {
 
         // 2. Direct path to .onnx file (relative or absolute)
         let direct_path = PathBuf::from(clean);
-        if direct_path.exists() && direct_path.extension().and_then(|s| s.to_str()) == Some("onnx")
+        if !clean.contains("..")
+            && direct_path.exists()
+            && direct_path.extension().and_then(|s| s.to_str()) == Some("onnx")
         {
             return direct_path;
         }
 
         // 3. Direct filename in models_dir
         let models_dir = crate::models::models_dir();
-        let direct_in_models = models_dir.join(clean);
-        if direct_in_models.exists()
-            && direct_in_models.extension().and_then(|s| s.to_str()) == Some("onnx")
-        {
-            return direct_in_models;
-        }
-        let onnx_in_models = models_dir.join(format!("{}.onnx", clean));
-        if onnx_in_models.exists() {
-            return onnx_in_models;
+        if !clean.contains("..") && !clean.contains('/') && !clean.contains('\\') {
+            let direct_in_models = models_dir.join(clean);
+            if direct_in_models.exists()
+                && direct_in_models.extension().and_then(|s| s.to_str()) == Some("onnx")
+            {
+                return direct_in_models;
+            }
+            let onnx_in_models = models_dir.join(format!("{}.onnx", clean));
+            if onnx_in_models.exists() {
+                return onnx_in_models;
+            }
         }
 
         // 4. Direct model lookup via models catalog
