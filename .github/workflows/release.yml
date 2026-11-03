@@ -27,7 +27,8 @@ jobs:
           VERSION="${GITHUB_REF_NAME}"
           PKG_NAME="Audioticon-${VERSION}-linux-x86_64"
           mkdir -p "dist/${PKG_NAME}"
-          cp target/release/audioticon-cli "dist/${PKG_NAME}/audioticon"
+          cp target/release/audioticon "dist/${PKG_NAME}/audioticon" 2>/dev/null || cp target/release/audioticon-cli "dist/${PKG_NAME}/audioticon"
+          ln -sf audioticon "dist/${PKG_NAME}/audioticon-cli" 2>/dev/null || true
           cp audioticon.example.toml "dist/${PKG_NAME}/"
           cp scripts/setup.sh "dist/${PKG_NAME}/"
           cp LICENSE-MIT LICENSE-APACHE README.md "dist/${PKG_NAME}/"

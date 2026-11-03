@@ -431,6 +431,158 @@ fn normalize_times(text: &str) -> String {
     .to_string()
 }
 
+/// Odmiana liczebników głównych w dopełniaczu (po przyimkach: z, ze, od, do, dla, bez itp.)
+fn number_to_genitive(n: u64) -> String {
+    match n {
+        1 => "jednego".to_string(),
+        2 => "dwóch".to_string(),
+        3 => "trzech".to_string(),
+        4 => "czterech".to_string(),
+        5 => "pięciu".to_string(),
+        6 => "sześciu".to_string(),
+        7 => "siedmiu".to_string(),
+        8 => "ośmiu".to_string(),
+        9 => "dziewięciu".to_string(),
+        10 => "dziesięciu".to_string(),
+        11 => "jedenastu".to_string(),
+        12 => "dwunastu".to_string(),
+        13 => "trzynastu".to_string(),
+        14 => "czternastu".to_string(),
+        15 => "piętnastu".to_string(),
+        16 => "szesnastu".to_string(),
+        17 => "siedemnastu".to_string(),
+        18 => "osiemnastu".to_string(),
+        19 => "dziewiętnastu".to_string(),
+        20 => "dwudziestu".to_string(),
+        30 => "trzydziestu".to_string(),
+        40 => "czterdziestu".to_string(),
+        50 => "pięćdziesięciu".to_string(),
+        60 => "sześćdziesięciu".to_string(),
+        70 => "siedemdziesięciu".to_string(),
+        80 => "osiemdziesięciu".to_string(),
+        90 => "dziewięćdziesięciu".to_string(),
+        100 => "stu".to_string(),
+        200 => "dwustu".to_string(),
+        300 => "trzystu".to_string(),
+        400 => "czterystu".to_string(),
+        500 => "pięciuset".to_string(),
+        600 => "sześciuset".to_string(),
+        700 => "siedmiuset".to_string(),
+        800 => "ośmiuset".to_string(),
+        900 => "dziewięciuset".to_string(),
+        1000 => "tysiąca".to_string(),
+        _ => {
+            if (21..100).contains(&n) {
+                let tens = (n / 10) * 10;
+                let ones = n % 10;
+                if ones == 0 {
+                    number_to_genitive(tens)
+                } else {
+                    format!("{} {}", number_to_genitive(tens), number_to_genitive(ones))
+                }
+            } else {
+                number_to_words(n)
+            }
+        }
+    }
+}
+
+/// Normalizuje liczebniki po przyimkach rządzących dopełniaczem (np. "z 5 domów" -> "z pięciu domów")
+fn normalize_genitive_prepositions(text: &str) -> String {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| {
+        Regex::new(r"(?i)\b(z|ze|od|do|dla|bez|około|koło|blisko)\s+(\d+)\b")
+            .expect("Valid preposition regex")
+    });
+
+    re.replace_all(text, |caps: &Captures| {
+        let prep = &caps[1];
+        if let Ok(n) = caps[2].parse::<u64>() {
+            format!("{} {}", prep, number_to_genitive(n))
+        } else {
+            caps[0].to_string()
+        }
+    })
+    .to_string()
+}
+
+/// Normalizuje ułamki dziesiętne z przecinkiem (np. "2,5 zł" -> "dwa i pół złotego", "2,5" -> "dwa i pół")
+fn normalize_decimals(text: &str) -> String {
+    static RE_CURRENCY: OnceLock<Regex> = OnceLock::new();
+    let re_curr = RE_CURRENCY.get_or_init(|| {
+        Regex::new(r"\b(\d+),(\d+)\s*(zł|złotych|złote)\b").expect("Valid decimal currency regex")
+    });
+    let step1 = re_curr.replace_all(text, |caps: &Captures| {
+        let int_val: u64 = caps[1].parse().unwrap_or(0);
+        let frac_str = &caps[2];
+        if frac_str == "5" {
+            format!("{} i pół złotego", number_to_words(int_val))
+        } else if let Ok(frac_val) = frac_str.parse::<u64>() {
+            format!(
+                "{} przecinek {} złotego",
+                number_to_words(int_val),
+                number_to_words(frac_val)
+            )
+        } else {
+            caps[0].to_string()
+        }
+    });
+
+    static RE_DEC: OnceLock<Regex> = OnceLock::new();
+    let re_dec =
+        RE_DEC.get_or_init(|| Regex::new(r"\b(\d+),(\d+)\b").expect("Valid decimal regex"));
+
+    re_dec
+        .replace_all(&step1, |caps: &Captures| {
+            let int_val: u64 = caps[1].parse().unwrap_or(0);
+            let frac_str = &caps[2];
+            if frac_str == "5" {
+                if int_val == 0 {
+                    "pół".to_string()
+                } else {
+                    format!("{} i pół", number_to_words(int_val))
+                }
+            } else if let Ok(frac_val) = frac_str.parse::<u64>() {
+                format!(
+                    "{} przecinek {}",
+                    number_to_words(int_val),
+                    number_to_words(frac_val)
+                )
+            } else {
+                caps[0].to_string()
+            }
+        })
+        .to_string()
+}
+
+/// Normalizuje skrót 'r.' po roku w środku zdania, aby kropka skrótu nie tworzyła sztucznej pauzy zdaniowej
+fn normalize_year_abbreviations(text: &str) -> String {
+    static RE_MID: OnceLock<Regex> = OnceLock::new();
+    let re_mid = RE_MID.get_or_init(|| {
+        Regex::new(r"\b([1-2][0-9]{3})\s*r\.(\s+[a-ząćęłńóśźż,;])").expect("Valid year mid regex")
+    });
+    let step1 = re_mid.replace_all(text, |caps: &Captures| {
+        let year: u32 = caps[1].parse().unwrap_or(0);
+        let trailing = &caps[2];
+        format!(
+            "{} roku{}",
+            year_to_words_genitive(year).trim_end_matches(" roku"),
+            trailing
+        )
+    });
+
+    static RE_END: OnceLock<Regex> = OnceLock::new();
+    let re_end = RE_END.get_or_init(|| {
+        Regex::new(r"\b([1-2][0-9]{3})\s*r\.(?:\s*$)").expect("Valid year end regex")
+    });
+    re_end
+        .replace_all(&step1, |caps: &Captures| {
+            let year: u32 = caps[1].parse().unwrap_or(0);
+            format!("{}.", year_to_words_genitive(year))
+        })
+        .to_string()
+}
+
 /// Normalizuje wolnostojące liczby całkowite
 fn normalize_standalone_numbers(text: &str) -> String {
     static RE: OnceLock<Regex> = OnceLock::new();
@@ -447,14 +599,19 @@ fn normalize_standalone_numbers(text: &str) -> String {
 }
 
 /// Główna funkcja normalizująca tekst w języku polskim:
-/// 1. Konwertuje daty (np. 24.02.2024 -> "dwudziestego czwartego lutego dwa tysiące dwudziestego czwartego roku")
-/// 2. Konwertuje godziny (np. 15:47 -> "piętnasta czterdzieści siedem")
-/// 3. Konwertuje samodzielne liczby (np. 1500 -> "tysiąc pięćset")
+/// 1. Konwertuje daty i godziny (np. 24.02.2024 -> "dwudziestego czwartego lutego dwa tysiące dwudziestego czwartego roku")
+/// 2. Usuwa kolizje skrótu r. w środku zdania (np. "1999 r. i ..." -> "...roku i ...")
+/// 3. Normalizuje ułamki dziesiętne (np. "2,5 zł" -> "dwa i pół złotego")
+/// 4. Odmienia liczebniki po przyimkach dopełniacza (np. "z 5 domów" -> "z pięciu domów")
+/// 5. Konwertuje pozostałe samodzielne liczby (np. 1500 -> "tysiąc pięćset")
 pub fn normalize_polish_text(raw_text: &str) -> String {
     let step1 = normalize_dates(raw_text);
     let step1b = normalize_textual_dates(&step1);
-    let step2 = normalize_times(&step1b);
-    normalize_standalone_numbers(&step2)
+    let step1c = normalize_year_abbreviations(&step1b);
+    let step2 = normalize_times(&step1c);
+    let step3 = normalize_decimals(&step2);
+    let step4 = normalize_genitive_prepositions(&step3);
+    normalize_standalone_numbers(&step4)
 }
 
 #[cfg(test)]
@@ -523,5 +680,19 @@ mod tests {
             result,
             "Data: dwudziestego czwartego lutego dwa tysiące dwudziestego drugiego roku. Godzina: piętnasta czterdzieści siedem. Przeszło czterysta pięćdziesiąt osób."
         );
+    }
+
+    #[test]
+    fn test_normalize_prepositions_decimals_and_years() {
+        assert_eq!(normalize_polish_text("z 5 domów"), "z pięciu domów");
+        assert_eq!(normalize_polish_text("od 3 dni"), "od trzech dni");
+        assert_eq!(normalize_polish_text("2,5 zł"), "dwa i pół złotego");
+        assert_eq!(normalize_polish_text("3,14"), "trzy przecinek czternaście");
+
+        // Skrót r. w środku zdania nie może mieć kropki dzielącej zdanie:
+        let sentence = "Wydarzenie miało miejsce w 1999 r. i zmieniło wszystko.";
+        let res = normalize_polish_text(sentence);
+        assert!(res.contains("roku i"));
+        assert!(!res.contains("roku. i"));
     }
 }
