@@ -264,3 +264,146 @@ impl DirectedScript {
         out.trim().to_string()
     }
 }
+
+/// Mastering specification in `.audioticon` project settings.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ProjectMasteringConfig {
+    #[serde(default = "default_target_lufs")]
+    pub target_lufs: f64,
+    #[serde(default = "default_true_peak")]
+    pub true_peak: f64,
+    #[serde(default = "default_sample_rate")]
+    pub sample_rate: u32,
+}
+
+fn default_target_lufs() -> f64 {
+    -19.0
+}
+fn default_true_peak() -> f64 {
+    -3.5
+}
+fn default_sample_rate() -> u32 {
+    44100
+}
+
+impl Default for ProjectMasteringConfig {
+    fn default() -> Self {
+        Self {
+            target_lufs: default_target_lufs(),
+            true_peak: default_true_peak(),
+            sample_rate: default_sample_rate(),
+        }
+    }
+}
+
+/// Synthesizer and voice settings in an `.audioticon` project.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ProjectSettings {
+    #[serde(default)]
+    pub provider: String,
+    #[serde(default)]
+    pub language: String,
+    #[serde(default)]
+    pub voice: String,
+    #[serde(default)]
+    pub mastering: Option<ProjectMasteringConfig>,
+}
+
+impl Default for ProjectSettings {
+    fn default() -> Self {
+        Self {
+            provider: "piper".to_string(),
+            language: "pl".to_string(),
+            voice: "pl_PL-darkman-medium".to_string(),
+            mastering: Some(ProjectMasteringConfig::default()),
+        }
+    }
+}
+
+/// Chapter index marker inside `.audioticon` project.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ProjectChapter {
+    #[serde(default)]
+    pub line: usize,
+    pub title: String,
+}
+
+/// Complete standalone project schema for `.audioticon` files.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AudioticonProject {
+    pub version: String,
+    pub engine: String,
+    pub metadata: AudiobookMetadata,
+    #[serde(default)]
+    pub settings: ProjectSettings,
+    #[serde(default)]
+    pub casting: std::collections::HashMap<String, String>,
+    #[serde(default)]
+    pub chapters: Vec<ProjectChapter>,
+    pub script: String,
+}
+
+impl AudioticonProject {
+    /// Serializes project to formatted JSON string
+    pub fn to_json(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string_pretty(self)
+    }
+
+    /// Deserializes project from JSON string
+    pub fn from_json(json_str: &str) -> Result<Self, serde_json::Error> {
+        serde_json::from_str(json_str)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_audioticon_project_roundtrip() {
+        let mut casting = std::collections::HashMap::new();
+        casting.insert("narrator".to_string(), "🎙️ Lektor".to_string());
+        casting.insert("guard".to_string(), "👨 Strażnik".to_string());
+        casting.insert("woman".to_string(), "👩 Kobieta".to_string());
+
+        let project = AudioticonProject {
+            version: "0.2.5".to_string(),
+            engine: "audioticon".to_string(),
+            metadata: AudiobookMetadata {
+                title: Some("Archiwum Pyłu".to_string()),
+                author: Some("Jarosław Kuchta".to_string()),
+                narrator: Some("Lektor".to_string()),
+                year: Some("2026".to_string()),
+                language: Some("pl".to_string()),
+            },
+            settings: ProjectSettings {
+                provider: "piper".to_string(),
+                language: "pl".to_string(),
+                voice: "pl_PL-darkman-medium".to_string(),
+                mastering: Some(ProjectMasteringConfig::default()),
+            },
+            casting,
+            chapters: vec![
+                ProjectChapter {
+                    line: 1,
+                    title: "Prolog".to_string(),
+                },
+                ProjectChapter {
+                    line: 25,
+                    title: "Rozdział 1".to_string(),
+                },
+            ],
+            script: "📖 Prolog 🛑 Dawno, dawno temu...".to_string(),
+        };
+
+        let json = project.to_json().expect("Serialize to JSON");
+        let decoded = AudioticonProject::from_json(&json).expect("Deserialize from JSON");
+
+        assert_eq!(project, decoded);
+        assert_eq!(decoded.metadata.author.as_deref(), Some("Jarosław Kuchta"));
+        assert_eq!(decoded.metadata.title.as_deref(), Some("Archiwum Pyłu"));
+        assert_eq!(decoded.chapters.len(), 2);
+        assert_eq!(decoded.casting.len(), 3);
+        assert_eq!(decoded.settings.provider, "piper");
+    }
+}

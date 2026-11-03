@@ -21,7 +21,8 @@ pub use models::{
 pub use parser::EmojiDirector;
 pub use presets::{EffectPreset, PresetRegistry, ProjectConfig, ProjectMetaConfig};
 pub use types::{
-    ActorTag, AudiobookMetadata, ChapterMark, DirectedItem, DirectedScript, EmojiAction,
-    RenderResult, TextSegment,
+    ActorTag, AudiobookMetadata, AudioticonProject, ChapterMark, DirectedItem, DirectedScript,
+    EmojiAction, ProjectChapter, ProjectMasteringConfig, ProjectSettings, RenderResult,
+    TextSegment,
 };
 pub use verbalizer::normalize_polish_text;

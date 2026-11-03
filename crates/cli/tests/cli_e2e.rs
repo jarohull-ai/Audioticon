@@ -247,3 +247,60 @@ fn test_api_server_endpoints_e2e() {
     let _ = child.kill();
     let _ = child.wait();
 }
+
+#[test]
+fn test_api_cache_status_disk_verification() {
+    let port = 30000 + (std::process::id() % 10000) as u16 + 14;
+    let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .args(["serve", "--port", &port.to_string(), "--no-browser"])
+        .spawn()
+        .expect("Failed to spawn studio for cache verification");
+
+    let mut connected = false;
+    for _ in 0..30 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        if std::net::TcpStream::connect(format!("127.0.0.1:{}", port)).is_ok() {
+            connected = true;
+            break;
+        }
+    }
+    assert!(connected, "Server did not start listening in time");
+
+    // 1. Initial status query: sentence should not be in cache initially
+    let test_sentence = format!("Test weryfikacji dyskowej cache {}", std::process::id());
+    let req_body = format!(
+        "{{\"text\": \"{}\", \"lang\": \"pl\", \"provider\": \"piper\"}}",
+        test_sentence
+    );
+    let (s1, _, b1) = http_roundtrip(port, "POST", "/api/cache/status", Some(&req_body));
+    assert_eq!(s1, 200);
+    let v1: serde_json::Value = serde_json::from_slice(&b1).expect("Parse json v1");
+    assert_eq!(v1["in_cache"], false);
+    let seg = &v1["segments"][0];
+    let hash = seg["hash"].as_str().expect("segment hash");
+
+    // 2. Write a simulated cached audio file into user's audioticon cache dir
+    let cache_dir = dirs::cache_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("audioticon");
+    std::fs::create_dir_all(&cache_dir).expect("Create cache dir");
+    let cache_file = cache_dir.join(format!("{}.wav", hash));
+    std::fs::write(&cache_file, b"RIFF simulated cached audio chunk").expect("Write cache dummy");
+
+    // 3. Second status query: must detect the cached file on disk immediately
+    let (s2, _, b2) = http_roundtrip(port, "POST", "/api/cache/status", Some(&req_body));
+    assert_eq!(s2, 200);
+    let v2: serde_json::Value = serde_json::from_slice(&b2).expect("Parse json v2");
+    assert_eq!(v2["in_cache"], true, "Segment must be reported in cache");
+    assert_eq!(v2["cached_count"], 1);
+    assert_eq!(v2["segments"][0]["in_cache"], true);
+    assert!(
+        v2["segments"][0]["size_bytes"].as_u64().unwrap_or(0) > 0,
+        "Cache file size must be non-zero"
+    );
+
+    // Clean up
+    let _ = std::fs::remove_file(&cache_file);
+    let _ = child.kill();
+    let _ = child.wait();
+}

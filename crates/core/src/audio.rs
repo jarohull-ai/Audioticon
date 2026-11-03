@@ -270,6 +270,13 @@ pub trait SpeechSynthesizer: Send + Sync {
     fn max_concurrency(&self) -> usize {
         6 // Default async network concurrency
     }
+    /// Resolves character tags or aliases into concrete voice identifiers used for hashing and diagnostics.
+    fn resolve_voice_label(&self, requested: Option<&str>) -> String {
+        requested
+            .filter(|s| !s.trim().is_empty() && *s != "default")
+            .unwrap_or_else(|| self.voice_name())
+            .to_string()
+    }
 }
 
 /// Synthesizer bridge using edge-tts with audio trimming and DSP filter chaining.
@@ -335,18 +342,50 @@ impl SpeechSynthesizer for EdgeTtsBridge {
         6 // Run up to 6 requests concurrently to Microsoft servers
     }
 
+    fn resolve_voice_label(&self, requested: Option<&str>) -> String {
+        match requested {
+            Some(v) if !v.trim().is_empty() && v != "default" => {
+                let clean = v.trim().to_lowercase();
+                if clean.contains("zofia") || clean.contains("kobieta") || clean.contains("female")
+                {
+                    "pl-PL-ZofiaNeural".to_string()
+                } else if clean.contains("marek")
+                    || clean.contains("mezczyzna")
+                    || clean.contains("male")
+                {
+                    "pl-PL-MarekNeural".to_string()
+                } else {
+                    v.to_string()
+                }
+            }
+            _ => self.voice.clone(),
+        }
+    }
+
     async fn synthesize(&self, segment: &TextSegment, out_path: &Path) -> Result<()> {
         let temp_txt = out_path.with_extension("txt");
         tokio::fs::write(&temp_txt, segment.text.trim()).await?;
 
+        let voice_to_use = self.resolve_voice_label(segment.voice.as_deref());
+
+        // When male character (👨) is cast on the same voice as narrator (Marek),
+        // apply subtle -4Hz pitch shift to provide distinct natural vocal contrast in dialogue:
+        let is_same_as_narrator = voice_to_use == self.voice;
+        let is_character_override =
+            segment.voice.is_some() && segment.voice.as_deref() != Some("default");
+        let pitch_mod = if is_same_as_narrator && is_character_override && segment.pitch_mod == 0 {
+            -4
+        } else {
+            segment.pitch_mod
+        };
+
         let rate_arg = format!("--rate={:+}%", segment.rate_mod);
-        let pitch_arg = format!("--pitch={:+}Hz", segment.pitch_mod);
+        let pitch_arg = format!("--pitch={:+}Hz", pitch_mod);
         let vol_arg = format!("--volume={:+}%", segment.volume_mod);
 
         let temp_mp3 = out_path.with_extension("temp.mp3");
         let temp_wav = out_path.with_extension("temp.wav");
 
-        let voice_to_use = segment.voice.as_deref().unwrap_or(&self.voice);
         let status = tokio::process::Command::new(&self.edge_tts_bin)
             .arg(format!("--voice={}", voice_to_use))
             .arg(rate_arg)
@@ -592,6 +631,15 @@ impl SpeechSynthesizer for PiperBridge {
         &self.voice_id
     }
 
+    fn resolve_voice_label(&self, requested: Option<&str>) -> String {
+        let target_model_path = self.resolve_model_path(requested);
+        let stem = target_model_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("pl_PL-darkman-medium");
+        format!("piper-{}", stem)
+    }
+
     fn max_concurrency(&self) -> usize {
         1 // Serialized access to in-memory model worker (runs in ~100ms per sentence)
     }
@@ -742,11 +790,10 @@ impl AudioDirectorEngine {
                     scheduled_items.push((Some(breath_file), None));
                 }
                 DirectedItem::Speech(segment) => {
-                    let voice_name = segment
-                        .voice
-                        .as_deref()
-                        .unwrap_or_else(|| self.synthesizer.voice_name());
-                    let hash = compute_segment_hash(segment, voice_name);
+                    let voice_name = self
+                        .synthesizer
+                        .resolve_voice_label(segment.voice.as_deref());
+                    let hash = compute_segment_hash(segment, &voice_name);
                     let cached_wav = self.cache_dir.join(format!("{}.wav", hash));
 
                     if cached_wav.exists() {
