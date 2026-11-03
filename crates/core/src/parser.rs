@@ -195,23 +195,34 @@ impl EmojiDirector {
         match voice {
             Some(v) => {
                 let clean = v.trim().to_lowercase();
-                if clean.contains("marek")
-                    || clean.contains("male")
-                    || clean.contains("mezczyzna")
-                    || clean.contains("mężczyzna")
-                    || clean.contains("mc_speech")
-                {
-                    // Male character in dialogue: deep -20Hz contrast, deliberate -10% pacing
-                    (-20, -10)
-                } else if clean.contains("zofia")
+                // 1. Check female characters first so "female" is never misclassified by "male" substring
+                if clean.contains("zofia")
                     || clean.contains("gosia")
                     || clean.contains("female")
                     || clean.contains("kobieta")
-                    || clean.contains("ona")
+                    || clean == "ona"
+                    || clean.starts_with("ona_")
+                    || clean.ends_with("_ona")
                     || clean.contains("woman")
                 {
                     // Female character: clear natural feminine pitch (0Hz) and pacing (-6%)
                     (0, -6)
+                } else if clean.contains("marek")
+                    || clean == "male"
+                    || clean.starts_with("male_")
+                    || clean.ends_with("_male")
+                    || clean.contains("-male")
+                    || clean.contains("_male_")
+                    || clean.contains("mezczyzna")
+                    || clean.contains("mężczyzna")
+                    || clean.contains("mc_speech")
+                    || clean == "on"
+                    || clean.starts_with("on_")
+                    || clean.ends_with("_on")
+                    || (clean.contains("man") && !clean.contains("woman"))
+                {
+                    // Male character in dialogue: deep -20Hz contrast, deliberate -10% pacing
+                    (-20, -10)
                 } else {
                     // Default character
                     (-4, -6)
@@ -835,5 +846,43 @@ mod tests {
         let hash_guard = crate::cache::compute_segment_hash(speeches[1], "pl-PL-MarekNeural");
         let hash_narrator = crate::cache::compute_segment_hash(&narrator_seg, "pl-PL-MarekNeural");
         assert_ne!(hash_guard, hash_narrator);
+    }
+
+    #[test]
+    fn test_base_acoustics_for_speaker_robust_matching() {
+        // female_narrator must match female (0, -6), not male
+        assert_eq!(
+            EmojiDirector::base_acoustics_for_speaker(Some("female_narrator")),
+            (0, -6)
+        );
+        assert_eq!(
+            EmojiDirector::base_acoustics_for_speaker(Some("pl-PL-ZofiaNeural")),
+            (0, -6)
+        );
+        assert_eq!(
+            EmojiDirector::base_acoustics_for_speaker(Some("pl_PL-gosia-medium")),
+            (0, -6)
+        );
+        assert_eq!(
+            EmojiDirector::base_acoustics_for_speaker(Some("ona")),
+            (0, -6)
+        );
+
+        // male voices
+        assert_eq!(
+            EmojiDirector::base_acoustics_for_speaker(Some("pl-PL-MarekNeural")),
+            (-20, -10)
+        );
+        assert_eq!(
+            EmojiDirector::base_acoustics_for_speaker(Some("male_guard")),
+            (-20, -10)
+        );
+        assert_eq!(
+            EmojiDirector::base_acoustics_for_speaker(Some("pl_PL-mc_speech-medium")),
+            (-20, -10)
+        );
+
+        // narrator / default
+        assert_eq!(EmojiDirector::base_acoustics_for_speaker(None), (-4, -6));
     }
 }

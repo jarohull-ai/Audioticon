@@ -2560,19 +2560,13 @@
     // ========================================================
     const CARD_COUNT = 8;
     function getCardRadius() {
-      // Fit the 3D depth to the actual stage. The old fixed values (up to
-      // 540px) pushed cards beyond the perspective viewport and hid the drum.
-      const stage = document.getElementById('orbit-stage');
-      const card = document.querySelector('.orbit-card');
-      if (!stage || !card) return 320;
-
-      const cardStyle = window.getComputedStyle(card);
-      const cardWidth = parseFloat(cardStyle.width) || 230;
-      const availableWidth = stage.clientWidth * 0.38;
-      const availableHeight = stage.clientHeight * 0.62;
-      const fitRadius = Math.min(availableWidth, availableHeight);
-
-      return Math.max(cardWidth * 0.9, Math.min(fitRadius, 420));
+      // 8 cards of width 230px require a minimum radius of 310px so that
+      // adjacent rotated cards never intersect or obscure front card titles.
+      if (window.innerWidth < 640) return 310;
+      if (window.innerWidth < 900) return 330;
+      if (window.innerWidth < 1200) return 360;
+      if (window.innerWidth < 1600) return 400;
+      return 440;
     }
 
     let currentOrbitAngle = 0;
@@ -3169,7 +3163,7 @@ air = 0.70</pre>
       `;
 
       modal.classList.add('open');
-      if (index === 2) {
+      if (idx === 2) {
         setTimeout(fetchOfflineModelsList, 50);
       }
     }
@@ -3768,11 +3762,13 @@ air = 0.70</pre>
         btnClassic.classList.remove('active');
         layoutOrbitCards();
         applyOrbitAngle(currentOrbitAngle);
+        v3d.scrollIntoView({ behavior: 'smooth' });
       } else {
         v3d.style.display = 'none';
         vClassic.style.display = 'flex';
         btn3d.classList.remove('active');
         btnClassic.classList.add('active');
+        vClassic.scrollIntoView({ behavior: 'smooth' });
       }
     }
 
