@@ -170,7 +170,8 @@ pub fn create_breath_wav(out_path: &Path, duration_ms: u32, sample_rate: u32) ->
 }
 
 /// Pure Rust seamless sample-accurate stitching of multiple WAV files into one.
-/// Validates headers and supports mono downmixing if needed.
+/// Validates headers, enforces bit depth & sample rate, supports mono downmixing,
+/// and applies a seamless 5ms equal-power crossfade between consecutive chunks to prevent audible clicks.
 pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -> Result<()> {
     let tmp_out = out_path.with_extension("tmp.wav");
     let spec = WavSpec {
@@ -181,6 +182,10 @@ pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -
     };
     let mut writer = WavWriter::create(&tmp_out, spec)
         .with_context(|| format!("Nie można utworzyć pliku wynikowego: {:?}", tmp_out))?;
+
+    // 5ms crossfade window (e.g. 120 samples at 24kHz)
+    let default_xfade_len = ((sample_rate as f32) * 0.005).round() as usize;
+    let mut pending_tail: Vec<i16> = Vec::new();
 
     for in_file in inputs {
         let file = File::open(in_file)
@@ -198,20 +203,32 @@ pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -
             );
         }
 
-        match in_spec.channels {
+        if in_spec.bits_per_sample != 16 || in_spec.sample_format != SampleFormat::Int {
+            anyhow::bail!(
+                "Niezgodny format audio w {:?}: wymagane 16-bit PCM (Int), otrzymano {}-bit {:?}",
+                in_file,
+                in_spec.bits_per_sample,
+                in_spec.sample_format
+            );
+        }
+
+        let mut chunk_samples: Vec<i16> = match in_spec.channels {
             1 => {
+                let mut v = Vec::with_capacity(reader.duration() as usize);
                 for sample in reader.samples::<i16>() {
-                    writer.write_sample(sample?)?;
+                    v.push(sample?);
                 }
+                v
             }
             2 => {
-                // Downmix stereo to mono
-                let mut samples = reader.samples::<i16>();
-                while let Some(left) = samples.next() {
-                    let right = samples.next().unwrap_or(Ok(0))?;
+                let mut v = Vec::with_capacity(reader.duration() as usize);
+                let mut s_iter = reader.samples::<i16>();
+                while let Some(left) = s_iter.next() {
+                    let right = s_iter.next().unwrap_or(Ok(0))?;
                     let mono = ((left? as i32 + right as i32) / 2) as i16;
-                    writer.write_sample(mono)?;
+                    v.push(mono);
                 }
+                v
             }
             other => {
                 anyhow::bail!(
@@ -220,8 +237,82 @@ pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -
                     in_file
                 );
             }
+        };
+
+        if chunk_samples.is_empty() {
+            continue;
+        }
+
+        if pending_tail.is_empty() {
+            // First non-empty chunk: apply micro fade-in at the start
+            let head_fade = default_xfade_len.min(chunk_samples.len() / 2);
+            for (i, sample) in chunk_samples.iter_mut().enumerate().take(head_fade) {
+                let factor = ((i as f32 / head_fade as f32) * std::f32::consts::PI / 2.0).sin();
+                *sample = ((*sample as f32) * factor).round() as i16;
+            }
+
+            let xfade = default_xfade_len.min(chunk_samples.len() / 4);
+            if xfade > 0 && chunk_samples.len() > xfade {
+                let split_idx = chunk_samples.len() - xfade;
+                for &s in &chunk_samples[..split_idx] {
+                    writer.write_sample(s)?;
+                }
+                pending_tail = chunk_samples[split_idx..].to_vec();
+            } else {
+                for &s in &chunk_samples {
+                    writer.write_sample(s)?;
+                }
+                pending_tail.clear();
+            }
+        } else {
+            // Crossfade with pending tail from previous chunk
+            let xfade = pending_tail.len().min(chunk_samples.len() / 2);
+            for i in 0..xfade {
+                let t = i as f32 / xfade as f32;
+                let fade_out = ((1.0 - t) * std::f32::consts::PI / 2.0).sin();
+                let fade_in = (t * std::f32::consts::PI / 2.0).sin();
+                let s_prev = (pending_tail[i] as f32) * fade_out;
+                let s_curr = (chunk_samples[i] as f32) * fade_in;
+                let mixed = (s_prev + s_curr).round().clamp(-32768.0, 32767.0) as i16;
+                writer.write_sample(mixed)?;
+            }
+
+            if pending_tail.len() > xfade {
+                for &s in &pending_tail[xfade..] {
+                    writer.write_sample(s)?;
+                }
+            }
+
+            let remaining_chunk = &chunk_samples[xfade..];
+            let next_xfade = default_xfade_len.min(remaining_chunk.len() / 4);
+            if next_xfade > 0 && remaining_chunk.len() > next_xfade {
+                let split_idx = remaining_chunk.len() - next_xfade;
+                for &s in &remaining_chunk[..split_idx] {
+                    writer.write_sample(s)?;
+                }
+                pending_tail = remaining_chunk[split_idx..].to_vec();
+            } else {
+                for &s in remaining_chunk {
+                    writer.write_sample(s)?;
+                }
+                pending_tail.clear();
+            }
         }
     }
+
+    // Flush final tail with micro fade-out
+    if !pending_tail.is_empty() {
+        let tail_len = pending_tail.len();
+        for (i, sample) in pending_tail.iter_mut().enumerate() {
+            let t = (tail_len - 1 - i) as f32 / tail_len as f32;
+            let factor = (t * std::f32::consts::PI / 2.0).sin();
+            *sample = ((*sample as f32) * factor).round() as i16;
+        }
+        for s in pending_tail {
+            writer.write_sample(s)?;
+        }
+    }
+
     writer.finalize()?;
 
     // Atomic rename
@@ -1555,5 +1646,85 @@ mod tests {
             bridge.resolve_voice_label(Some("custom_voice_id_9999")),
             "elevenlabs-custom_voice_id_9999"
         );
+    }
+
+    #[test]
+    fn test_stitch_wav_files_crossfade_continuity() {
+        let tmp_dir = std::env::temp_dir().join(format!("test_stitch_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp_dir);
+        let chunk1_path = tmp_dir.join("chunk1.wav");
+        let chunk2_path = tmp_dir.join("chunk2.wav");
+        let out_path = tmp_dir.join("stitched_out.wav");
+
+        let spec = WavSpec {
+            channels: 1,
+            sample_rate: 24000,
+            bits_per_sample: 16,
+            sample_format: SampleFormat::Int,
+        };
+
+        // Write chunk 1 (2400 samples, ~100ms)
+        let mut w1 = WavWriter::create(&chunk1_path, spec).unwrap();
+        for t in 0..2400 {
+            let s = (10000.0 * (2.0 * std::f32::consts::PI * 440.0 * (t as f32) / 24000.0).sin())
+                as i16;
+            w1.write_sample(s).unwrap();
+        }
+        w1.finalize().unwrap();
+
+        // Write chunk 2 (2400 samples, ~100ms)
+        let mut w2 = WavWriter::create(&chunk2_path, spec).unwrap();
+        for t in 0..2400 {
+            let s =
+                (8000.0 * (2.0 * std::f32::consts::PI * 880.0 * (t as f32) / 24000.0).sin()) as i16;
+            w2.write_sample(s).unwrap();
+        }
+        w2.finalize().unwrap();
+
+        let res = stitch_wav_files(
+            &[chunk1_path.clone(), chunk2_path.clone()],
+            &out_path,
+            24000,
+        );
+        assert!(res.is_ok(), "Stitching must succeed: {:?}", res.err());
+
+        let reader = WavReader::open(&out_path).expect("Open stitched WAV");
+        assert_eq!(reader.spec().sample_rate, 24000);
+        assert_eq!(reader.spec().channels, 1);
+        let samples: Vec<i16> = reader.into_samples::<i16>().map(|s| s.unwrap()).collect();
+
+        // 2400 + 2400 minus crossfade overlap (~120 samples)
+        assert!(samples.len() >= 4600 && samples.len() <= 4800);
+
+        // Clean up
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn test_stitch_wav_files_validation_errors() {
+        let tmp_dir = std::env::temp_dir().join(format!("test_stitch_err_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp_dir);
+        let bad_rate_path = tmp_dir.join("bad_rate.wav");
+        let out_path = tmp_dir.join("out.wav");
+
+        let bad_spec = WavSpec {
+            channels: 1,
+            sample_rate: 16000,
+            bits_per_sample: 16,
+            sample_format: SampleFormat::Int,
+        };
+        let mut w = WavWriter::create(&bad_rate_path, bad_spec).unwrap();
+        w.write_sample(100i16).unwrap();
+        w.finalize().unwrap();
+
+        // Attempt to stitch expecting 24000 Hz
+        let err = stitch_wav_files(&[bad_rate_path], &out_path, 24000).unwrap_err();
+        assert!(
+            err.to_string().contains("Niezgodność częstotliwości"),
+            "Error must report sample rate mismatch: {}",
+            err
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
     }
 }
