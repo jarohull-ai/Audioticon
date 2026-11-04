@@ -212,7 +212,7 @@ impl EffectPreset {
                 let q_val = 1.5 + dist * 2.0;
                 let gain_val = (6.0 + dist * 6.0) as u32;
                 format!(
-                    "aresample=24000,asetrate=24000*0.86,aresample=24000,atempo=1.16,tremolo=f={}:d=0.88,equalizer=f=950:t=q:w={:.1}:g={},aecho=0.8:0.5:16|32:0.35|0.2",
+                    "aresample=44100,asetrate=44100*0.86,aresample=44100,atempo=1.16,tremolo=f={}:d=0.88,equalizer=f=950:t=q:w={:.1}:g={},aecho=0.8:0.5:16|32:0.35|0.2",
                     trem_f, q_val, gain_val
                 )
             }

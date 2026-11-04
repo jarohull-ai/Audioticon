@@ -270,7 +270,7 @@ pub fn convert_to_standard_wav(input_bytes: &[u8], out_wav_path: &Path) -> Resul
             "-i",
             in_tmp.to_str().unwrap_or(""),
             "-ar",
-            "24000",
+            "44100",
             "-ac",
             "1",
             "-c:a",

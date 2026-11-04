@@ -53,6 +53,8 @@ pub enum EmojiAction {
     Pause(u32),
     /// Organic lektor breath / sigh in milliseconds (e.g. 😮‍💨 380ms)
     Breath(u32),
+    /// Expressive emotion / delivery tag (e.g. 😊 Happy, 😢 Sad, 😡 Angry, 😲 Surprised, 😰 Nervous, 🤢 Disgusted)
+    Emotion(ActorTag),
     /// Rate modification in percent (e.g. 🐢 -14%, 🐇 +15%)
     RateMod(i32),
     /// Pitch modification in Hertz (e.g. 📉 -8Hz, 📈 +6Hz)
@@ -71,15 +73,21 @@ pub enum EmojiAction {
     Ambience(Option<String>),
 }
 
-/// Expressive actor delivery and emotion tags for next-gen neural voice models.
+/// Expressive actor delivery and emotion tags for next-gen neural voice models (ElevenLabs v3, ChatTTS).
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ActorTag {
-    Whisper,  // 🤫 Szept
-    Sigh,     // 😮‍💨 Westchnienie
-    Shout,    // 💥 Emfaza / podniesiony głos
-    Laugh,    // 😂 Śmiech
-    Hesitant, // 🐢 Wahanie / powolna ostrożność
-    Urgent,   // 🐇 Nerwowość / pośpiech
+    Whisper,   // 🤫 Szept
+    Sigh,      // 😮‍💨 Westchnienie
+    Shout,     // 💥 Emfaza / podniesiony głos
+    Laugh,     // 😂 Śmiech
+    Hesitant,  // 🐢 Wahanie / powolna ostrożność
+    Urgent,    // 🐇 Nerwowość / pośpiech
+    Nervous,   // 😰 Drżący, przestraszony głos
+    Happy,     // 😊 Radość, promienny uśmiech w głosie
+    Sad,       // 😢 Smutek, żal, łamiący się głos
+    Angry,     // 😡 Gniew, agresja, zaciśnięte zęby
+    Surprised, // 😲 Zaskoczenie, szok
+    Disgusted, // 🤢 Obrzydzenie, odraza
     Custom(String),
 }
 
@@ -93,6 +101,12 @@ impl ActorTag {
             ActorTag::Shout => "[shout]",
             ActorTag::Hesitant => "[hesitate]",
             ActorTag::Urgent => "[fast]",
+            ActorTag::Nervous => "[nervous]",
+            ActorTag::Happy => "[happy]",
+            ActorTag::Sad => "[sad]",
+            ActorTag::Angry => "[angry]",
+            ActorTag::Surprised => "[surprised]",
+            ActorTag::Disgusted => "[disgusted]",
             ActorTag::Custom(_) => "",
         }
     }
@@ -106,6 +120,12 @@ impl ActorTag {
             ActorTag::Shout => "[shouts]",
             ActorTag::Hesitant => "[hesitates]",
             ActorTag::Urgent => "[urgently]",
+            ActorTag::Nervous => "[nervously]",
+            ActorTag::Happy => "[cheerfully]",
+            ActorTag::Sad => "[sadly]",
+            ActorTag::Angry => "[angrily]",
+            ActorTag::Surprised => "[surprisedly]",
+            ActorTag::Disgusted => "[disgustedly]",
             ActorTag::Custom(_) => "",
         }
     }
@@ -119,6 +139,12 @@ impl ActorTag {
             ActorTag::Shout => "intense emphatic delivery, raised voice",
             ActorTag::Hesitant => "slow, uncertain, hesitant pacing",
             ActorTag::Urgent => "fast, breathless, nervous urgency",
+            ActorTag::Nervous => "nervous, trembling, uneasy voice",
+            ActorTag::Happy => "cheerful, radiant, smiling voice",
+            ActorTag::Sad => "somber, sorrowful, breaking voice with grief",
+            ActorTag::Angry => "furious, clenched, aggressive hostile tone",
+            ActorTag::Surprised => "shocked, stunned, gasping in surprise",
+            ActorTag::Disgusted => "disgusted, sneering, repulsed tone",
             ActorTag::Custom(_) => "",
         }
     }

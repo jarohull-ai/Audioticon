@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
 
-pub const DEFAULT_SAMPLE_RATE: u32 = 24000;
+pub const DEFAULT_SAMPLE_RATE: u32 = 44100;
 
 /// Fast XorShift64 PRNG for deterministic procedural audio noise
 struct SimpleNoiseRng(u64);
@@ -809,7 +809,20 @@ impl SpeechSynthesizer for EdgeTtsBridge {
             anyhow::bail!("edge-tts zakończył się błędem: {:?}", status);
         }
 
-        let filter_chain = build_ffmpeg_filter_chain(segment.filter.as_deref());
+        // Adaptive DSP: for ElevenLabs pristine neural output, if no explicit acoustic filter is requested,
+        // we skip artificial de-essing/EQ conditioning and let the pure generative audio shine through untouched!
+        let filter_chain = if let Some(ref filter_name) = segment.filter {
+            let registry = crate::presets::get_active_registry();
+            let (preset, _warn) = registry.resolve(filter_name);
+            let dsp = preset.to_ffmpeg_filter();
+            if dsp.is_empty() {
+                "anull".to_string()
+            } else {
+                dsp
+            }
+        } else {
+            "anull".to_string()
+        };
 
         let conv = tokio::process::Command::new("ffmpeg")
             .arg("-y")
@@ -1192,7 +1205,7 @@ impl SpeechSynthesizer for PiperBridge {
             let semitones = segment.pitch_mod as f32 / 3.0;
             let factor = 2f32.powf(semitones / 12.0);
             let pitch_filter = format!(
-                "asetrate={:.0}*{:.4},aresample={},atempo={:.4}",
+                "asetrate={:.0}*{:.4},aresample={}:resampler=soxr,atempo={:.4}",
                 actual_sr,
                 factor,
                 DEFAULT_SAMPLE_RATE,
@@ -1252,7 +1265,7 @@ impl ElevenLabsBridge {
         Self {
             api_key: api_key.into(),
             voice: default_v,
-            model_id: "eleven_multilingual_v2".to_string(),
+            model_id: "eleven_v3".to_string(),
         }
     }
 
@@ -1415,7 +1428,7 @@ impl SpeechSynthesizer for ElevenLabsBridge {
         }
 
         let url = format!(
-            "https://api.elevenlabs.io/v1/text-to-speech/{}",
+            "https://api.elevenlabs.io/v1/text-to-speech/{}?optimize_streaming_latency=1&output_format=mp3_44100_128",
             actual_voice_id
         );
         let curl_res = tokio::process::Command::new("curl")
@@ -1448,7 +1461,20 @@ impl SpeechSynthesizer for ElevenLabsBridge {
             anyhow::bail!("ElevenLabs API call failed: {}", stderr.trim());
         }
 
-        let filter_chain = build_ffmpeg_filter_chain(segment.filter.as_deref());
+        // Adaptive DSP: for ElevenLabs pristine neural output, if no explicit acoustic filter is requested,
+        // we skip artificial de-essing/EQ conditioning and let the pure generative audio shine through untouched!
+        let filter_chain = if let Some(ref filter_name) = segment.filter {
+            let registry = crate::presets::get_active_registry();
+            let (preset, _warn) = registry.resolve(filter_name);
+            let dsp = preset.to_ffmpeg_filter();
+            if dsp.is_empty() {
+                "anull".to_string()
+            } else {
+                dsp
+            }
+        } else {
+            "anull".to_string()
+        };
 
         let conv = tokio::process::Command::new("ffmpeg")
             .arg("-y")
@@ -1526,9 +1552,11 @@ impl AudioDirectorEngine {
                     ambient_events.push((scheduled_items.len(), amb.clone()));
                 }
                 DirectedItem::SoundEffect(sfx_name) => {
-                    let sfx_file = self
-                        .cache_dir
-                        .join(format!("sfx_{}.wav", sanitize_file_name(sfx_name)));
+                    let sfx_file = self.cache_dir.join(format!(
+                        "sfx_{}_{}hz.wav",
+                        sanitize_file_name(sfx_name),
+                        DEFAULT_SAMPLE_RATE
+                    ));
                     if !sfx_file.exists() {
                         create_sfx_wav(sfx_name, &sfx_file, DEFAULT_SAMPLE_RATE)?;
                     }
@@ -1536,7 +1564,9 @@ impl AudioDirectorEngine {
                     scheduled_items.push((Some(sfx_file), None));
                 }
                 DirectedItem::Silence(ms) => {
-                    let silence_file = self.cache_dir.join(format!("silence_{}ms.wav", ms));
+                    let silence_file = self
+                        .cache_dir
+                        .join(format!("silence_{}ms_{}hz.wav", ms, DEFAULT_SAMPLE_RATE));
                     if !silence_file.exists() {
                         create_silence_wav(&silence_file, *ms, DEFAULT_SAMPLE_RATE)?;
                     }
@@ -1544,7 +1574,9 @@ impl AudioDirectorEngine {
                     scheduled_items.push((Some(silence_file), None));
                 }
                 DirectedItem::Breath(ms) => {
-                    let breath_file = self.cache_dir.join(format!("breath_{}ms.wav", ms));
+                    let breath_file = self
+                        .cache_dir
+                        .join(format!("breath_{}ms_{}hz.wav", ms, DEFAULT_SAMPLE_RATE));
                     if !breath_file.exists() {
                         create_breath_wav(&breath_file, *ms, DEFAULT_SAMPLE_RATE)?;
                     }
@@ -2202,12 +2234,12 @@ mod tests {
 
             let spec = WavSpec {
                 channels: 1,
-                sample_rate: 24000,
+                sample_rate: DEFAULT_SAMPLE_RATE,
                 bits_per_sample: 16,
                 sample_format: SampleFormat::Int,
             };
             let mut writer = WavWriter::create(out_path, spec)?;
-            for _ in 0..2400 {
+            for _ in 0..4410 {
                 writer.write_sample(500i16)?;
             }
             writer.finalize()?;
@@ -2313,7 +2345,7 @@ mod tests {
         // Verify stitched file integrity
         assert!(final_wav.exists());
         let reader = WavReader::open(&final_wav).expect("Open final master WAV");
-        assert_eq!(reader.spec().sample_rate, 24000);
+        assert_eq!(reader.spec().sample_rate, DEFAULT_SAMPLE_RATE);
         assert!(reader.duration() > 0);
 
         let _ = std::fs::remove_dir_all(&tmp_dir);

@@ -30,6 +30,74 @@ impl Default for EmojiDirector {
         m.insert("[oddech]".to_string(), EmojiAction::Breath(380));
         m.insert("[sigh]".to_string(), EmojiAction::Breath(380));
 
+        // Expressive Emotions (Actor Tags for generative voice models)
+        m.insert("😊".to_string(), EmojiAction::Emotion(ActorTag::Happy));
+        m.insert("[happy]".to_string(), EmojiAction::Emotion(ActorTag::Happy));
+        m.insert(
+            "[radosc]".to_string(),
+            EmojiAction::Emotion(ActorTag::Happy),
+        );
+        m.insert(
+            "[radość]".to_string(),
+            EmojiAction::Emotion(ActorTag::Happy),
+        );
+
+        m.insert("😢".to_string(), EmojiAction::Emotion(ActorTag::Sad));
+        m.insert("😭".to_string(), EmojiAction::Emotion(ActorTag::Sad));
+        m.insert("[sad]".to_string(), EmojiAction::Emotion(ActorTag::Sad));
+        m.insert("[smutek]".to_string(), EmojiAction::Emotion(ActorTag::Sad));
+
+        m.insert("😡".to_string(), EmojiAction::Emotion(ActorTag::Angry));
+        m.insert("🤬".to_string(), EmojiAction::Emotion(ActorTag::Angry));
+        m.insert("[angry]".to_string(), EmojiAction::Emotion(ActorTag::Angry));
+        m.insert("[gniew]".to_string(), EmojiAction::Emotion(ActorTag::Angry));
+        m.insert("[zlosc]".to_string(), EmojiAction::Emotion(ActorTag::Angry));
+        m.insert("[złość]".to_string(), EmojiAction::Emotion(ActorTag::Angry));
+
+        m.insert("😲".to_string(), EmojiAction::Emotion(ActorTag::Surprised));
+        m.insert("😮".to_string(), EmojiAction::Emotion(ActorTag::Surprised));
+        m.insert(
+            "[surprised]".to_string(),
+            EmojiAction::Emotion(ActorTag::Surprised),
+        );
+        m.insert(
+            "[szok]".to_string(),
+            EmojiAction::Emotion(ActorTag::Surprised),
+        );
+        m.insert(
+            "[zaskoczenie]".to_string(),
+            EmojiAction::Emotion(ActorTag::Surprised),
+        );
+
+        m.insert("😰".to_string(), EmojiAction::Emotion(ActorTag::Nervous));
+        m.insert("😨".to_string(), EmojiAction::Emotion(ActorTag::Nervous));
+        m.insert(
+            "[nervous]".to_string(),
+            EmojiAction::Emotion(ActorTag::Nervous),
+        );
+        m.insert(
+            "[nerwy]".to_string(),
+            EmojiAction::Emotion(ActorTag::Nervous),
+        );
+        m.insert(
+            "[nerwowo]".to_string(),
+            EmojiAction::Emotion(ActorTag::Nervous),
+        );
+
+        m.insert("🤢".to_string(), EmojiAction::Emotion(ActorTag::Disgusted));
+        m.insert(
+            "[disgusted]".to_string(),
+            EmojiAction::Emotion(ActorTag::Disgusted),
+        );
+        m.insert(
+            "[obrzydzenie]".to_string(),
+            EmojiAction::Emotion(ActorTag::Disgusted),
+        );
+        m.insert(
+            "[odraza]".to_string(),
+            EmojiAction::Emotion(ActorTag::Disgusted),
+        );
+
         // Dynamics & Tempo
         m.insert("🐢".to_string(), EmojiAction::RateMod(-14));
         m.insert("[wolno]".to_string(), EmojiAction::RateMod(-14));
@@ -602,6 +670,49 @@ impl EmojiDirector {
                     }
                     EmojiAction::Breath(ms) => {
                         script.items.push(DirectedItem::Breath(*ms));
+                    }
+                    EmojiAction::Emotion(tag) => {
+                        // Replace any existing emotion tags with the newly triggered one
+                        current_segment.actor_tags.retain(|t| {
+                            !matches!(
+                                t,
+                                ActorTag::Happy
+                                    | ActorTag::Sad
+                                    | ActorTag::Angry
+                                    | ActorTag::Surprised
+                                    | ActorTag::Nervous
+                                    | ActorTag::Disgusted
+                            )
+                        });
+                        current_segment.actor_tags.push(tag.clone());
+                        match tag {
+                            ActorTag::Happy => {
+                                current_segment.volume_mod = 4;
+                                current_segment.pitch_mod = 3;
+                            }
+                            ActorTag::Sad => {
+                                current_segment.volume_mod = -10;
+                                current_segment.pitch_mod = -4;
+                                current_segment.rate_mod = -8;
+                            }
+                            ActorTag::Angry => {
+                                current_segment.volume_mod = 15;
+                                current_segment.pitch_mod = 2;
+                            }
+                            ActorTag::Surprised => {
+                                current_segment.pitch_mod = 8;
+                                current_segment.rate_mod = 6;
+                            }
+                            ActorTag::Nervous => {
+                                current_segment.pitch_mod = 4;
+                                current_segment.rate_mod = 10;
+                            }
+                            ActorTag::Disgusted => {
+                                current_segment.pitch_mod = -5;
+                                current_segment.rate_mod = -6;
+                            }
+                            _ => {}
+                        }
                     }
                     EmojiAction::RateMod(rate) => {
                         let (preset, _) = self.registry.resolve(&full_tag);
@@ -1252,6 +1363,51 @@ mod tests {
             speeches_audiodrama[2].filter.as_deref(),
             Some("📱"),
             "AudioDrama style must apply acoustic filter"
+        );
+    }
+
+    #[test]
+    fn test_emotional_emojis_and_actor_tags() {
+        let text =
+            "😊 Cudownie! 😢 Niestety... 😡 Wynoś się! 😲 Co to było? 😰 Boję się. 🤢 Obrzydliwe.";
+        let director = EmojiDirector::default();
+        let script = director.parse(text);
+
+        let speeches: Vec<&TextSegment> = script
+            .items
+            .iter()
+            .filter_map(|it| match it {
+                DirectedItem::Speech(seg) => Some(seg),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(speeches.len(), 6);
+        assert!(speeches[0].actor_tags.contains(&ActorTag::Happy));
+        assert_eq!(
+            speeches[0].format_for_elevenlabs(),
+            "[cheerfully] Cudownie!"
+        );
+
+        assert!(speeches[1].actor_tags.contains(&ActorTag::Sad));
+        assert_eq!(speeches[1].format_for_elevenlabs(), "[sadly] Niestety...");
+
+        assert!(speeches[2].actor_tags.contains(&ActorTag::Angry));
+        assert_eq!(speeches[2].format_for_elevenlabs(), "[angrily] Wynoś się!");
+
+        assert!(speeches[3].actor_tags.contains(&ActorTag::Surprised));
+        assert_eq!(
+            speeches[3].format_for_elevenlabs(),
+            "[surprisedly] Co to było?"
+        );
+
+        assert!(speeches[4].actor_tags.contains(&ActorTag::Nervous));
+        assert_eq!(speeches[4].format_for_elevenlabs(), "[nervously] Boję się.");
+
+        assert!(speeches[5].actor_tags.contains(&ActorTag::Disgusted));
+        assert_eq!(
+            speeches[5].format_for_elevenlabs(),
+            "[disgustedly] Obrzydliwe."
         );
     }
 }
