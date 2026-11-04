@@ -466,8 +466,13 @@ impl SpeechSynthesizer for EdgeTtsBridge {
     }
 
     async fn synthesize(&self, segment: &TextSegment, out_path: &Path) -> Result<()> {
+        let trimmed = segment.text.trim();
+        if !trimmed.chars().any(|c| c.is_alphanumeric()) {
+            return create_silence_wav(out_path, 80, DEFAULT_SAMPLE_RATE);
+        }
+
         let temp_txt = out_path.with_extension("txt");
-        tokio::fs::write(&temp_txt, segment.text.trim()).await?;
+        tokio::fs::write(&temp_txt, trimmed).await?;
 
         let voice_to_use = self.resolve_voice_label(segment.voice.as_deref());
 
@@ -825,6 +830,11 @@ impl SpeechSynthesizer for PiperBridge {
     }
 
     async fn synthesize(&self, segment: &TextSegment, out_path: &Path) -> Result<()> {
+        let trimmed = segment.text.trim();
+        if !trimmed.chars().any(|c| c.is_alphanumeric()) {
+            return create_silence_wav(out_path, 80, DEFAULT_SAMPLE_RATE);
+        }
+
         let pid = std::process::id();
         let unique_id = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -1067,6 +1077,11 @@ impl SpeechSynthesizer for ElevenLabsBridge {
     }
 
     async fn synthesize(&self, segment: &TextSegment, out_path: &Path) -> Result<()> {
+        let trimmed = segment.text.trim();
+        if !trimmed.chars().any(|c| c.is_alphanumeric()) {
+            return create_silence_wav(out_path, 80, DEFAULT_SAMPLE_RATE);
+        }
+
         let voice_label = self.resolve_voice_label(segment.voice.as_deref());
         let raw_voice = voice_label
             .strip_prefix("elevenlabs-")
