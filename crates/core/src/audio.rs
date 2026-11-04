@@ -1854,11 +1854,13 @@ mod tests {
         let final_wav = tmp_dir.join("master.wav");
 
         let mock_synth = Arc::new(MockParallelSynthesizer::new());
-        let engine = AudioDirectorEngine::new(cache_dir.clone(), mock_synth.clone())
-            .with_concurrency(4);
+        let engine =
+            AudioDirectorEngine::new(cache_dir.clone(), mock_synth.clone()).with_concurrency(4);
 
         let mut script = DirectedScript::new();
-        script.items.push(DirectedItem::Chapter("Rozdział 1".to_string()));
+        script
+            .items
+            .push(DirectedItem::Chapter("Rozdział 1".to_string()));
         script.items.push(DirectedItem::Speech(TextSegment {
             text: "Zdanie numer jeden.".to_string(),
             voice: None,
@@ -1888,7 +1890,9 @@ mod tests {
             actor_tags: vec![],
         }));
         script.items.push(DirectedItem::Silence(100));
-        script.items.push(DirectedItem::Chapter("Rozdział 2".to_string()));
+        script
+            .items
+            .push(DirectedItem::Chapter("Rozdział 2".to_string()));
         script.items.push(DirectedItem::Speech(TextSegment {
             text: "Zdanie numer trzy.".to_string(),
             voice: None,

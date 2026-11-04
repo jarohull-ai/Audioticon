@@ -75,7 +75,10 @@ pub fn run_cache(
 
     let cache_stats = get_cache_stats(&cache_path)?;
     println!("📂 Katalog cache: {:?}", cache_path);
-    println!("📦 Zapisanych plików segmentów: {}", cache_stats.total_files);
+    println!(
+        "📦 Zapisanych plików segmentów: {}",
+        cache_stats.total_files
+    );
     println!(
         "💾 Całkowity rozmiar bufora:     {:.2} MB ({:.3} GB)",
         cache_stats.size_mb(),

@@ -1,6 +1,6 @@
-use anyhow::{Context, Result};
 use crate::audio::build_ffmpeg_filter_chain;
 use crate::types::TextSegment;
+use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -72,7 +72,8 @@ pub fn get_cache_stats(cache_dir: &Path) -> Result<CacheStats> {
     let mut oldest: Option<SystemTime> = None;
     let mut newest: Option<SystemTime> = None;
 
-    for entry in fs::read_dir(cache_dir).with_context(|| format!("Błąd odczytu {:?}", cache_dir))? {
+    for entry in fs::read_dir(cache_dir).with_context(|| format!("Błąd odczytu {:?}", cache_dir))?
+    {
         let entry = entry?;
         let path = entry.path();
         if path.is_file() {
@@ -148,7 +149,8 @@ pub fn prune_cache_lru(cache_dir: &Path, max_bytes: u64) -> Result<(usize, u64)>
     let mut items: Vec<CacheItem> = Vec::new();
     let mut current_total_bytes = 0u64;
 
-    for entry in fs::read_dir(cache_dir).with_context(|| format!("Błąd odczytu {:?}", cache_dir))? {
+    for entry in fs::read_dir(cache_dir).with_context(|| format!("Błąd odczytu {:?}", cache_dir))?
+    {
         let entry = entry?;
         let path = entry.path();
         if path.is_file() {
@@ -305,7 +307,10 @@ mod tests {
         let (pruned_count, bytes_freed) = prune_cache_lru(&tmp, 2500).unwrap();
         assert!(pruned_count >= 1, "Should prune at least 1 file");
         assert!(bytes_freed >= 1000, "Should free at least 1000 bytes");
-        assert!(f_rec.exists(), "Punch-in file must NEVER be deleted by LRU!");
+        assert!(
+            f_rec.exists(),
+            "Punch-in file must NEVER be deleted by LRU!"
+        );
 
         let _ = fs::remove_dir_all(&tmp);
     }

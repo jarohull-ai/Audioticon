@@ -868,12 +868,7 @@ fn test_cli_cache_stats_and_prune() {
 
     // 1. Check stats
     let output_stats = std::process::Command::new(exe)
-        .args([
-            "cache",
-            "--dir",
-            tmp_cache.to_str().unwrap(),
-            "--stats",
-        ])
+        .args(["cache", "--dir", tmp_cache.to_str().unwrap(), "--stats"])
         .output()
         .expect("Run audioticon cache --stats");
     assert!(output_stats.status.success());
@@ -895,7 +890,10 @@ fn test_cli_cache_stats_and_prune() {
     assert!(output_prune.status.success());
     let prune_stdout = String::from_utf8_lossy(&output_prune.stdout);
     assert!(prune_stdout.contains("Usunięto"));
-    assert!(tmp_cache.join("recorded_punchin.wav").exists(), "Punch-in file must survive pruning!");
+    assert!(
+        tmp_cache.join("recorded_punchin.wav").exists(),
+        "Punch-in file must survive pruning!"
+    );
 
     let _ = std::fs::remove_dir_all(&tmp_cache);
 }
