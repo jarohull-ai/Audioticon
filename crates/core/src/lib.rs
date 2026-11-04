@@ -8,6 +8,7 @@ pub mod importer;
 pub mod models;
 pub mod parser;
 pub mod presets;
+pub mod sfx;
 pub mod types;
 pub mod verbalizer;
 pub mod voicelab;
@@ -41,6 +42,10 @@ pub use models::{
 };
 pub use parser::EmojiDirector;
 pub use presets::{CustomEmojiDef, EffectPreset, PresetRegistry, ProjectConfig, ProjectMetaConfig};
+pub use sfx::{
+    ambient_dir, find_ambient_asset, find_sfx_asset, import_custom_sfx, infer_category,
+    list_curated_essentials, list_installed_sfx, sfx_dir, CuratedSfxItem, SfxAssetInfo,
+};
 pub use types::{
     ActorTag, AudiobookMetadata, AudioticonProject, BreathIntensity, ChapterMark, DirectedItem,
     DirectedScript, EmojiAction, ProductionStyle, ProjectChapter, ProjectMasteringConfig,

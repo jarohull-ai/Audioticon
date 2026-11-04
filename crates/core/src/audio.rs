@@ -193,37 +193,8 @@ fn sanitize_file_name(s: &str) -> String {
 pub fn create_sfx_wav(name: &str, out_path: &Path, sample_rate: u32) -> Result<()> {
     let clean = name.trim().to_lowercase();
 
-    // Check disk assets
-    let user_sfx = PathBuf::from(format!("sfx/{}.wav", clean));
-    let home_sfx = dirs::data_dir()
-        .map(|d| {
-            d.join("audioticon")
-                .join("sfx")
-                .join(format!("{}.wav", clean))
-        })
-        .or_else(|| {
-            dirs::home_dir().map(|h| {
-                h.join(".local")
-                    .join("share")
-                    .join("audioticon")
-                    .join("sfx")
-                    .join(format!("{}.wav", clean))
-            })
-        });
-
-    let asset_to_use = if user_sfx.exists() {
-        Some(user_sfx)
-    } else if let Some(ref h) = home_sfx {
-        if h.exists() {
-            Some(h.clone())
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    if let Some(src) = asset_to_use {
+    // 1. Check disk assets (local project or user library, supporting wav, ogg, mp3, flac)
+    if let Some(src) = crate::sfx::find_sfx_asset(&clean) {
         let status = std::process::Command::new("ffmpeg")
             .args([
                 "-y",

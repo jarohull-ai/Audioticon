@@ -981,3 +981,28 @@ fn test_cli_cadence_and_breath_intensity_flags() {
         .expect("Run audioticon render with disabled cadence");
     assert!(output_off.status.success());
 }
+
+#[test]
+fn test_cli_sfx_list_and_catalog() {
+    let exe = env!("CARGO_BIN_EXE_audioticon");
+
+    // 1. Test audioticon sfx list
+    let out_list = Command::new(exe)
+        .args(["sfx", "list"])
+        .output()
+        .expect("Run audioticon sfx list");
+    assert!(out_list.status.success());
+    let stdout_list = String::from_utf8_lossy(&out_list.stdout);
+    assert!(stdout_list.contains("Biblioteka Efektów Dźwiękowych"));
+
+    // 2. Test audioticon sfx catalog
+    let out_cat = Command::new(exe)
+        .args(["sfx", "catalog"])
+        .output()
+        .expect("Run audioticon sfx catalog");
+    assert!(out_cat.status.success());
+    let stdout_cat = String::from_utf8_lossy(&out_cat.stdout);
+    assert!(stdout_cat.contains("Rekomendowane Efekty Studyjne"));
+    assert!(stdout_cat.contains("CC0"));
+    assert!(stdout_cat.contains("freesound.org"));
+}

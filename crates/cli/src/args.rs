@@ -343,6 +343,30 @@ pub enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Zarządzanie biblioteką efektów dźwiękowych (SFX i otoczenie)
+    Sfx {
+        #[command(subcommand)]
+        action: Option<SfxAction>,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum SfxAction {
+    /// Wyświetla listę zainstalowanych efektów dźwiękowych (lokalnych i globalnych)
+    List,
+    /// Wyświetla katalog rekomendowanych darmowych efektów studyjnych CC0
+    Catalog,
+    /// Importuje własny plik audio (.wav, .ogg, .mp3, .flac) do biblioteki SFX
+    Import {
+        /// Ścieżka do pliku audio
+        file: PathBuf,
+        /// Własna nazwa efektu (opcjonalnie)
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Importuj do bieżącego projektu (./sfx/) zamiast globalnej biblioteki
+        #[arg(long)]
+        project: bool,
+    },
 }
 
 #[derive(Subcommand, Debug, Clone)]

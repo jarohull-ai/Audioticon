@@ -6,6 +6,7 @@ pub mod models;
 pub mod providers;
 pub mod render;
 pub mod script;
+pub mod sfx;
 pub mod voicelab;
 
 use anyhow::Result;
@@ -105,5 +106,6 @@ pub async fn dispatch(command: Commands) -> Result<()> {
             key,
             dry_run,
         } => direct::run_direct(input, output, provider, model, key, dry_run),
+        Commands::Sfx { action } => sfx::run_sfx(action),
     }
 }
