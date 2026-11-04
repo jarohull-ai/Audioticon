@@ -242,7 +242,7 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
 
-        /// Dostawca AI (gemini, openai)
+        /// Dostawca AI (gemini, openai, ollama)
         #[arg(short, long, default_value = "gemini")]
         provider: String,
 
@@ -3904,11 +3904,40 @@ async fn run_studio_server(
     model: Option<PathBuf>,
     no_browser: bool,
 ) -> Result<()> {
-    let addr = format!("{}:{}", host, port);
-    let server = Arc::new(
-        tiny_http::Server::http(&addr)
-            .map_err(|e| anyhow::anyhow!("Nie można uruchomić serwera na {}: {}", addr, e))?,
-    );
+    let mut selected_port = port;
+    let initial_addr = format!("{}:{}", host, selected_port);
+    let srv_raw = match tiny_http::Server::http(&initial_addr) {
+        Ok(s) => s,
+        Err(e) => {
+            let fallbacks = [3030, 3031, 3032, 8080, 8081];
+            let mut found = None;
+            for &fb in &fallbacks {
+                let test_addr = format!("{}:{}", host, fb);
+                if let Ok(s) = tiny_http::Server::http(&test_addr) {
+                    selected_port = fb;
+                    found = Some(s);
+                    break;
+                }
+            }
+            match found {
+                Some(s) => {
+                    eprintln!(
+                        "⚠️ Port {} jest zajęty (np. przez inną aplikację). Automatycznie wybrano port {}.",
+                        port, selected_port
+                    );
+                    s
+                }
+                None => anyhow::bail!(
+                    "Nie można uruchomić serwera na {}: {}. Sprawdź, czy port nie jest zajęty.",
+                    initial_addr,
+                    e
+                ),
+            }
+        }
+    };
+
+    let addr = format!("{}:{}", host, selected_port);
+    let server = Arc::new(srv_raw);
 
     println!("============================================================");
     println!("🚀 AUDIOTICON STUDIO (WORKBENCH) URUCHOMIONE!");

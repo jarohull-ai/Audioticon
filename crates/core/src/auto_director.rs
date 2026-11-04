@@ -75,6 +75,11 @@ pub fn auto_direct_text(
     }
 
     let p_clean = provider.trim().to_lowercase();
+    if p_clean == "ollama" {
+        let selected_model = model.unwrap_or("bielik-4.5b-v3:q5");
+        return call_ollama_director(clean_text, selected_model);
+    }
+
     let resolved_key = match api_key {
         Some(k) if !k.trim().is_empty() => k.trim().to_string(),
         _ => match crate::credentials::get_api_key(&p_clean) {
@@ -287,6 +292,69 @@ pub fn parse_gemini_response(response_bytes: &[u8]) -> Result<String> {
     }
 
     Ok(strip_markdown_code_blocks(&full_text))
+}
+
+/// Directs script via local Ollama server (OpenAI-compatible /v1/chat/completions)
+pub fn call_ollama_director(raw_text: &str, model: &str) -> Result<String> {
+    #[derive(Serialize)]
+    struct Message {
+        role: String,
+        content: String,
+    }
+
+    #[derive(Serialize)]
+    struct OllamaRequest {
+        model: String,
+        messages: Vec<Message>,
+        temperature: f32,
+    }
+
+    let req_body = OllamaRequest {
+        model: model.to_string(),
+        messages: vec![
+            Message {
+                role: "system".to_string(),
+                content: AUDIOTICON_DIRECTOR_SYSTEM_PROMPT.to_string(),
+            },
+            Message {
+                role: "user".to_string(),
+                content: raw_text.to_string(),
+            },
+        ],
+        temperature: 0.2,
+    };
+
+    let req_json = serde_json::to_string(&req_body)
+        .context("Błąd serializacji zapytania do lokalnego serwera Ollama")?;
+
+    let url = "http://127.0.0.1:11434/v1/chat/completions";
+
+    let output = std::process::Command::new("curl")
+        .args([
+            "-sS",
+            "-X",
+            "POST",
+            "-H",
+            "Content-Type: application/json",
+            "--data-binary",
+            &req_json,
+            url,
+        ])
+        .output();
+
+    let output = output.context("Nie udało się połączyć z lokalnym serwerem Ollama (127.0.0.1:11434). Upewnij się, że usługa Ollama jest uruchomiona.")?;
+
+    if !output.status.success() {
+        let err_stderr = String::from_utf8_lossy(&output.stderr);
+        let err_stdout = String::from_utf8_lossy(&output.stdout);
+        bail!(
+            "Błąd połączenia z Ollama: {} {}",
+            err_stderr.trim(),
+            err_stdout.trim()
+        );
+    }
+
+    parse_openai_response(&output.stdout)
 }
 
 /// Directs script via OpenAI REST API

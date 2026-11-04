@@ -3704,29 +3704,39 @@ air = 0.70</pre>
 
       if (btn) btn.innerHTML = '⏳ Łączenie...';
 
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2500);
-        const res = await fetch(getApiUrl('/api/models'), { signal: controller.signal });
-        clearTimeout(timeoutId);
+      const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const candidatePorts = isLocalHost
+        ? [window.location.port ? parseInt(window.location.port, 10) : 3000]
+        : (window.localEnginePort ? [window.localEnginePort, 3030, 3000, 8080] : [3030, 3000, 8080]);
 
-        if (res.ok) {
-          hasExplicitEngineConnection = true;
-          if (dot) dot.className = 'status-indicator-dot online';
-          const locStr = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? `${window.location.host}`
-            : `127.0.0.1:${window.localEnginePort || 3000}`;
-          if (label) label.innerHTML = `🟢 <strong>Połączono z silnikiem</strong>: Audioticon Studio (${locStr})`;
-          if (btn) {
-            btn.innerHTML = '✅ Połączono';
-            btn.style.borderColor = '#10b981';
-            btn.style.color = '#34d399';
+      for (const port of candidatePorts) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 1500);
+          const ep = isLocalHost ? '/api/models' : `http://127.0.0.1:${port}/api/models`;
+          const res = await fetch(ep, { signal: controller.signal });
+          clearTimeout(timeoutId);
+
+          if (res.ok) {
+            const data = await res.json().catch(() => null);
+            if (data && Array.isArray(data.models)) {
+              window.localEnginePort = port;
+              hasExplicitEngineConnection = true;
+              if (dot) dot.className = 'status-indicator-dot online';
+              const locStr = isLocalHost ? `${window.location.host}` : `127.0.0.1:${port}`;
+              if (label) label.innerHTML = `🟢 <strong>Połączono z silnikiem</strong>: Audioticon Studio (${locStr})`;
+              if (btn) {
+                btn.innerHTML = '✅ Połączono';
+                btn.style.borderColor = '#10b981';
+                btn.style.color = '#34d399';
+              }
+              if (showFeedback) alert(`Pomyślnie połączono z lokalnym silnikiem Audioticon (${locStr})!`);
+              fetchOfflineModelsList();
+              return true;
+            }
           }
-          if (showFeedback) alert(`Pomyślnie połączono z lokalnym silnikiem Audioticon (${locStr})!`);
-          fetchOfflineModelsList();
-          return true;
-        }
-      } catch (err) {}
+        } catch (err) {}
+      }
 
       hasExplicitEngineConnection = false;
       if (dot) dot.className = 'status-indicator-dot demo';
@@ -3737,7 +3747,7 @@ air = 0.70</pre>
         btn.style.color = '#f3f4f6';
       }
       if (showFeedback) {
-        const p = prompt('Nie wykryto silnika pod adresem domyślnym. Jeśli uruchomiłeś audioticon na innym porcie, podaj numer portu (np. 4000):', window.localEnginePort || '3000');
+        const p = prompt('Nie wykryto silnika pod adresem domyślnym. Jeśli uruchomiłeś audioticon na innym porcie, podaj numer portu (np. 3030 lub 4000):', window.localEnginePort || '3030');
         if (p && !isNaN(parseInt(p, 10))) {
           window.localEnginePort = parseInt(p, 10);
           return checkEngineConnection(true);
@@ -4856,8 +4866,50 @@ air = 0.70</pre>
     }
 
     // ========================================================
-    // ✨ AI AUTO-DIRECTOR (GEMINI & OPENAI)
+    // ✨ AI AUTO-DIRECTOR (GEMINI, OPENAI, OLLAMA)
     // ========================================================
+    const AUDIOTICON_DIRECTOR_SYSTEM_PROMPT = `Jesteś wybitnym, profesjonalnym reżyserem słuchowisk radiowych i audiobooków w systemie AUDIOTICON.
+Twoim jedynym zadaniem jest wzbogacenie przekazanego czystego tekstu książki/rozdziału o precyzyjną reżyserię dramaturgiczną za pomocą alfabetu emotikonów i znaczników Audioticon.
+
+KRYTYCZNE ZASADY BEZWZGLĘDNEJ INTEGRALNOŚCI TEKSTU:
+1. ZAKAZ ZMIAN SŁÓW: Nie wolno Ci zmienić, sparafrazować, poprawić ani usunąć ANI JEDNEGO SŁOWA z oryginalnego tekstu.
+2. ZAKAZ SKRÓTÓW: Zachowaj dokładnie cały tekst od początku do końca, bez pomijania zdań.
+3. ZAKAZ KOMENTARZY: Nie dodawaj od siebie żadnych wstępów, podsumowań ani uwag.
+4. ZAKAZ KODÓW MARKDOWN: Nie umieszczaj wyniku w blokach \`\`\` ani \`\`\`text. Zwróć wyłącznie czysty tekst z wplecionymi emotikonami.
+
+ALFABET REŻYSERSKI AUDIOTICON:
+A. OBSADA GŁOSÓW:
+- 👨 – kwestia mówiona przez mężczyznę (dialog męski)
+- 👩 – kwestia mówiona przez kobietę (dialog żeński)
+- 👴 – kwestia mówiona przez starszego mężczyznę / starca
+- 👧 – kwestia mówiona przez dziecko / młodą dziewczynkę / chłopca
+- 📖 – narrator / partia opisowa
+
+B. AKUSTYKA I EMOCJE:
+- 🤫 – szept, cichy głos, tajemnica, intymność (ściszenie o -6 dB)
+- 💥 – krzyk, nagły wykrzyknik, gwałtowny akcent, szok (+3 dB)
+- 🐢 – spowolnienie tempa, groza, mrok (-15% tempa)
+- 🐇 – przyspieszenie tempa, pośpiech, panika (+15% tempa)
+- 📱 – rozmowa przez telefon
+- 📻 – krótkofalówka, radio
+- 🏛️ – pogłos, echo, duża sala, katedra
+
+C. PAUZY I ODDECHY DRAMATURGICZNE:
+- 🛑 – długa pauza dramaturgiczna (~900 ms ciszy)
+- ⏸️ – krótka pauza oddechowa (~400 ms)
+- 😮‍💨 – westchnienie lektora`;
+
+    function stripMarkdownCodeBlocks(text) {
+      let t = text.trim();
+      if ((t.startsWith('```') || t.startsWith('~~~')) && t.endsWith('```')) {
+        const lines = t.split('\n');
+        if (lines.length >= 2) {
+          return lines.slice(1, -1).join('\n').trim();
+        }
+      }
+      return t;
+    }
+
     function openAutoDirectorModal() {
       const modal = document.getElementById('card-modal-overlay');
       const body = document.getElementById('modal-body');
@@ -4865,6 +4917,7 @@ air = 0.70</pre>
       const currentText = document.getElementById('script-input')?.value.trim() || '';
       const charCount = currentText.length;
       const wordCount = currentText ? currentText.split(/\s+/).length : 0;
+      const savedKey = localStorage.getItem('audioticon_gemini_key') || '';
 
       body.innerHTML = `
         <h2 style="font-size: 1.35rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
@@ -4889,6 +4942,7 @@ air = 0.70</pre>
               <select id="auto-director-provider" onchange="updateAutoDirectorModelList(this.value)" style="width: 100%; margin-top: 0.2rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.45rem; color: #fff; font-size: 0.85rem;">
                 <option value="gemini" selected>Google Gemini (błyskawiczny & precyzyjny)</option>
                 <option value="openai">OpenAI (ChatGPT)</option>
+                <option value="ollama">Ollama (Lokalny offline np. Bielik / Llama 3.1)</option>
               </select>
             </div>
             <div>
@@ -4900,9 +4954,12 @@ air = 0.70</pre>
             </div>
           </div>
 
-          <div>
-            <label style="font-size: 0.78rem; font-weight: 700; color: #94a3b8;">Klucz API (opcjonalny jeśli ustawiony w silniku):</label>
-            <input type="password" id="auto-director-key" placeholder="Pozostaw puste, aby użyć z ~/.config/audioticon/credentials.toml" style="width: 100%; margin-top: 0.2rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.45rem; color: #fff; font-size: 0.85rem;">
+          <div id="auto-director-key-group">
+            <label style="font-size: 0.78rem; font-weight: 700; color: #94a3b8;">Klucz API:</label>
+            <input type="password" id="auto-director-key" value="${savedKey}" placeholder="Wklej klucz API (np. AIzaSy...)" style="width: 100%; margin-top: 0.2rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.45rem; color: #fff; font-size: 0.85rem;">
+            <div style="font-size: 0.72rem; color: #64748b; margin-top: 0.2rem;">
+              Dla urządzeń mobilnych / GitHub Pages klucz jest używany bezpośrednio przez przeglądarkę i zapamiętywany lokalnie.
+            </div>
           </div>
 
           <div id="auto-director-status" style="display: none; padding: 0.6rem; border-radius: 6px; font-size: 0.82rem;"></div>
@@ -4921,7 +4978,17 @@ air = 0.70</pre>
 
     function updateAutoDirectorModelList(provider) {
       const modelSelect = document.getElementById('auto-director-model');
+      const keyGroup = document.getElementById('auto-director-key-group');
+      const keyInput = document.getElementById('auto-director-key');
       if (!modelSelect) return;
+
+      if (keyGroup) {
+        keyGroup.style.display = provider === 'ollama' ? 'none' : 'block';
+      }
+      if (keyInput) {
+        keyInput.value = localStorage.getItem(`audioticon_${provider}_key`) || '';
+      }
+
       if (provider === 'gemini') {
         modelSelect.innerHTML = `
           <option value="gemini-2.5-flash" selected>gemini-2.5-flash (zalecany)</option>
@@ -4931,6 +4998,12 @@ air = 0.70</pre>
         modelSelect.innerHTML = `
           <option value="gpt-4o-mini" selected>gpt-4o-mini (szybki)</option>
           <option value="gpt-4o">gpt-4o (maksymalna precyzja)</option>
+        `;
+      } else if (provider === 'ollama') {
+        modelSelect.innerHTML = `
+          <option value="bielik-4.5b-v3:q5" selected>bielik-4.5b-v3:q5 (Polski)</option>
+          <option value="qwen3:8b">qwen3:8b</option>
+          <option value="llama3.1:8b">llama3.1:8b</option>
         `;
       }
     }
@@ -4962,29 +5035,126 @@ air = 0.70</pre>
         submitBtn.style.opacity = '0.5';
       }
 
-      try {
-        const resp = await fetch(getApiUrl('/api/auto-direct'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: rawText,
-            provider,
-            model,
-            api_key: apiKey
-          })
-        });
+      if (apiKey) {
+        localStorage.setItem(`audioticon_${provider}_key`, apiKey);
+      }
 
-        const data = await resp.json();
-        if (resp.ok && data.success && data.directed_text) {
-          scriptInput.value = data.directed_text;
-          localStorage.setItem('audioticon_draft_script', data.directed_text);
+      const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+      // ŚCIEŻKA 1: Bezpośrednie wywołanie z przeglądarki (Direct Client API Call)
+      // Działa na GitHub Pages i urządzeniach mobilnych bez potrzeby pośrednictwa lokalnego serwera!
+      const executeDirectClientCall = async () => {
+        const storedKey = apiKey || localStorage.getItem(`audioticon_${provider}_key`);
+        if (!storedKey && provider !== 'ollama') {
+          throw new Error(`Na urządzeniu mobilnym / GitHub Pages wpisz swój klucz API ${provider.toUpperCase()} w polu powyżej, aby uruchomić reżyserię.`);
+        }
+
+        if (provider === 'gemini') {
+          const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model || 'gemini-2.5-flash'}:generateContent?key=${encodeURIComponent(storedKey)}`;
+          const gResp = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              system_instruction: {
+                parts: [{ text: AUDIOTICON_DIRECTOR_SYSTEM_PROMPT }]
+              },
+              contents: [{
+                role: 'user',
+                parts: [{ text: rawText }]
+              }],
+              generationConfig: { temperature: 0.2 }
+            })
+          });
+          const gData = await gResp.json();
+          if (!gResp.ok) {
+            const errMsg = gData?.error?.message || `HTTP ${gResp.status}`;
+            throw new Error(`Błąd Gemini API: ${errMsg}`);
+          }
+          const candidateText = gData?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!candidateText) {
+            throw new Error('Gemini API zwróciło pustą treść');
+          }
+          return stripMarkdownCodeBlocks(candidateText);
+        } else if (provider === 'openai') {
+          const oResp = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${storedKey}`
+            },
+            body: JSON.stringify({
+              model: model || 'gpt-4o-mini',
+              temperature: 0.2,
+              messages: [
+                { role: 'system', content: AUDIOTICON_DIRECTOR_SYSTEM_PROMPT },
+                { role: 'user', content: rawText }
+              ]
+            })
+          });
+          const oData = await oResp.json();
+          if (!oResp.ok) {
+            const errMsg = oData?.error?.message || `HTTP ${oResp.status}`;
+            throw new Error(`Błąd OpenAI API: ${errMsg}`);
+          }
+          const choiceText = oData?.choices?.[0]?.message?.content;
+          if (!choiceText) {
+            throw new Error('OpenAI API zwróciło pustą treść');
+          }
+          return stripMarkdownCodeBlocks(choiceText);
+        } else {
+          throw new Error('Ollama działa wyłącznie w sieci lokalnej z uruchomionym serwerem audioticon.');
+        }
+      };
+
+      try {
+        let directedResult = null;
+
+        if (!isLocalHost) {
+          // Na GitHub Pages od razu używamy bezpiecznego zapytania bezpośredniego do Gemini / OpenAI
+          directedResult = await executeDirectClientCall();
+        } else {
+          // Na localhost próbujemy najpierw lokalnego silnika audioticon serve
+          try {
+            const resp = await fetch(getApiUrl('/api/auto-direct'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: rawText,
+                provider,
+                model,
+                api_key: apiKey
+              })
+            });
+
+            if (resp.status === 405) {
+              // 405 Method Not Allowed fallback
+              directedResult = await executeDirectClientCall();
+            } else {
+              const data = await resp.json();
+              if (resp.ok && data.success && data.directed_text) {
+                directedResult = data.directed_text;
+              } else {
+                throw new Error(data.error || `Błąd serwera (${resp.status})`);
+              }
+            }
+          } catch (netErr) {
+            // Jeśli lokalny silnik jest niedostępny, a mamy klucz API -> fallback bezpośredni
+            if (apiKey || localStorage.getItem(`audioticon_${provider}_key`)) {
+              directedResult = await executeDirectClientCall();
+            } else {
+              throw netErr;
+            }
+          }
+        }
+
+        if (directedResult) {
+          scriptInput.value = directedResult;
+          localStorage.setItem('audioticon_draft_script', directedResult);
           if (typeof scheduleTimelineUpdate === 'function') {
             scheduleTimelineUpdate();
           }
           closeCardModal();
           alert('✅ Sukces! Tekst został wyreżyserowany i wzbogacony o emotikony postaci oraz emocji.');
-        } else {
-          throw new Error(data.error || 'Nieznany błąd serwera');
         }
       } catch (e) {
         if (statusBox) {
@@ -4992,7 +5162,7 @@ air = 0.70</pre>
           statusBox.style.background = 'rgba(239, 68, 68, 0.15)';
           statusBox.style.border = '1px solid rgba(239, 68, 68, 0.4)';
           statusBox.style.color = '#f87171';
-          statusBox.innerHTML = `❌ <strong>Błąd reżyserii:</strong> ${e.message}<br><small>Upewnij się, że silnik audioticon jest uruchomiony i masz skonfigurowany klucz API (np. <code>audioticon providers set ${provider} --key ...</code>).</small>`;
+          statusBox.innerHTML = `❌ <strong>Błąd reżyserii:</strong> ${e.message}`;
         }
       } finally {
         if (submitBtn) {
