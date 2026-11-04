@@ -32,6 +32,8 @@ struct ApiRenderRequest {
     voice: String,
     #[serde(default)]
     model: Option<String>,
+    #[serde(default)]
+    style: Option<String>,
 }
 fn default_provider_str() -> String {
     "piper".to_string()
@@ -43,11 +45,26 @@ fn default_voice_str() -> String {
     "pl-PL-MarekNeural".to_string()
 }
 
+fn parse_production_style(s: Option<&str>) -> audioticon_core::ProductionStyle {
+    match s.map(|v| v.trim().to_lowercase()).as_deref() {
+        Some("narrator") | Some("lektor") => audioticon_core::ProductionStyle::Narrator,
+        Some("multi-voice") | Some("multivoice") | Some("wieloosobowa") => {
+            audioticon_core::ProductionStyle::MultiVoice
+        }
+        Some("audio-drama") | Some("audiodrama") | Some("sluchowisko") => {
+            audioticon_core::ProductionStyle::AudioDrama
+        }
+        _ => audioticon_core::ProductionStyle::AudioDrama,
+    }
+}
+
 #[derive(serde::Deserialize)]
 struct ApiParseRequest {
     text: String,
     #[serde(default = "default_lang_str")]
     lang: String,
+    #[serde(default)]
+    style: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -72,6 +89,8 @@ struct ApiExportRequest {
     narrator: Option<String>,
     #[serde(default)]
     year: Option<String>,
+    #[serde(default)]
+    style: Option<String>,
 }
 
 fn default_export_format() -> String {
@@ -1018,7 +1037,9 @@ async fn handle_studio_request(
             }
         };
 
-        let director = EmojiDirector::default().with_lang(&req.lang);
+        let director = EmojiDirector::default()
+            .with_lang(&req.lang)
+            .with_style(parse_production_style(req.style.as_deref()));
         let script = director.parse(&req.text);
         let json_resp = serde_json::json!({
             "items_count": script.items.len(),
@@ -1084,7 +1105,9 @@ async fn handle_studio_request(
         )
         .await;
 
-        let director = EmojiDirector::default().with_lang(&clean_lang);
+        let director = EmojiDirector::default()
+            .with_lang(&clean_lang)
+            .with_style(parse_production_style(req.style.as_deref()));
         let script = director.parse(&req.text);
         let cache_dir = get_default_cache_dir();
 
@@ -1274,7 +1297,9 @@ async fn handle_studio_request(
 
         let cache_dir = get_default_cache_dir();
         let _ = std::fs::create_dir_all(&cache_dir);
-        let director = EmojiDirector::default().with_lang(&clean_lang);
+        let director = EmojiDirector::default()
+            .with_lang(&clean_lang)
+            .with_style(parse_production_style(req.style.as_deref()));
         let script = director.parse(&req.text);
         let engine = AudioDirectorEngine::new(cache_dir.clone(), synth);
 
@@ -1433,6 +1458,7 @@ async fn handle_studio_request(
                 author: params.get("author").cloned(),
                 narrator: Some("Lektor".to_string()),
                 year: Some("2026".to_string()),
+                style: params.get("style").cloned(),
             }
         };
 
@@ -1464,7 +1490,9 @@ async fn handle_studio_request(
 
         let cache_dir = get_default_cache_dir();
         let _ = std::fs::create_dir_all(&cache_dir);
-        let director = EmojiDirector::default().with_lang(&clean_lang);
+        let director = EmojiDirector::default()
+            .with_lang(&clean_lang)
+            .with_style(parse_production_style(req.style.as_deref()));
         let script = director.parse(&req.text);
         let engine = AudioDirectorEngine::new(cache_dir.clone(), synth);
 

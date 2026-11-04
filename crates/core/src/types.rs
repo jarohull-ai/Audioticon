@@ -1,5 +1,28 @@
 use serde::{Deserialize, Serialize};
 
+/// Styl produkcji audiobooka / słuchowiska
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProductionStyle {
+    /// 1. Narrator: Tradycyjny audiobook (jeden lektor, zachowane pauzy/tempo, pominięte zmiany głosów i filtry otoczenia)
+    Narrator,
+    /// 2. MultiVoice: Narracja wieloosobowa (oddzielne głosy postaci i narratora, ale czyste studio bez filtrów lo-fi)
+    MultiVoice,
+    /// 3. AudioDrama: Pełne słuchowisko (wielogłosowość + pełne efekty otoczenia: telefon, radio, katedra, myśli)
+    #[default]
+    AudioDrama,
+}
+
+impl std::fmt::Display for ProductionStyle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProductionStyle::Narrator => write!(f, "narrator"),
+            ProductionStyle::MultiVoice => write!(f, "multi-voice"),
+            ProductionStyle::AudioDrama => write!(f, "audio-drama"),
+        }
+    }
+}
+
 /// Action triggered by an emoji in the script.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum EmojiAction {

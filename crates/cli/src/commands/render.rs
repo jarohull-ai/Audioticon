@@ -9,7 +9,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::args::{
-    get_default_cache_dir, get_default_piper_model, TtsProvider, DEMO_EFFECTS_SCENE, DEMO_SCENE,
+    get_default_cache_dir, get_default_piper_model, ProductionStyleArg, TtsProvider,
+    DEMO_EFFECTS_SCENE, DEMO_SCENE,
 };
 use crate::commands::cache::print_estimate_report;
 
@@ -31,6 +32,7 @@ pub async fn run_render(
     estimate: bool,
     max_cache_size: Option<String>,
     jobs: Option<usize>,
+    style: ProductionStyleArg,
 ) -> Result<()> {
     let (script_text, imported_title, imported_author) = match input {
         Some(ref file_path) if !demo && !demo_effects => {
@@ -220,6 +222,7 @@ pub async fn run_render(
     println!("Autor:     {}", book_author);
     println!("Lektor:    {}", book_narrator);
     println!("Rok:       {}", book_year);
+    println!("Styl:      {}", style);
     println!("Provider:  {:?}", provider);
     println!("Cache dir: {:?}", cache_path);
     println!("Wyjście:   {:?}", output);
@@ -231,7 +234,9 @@ pub async fn run_render(
     }
     println!("============================================================");
 
-    let director = EmojiDirector::with_registry(registry).with_lang(&lang);
+    let director = EmojiDirector::with_registry(registry)
+        .with_lang(&lang)
+        .with_style(style.into());
     let script = director.parse(&script_text);
 
     println!(

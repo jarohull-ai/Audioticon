@@ -40,8 +40,8 @@ pub use parser::EmojiDirector;
 pub use presets::{CustomEmojiDef, EffectPreset, PresetRegistry, ProjectConfig, ProjectMetaConfig};
 pub use types::{
     ActorTag, AudiobookMetadata, AudioticonProject, ChapterMark, DirectedItem, DirectedScript,
-    EmojiAction, ProjectChapter, ProjectMasteringConfig, ProjectSettings, RenderResult,
-    TextSegment,
+    EmojiAction, ProductionStyle, ProjectChapter, ProjectMasteringConfig, ProjectSettings,
+    RenderResult, TextSegment,
 };
 pub use verbalizer::normalize_polish_text;
 pub use voicelab::{

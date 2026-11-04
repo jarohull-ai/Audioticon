@@ -31,6 +31,7 @@ pub async fn dispatch(command: Commands) -> Result<()> {
             estimate,
             max_cache_size,
             jobs,
+            style,
         } => {
             render::run_render(
                 input,
@@ -49,6 +50,7 @@ pub async fn dispatch(command: Commands) -> Result<()> {
                 estimate,
                 max_cache_size,
                 jobs,
+                style,
             )
             .await
         }

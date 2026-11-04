@@ -1,5 +1,7 @@
 use crate::presets::PresetRegistry;
-use crate::types::{ActorTag, DirectedItem, DirectedScript, EmojiAction, TextSegment};
+use crate::types::{
+    ActorTag, DirectedItem, DirectedScript, EmojiAction, ProductionStyle, TextSegment,
+};
 use crate::verbalizer::normalize_polish_text;
 use regex::Regex;
 use std::collections::HashMap;
@@ -11,6 +13,7 @@ pub struct EmojiDirector {
     compiled_regex: Regex,
     pub registry: PresetRegistry,
     pub lang: String,
+    pub style: ProductionStyle,
 }
 
 impl Default for EmojiDirector {
@@ -172,6 +175,7 @@ impl Default for EmojiDirector {
             compiled_regex: compiled,
             registry: PresetRegistry::default(),
             lang: "pl".to_string(),
+            style: ProductionStyle::default(),
         }
     }
 }
@@ -179,6 +183,11 @@ impl Default for EmojiDirector {
 impl EmojiDirector {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_style(mut self, style: ProductionStyle) -> Self {
+        self.style = style;
+        self
     }
 
     pub fn with_registry(registry: PresetRegistry) -> Self {
@@ -511,7 +520,11 @@ impl EmojiDirector {
                         // After full pause (like 🛑), reset pacing and emotion tags back to the
                         // active speaker's canonical baseline acoustics:
                         if *ms >= 800 {
-                            let current_voice = current_segment.voice.clone();
+                            let current_voice = if self.style == ProductionStyle::Narrator {
+                                None
+                            } else {
+                                current_segment.voice.clone()
+                            };
                             current_segment = TextSegment::default();
                             current_segment.voice = current_voice.clone();
                             let (base_pitch, base_rate) =
@@ -542,7 +555,8 @@ impl EmojiDirector {
                         if *vol > 0 {
                             pending_one_shot_volume = true;
                         } else if *vol == -25 {
-                            // 🤫 whisper also slows down slightly, adds Whisper actor tag, and activates the whisper DSP acoustic filter
+                            // 🤫 whisper also slows down slightly, adds Whisper actor tag,
+                            // and activates the whisper DSP acoustic filter only in AudioDrama mode
                             let (preset, warn) = self.registry.resolve(&full_tag);
                             if let Some(w) = warn {
                                 eprintln!("⚠️ {}", w);
@@ -555,41 +569,60 @@ impl EmojiDirector {
                                 current_segment.volume_mod = ((v - 1.0) * 100.0) as i32;
                             }
                             current_segment.actor_tags.push(ActorTag::Whisper);
-                            current_segment.filter = Some(full_tag);
+                            if self.style == ProductionStyle::AudioDrama {
+                                current_segment.filter = Some(full_tag);
+                            } else {
+                                current_segment.filter = None;
+                            }
                         }
                     }
                     EmojiAction::Filter(_base_name) => {
-                        let (preset, warn) = self.registry.resolve(&full_tag);
-                        if let Some(w) = warn {
-                            eprintln!("⚠️ {}", w);
+                        if self.style == ProductionStyle::AudioDrama {
+                            let (preset, warn) = self.registry.resolve(&full_tag);
+                            if let Some(w) = warn {
+                                eprintln!("⚠️ {}", w);
+                            }
+                            if let Some(v) = preset.volume {
+                                current_segment.volume_mod = ((v - 1.0) * 100.0) as i32;
+                            }
+                            if let Some(rate) = preset.rate {
+                                current_segment.rate_mod = rate;
+                            }
+                            if let Some(pitch) = preset.pitch {
+                                current_segment.pitch_mod = pitch;
+                            }
+                            current_segment.filter = Some(full_tag);
+                        } else {
+                            // In Narrator and MultiVoice modes, bypass acoustic environment distortions
+                            current_segment.filter = None;
                         }
-                        if let Some(v) = preset.volume {
-                            current_segment.volume_mod = ((v - 1.0) * 100.0) as i32;
-                        }
-                        if let Some(rate) = preset.rate {
-                            current_segment.rate_mod = rate;
-                        }
-                        if let Some(pitch) = preset.pitch {
-                            current_segment.pitch_mod = pitch;
-                        }
-                        current_segment.filter = Some(full_tag);
                     }
                     EmojiAction::Chapter => {
                         pending_chapter = true;
                     }
                     EmojiAction::Voice(default_name) => {
-                        let voice_spec = variant.unwrap_or(default_name);
-                        let resolved = self.resolve_voice(voice_spec);
-                        if resolved == "default" || resolved == "narrator" || resolved.is_empty() {
+                        if self.style == ProductionStyle::Narrator {
+                            // In single Narrator mode, keep entire book voiced by the unified narrator
                             current_segment.voice = None;
+                            current_segment.pitch_mod = 0;
+                            current_segment.rate_mod = 0;
                         } else {
-                            current_segment.voice = Some(resolved);
+                            let voice_spec = variant.unwrap_or(default_name);
+                            let resolved = self.resolve_voice(voice_spec);
+                            if resolved == "default"
+                                || resolved == "narrator"
+                                || resolved.is_empty()
+                            {
+                                current_segment.voice = None;
+                            } else {
+                                current_segment.voice = Some(resolved);
+                            }
+                            // Explicitly apply the speaker's canonical baseline acoustics upon every speaker switch
+                            let (base_pitch, base_rate) =
+                                Self::base_acoustics_for_speaker(current_segment.voice.as_deref());
+                            current_segment.pitch_mod = base_pitch;
+                            current_segment.rate_mod = base_rate;
                         }
-                        // Explicitly apply the speaker's canonical baseline acoustics upon every speaker switch
-                        let (base_pitch, base_rate) =
-                            Self::base_acoustics_for_speaker(current_segment.voice.as_deref());
-                        current_segment.pitch_mod = base_pitch;
-                        current_segment.rate_mod = base_rate;
                     }
                 }
             }
@@ -1031,6 +1064,91 @@ mod tests {
         assert_eq!(
             speeches[1].voice.as_deref().unwrap().to_lowercase(),
             "pl_pl-darkman-medium"
+        );
+    }
+
+    #[test]
+    fn test_production_styles_filtering() {
+        let text = "Narrator mówi. 👩 Dzień dobry! 📱 Halo, słyszysz mnie? 🛑 Koniec rozmowy.";
+
+        // 1. Narrator style (single speaker, no acoustic lo-fi filters)
+        let dir_narrator = EmojiDirector::default().with_style(ProductionStyle::Narrator);
+        let script_narrator = dir_narrator.parse(text);
+        let speeches_narrator: Vec<&TextSegment> = script_narrator
+            .items
+            .iter()
+            .filter_map(|it| match it {
+                DirectedItem::Speech(seg) => Some(seg),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(speeches_narrator.len(), 4);
+        for s in &speeches_narrator {
+            assert_eq!(
+                s.voice, None,
+                "Narrator style must ignore character voice casting"
+            );
+            assert_eq!(
+                s.filter, None,
+                "Narrator style must ignore acoustic lo-fi filters"
+            );
+        }
+
+        // 2. MultiVoice style (multi-voice character casting, but clean studio acoustics without lo-fi filters)
+        let dir_multivoice = EmojiDirector::default().with_style(ProductionStyle::MultiVoice);
+        let script_multivoice = dir_multivoice.parse(text);
+        let speeches_multivoice: Vec<&TextSegment> = script_multivoice
+            .items
+            .iter()
+            .filter_map(|it| match it {
+                DirectedItem::Speech(seg) => Some(seg),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(speeches_multivoice.len(), 4);
+        assert_eq!(speeches_multivoice[0].voice, None);
+        assert_eq!(
+            speeches_multivoice[1].voice.as_deref(),
+            Some("pl-PL-ZofiaNeural")
+        );
+        assert_eq!(
+            speeches_multivoice[2].voice.as_deref(),
+            Some("pl-PL-ZofiaNeural")
+        );
+        // Filter must be stripped in MultiVoice!
+        assert_eq!(
+            speeches_multivoice[2].filter, None,
+            "MultiVoice style must bypass environmental filters"
+        );
+
+        // 3. AudioDrama style (full theatrical drama with character voices and acoustic filters)
+        let dir_audiodrama = EmojiDirector::default().with_style(ProductionStyle::AudioDrama);
+        let script_audiodrama = dir_audiodrama.parse(text);
+        let speeches_audiodrama: Vec<&TextSegment> = script_audiodrama
+            .items
+            .iter()
+            .filter_map(|it| match it {
+                DirectedItem::Speech(seg) => Some(seg),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(speeches_audiodrama.len(), 4);
+        assert_eq!(speeches_audiodrama[0].voice, None);
+        assert_eq!(
+            speeches_audiodrama[1].voice.as_deref(),
+            Some("pl-PL-ZofiaNeural")
+        );
+        assert_eq!(
+            speeches_audiodrama[2].voice.as_deref(),
+            Some("pl-PL-ZofiaNeural")
+        );
+        assert_eq!(
+            speeches_audiodrama[2].filter.as_deref(),
+            Some("📱"),
+            "AudioDrama style must apply acoustic filter"
         );
     }
 }

@@ -34,6 +34,43 @@ pub enum ScriptFormat {
     Timeline,
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+pub enum ProductionStyleArg {
+    /// 1. Narrator: Tradycyjny audiobook (jeden lektor, zachowane pauzy/tempo, pominięte zmiany głosów i filtry otoczenia)
+    #[value(name = "narrator", alias = "lektor")]
+    Narrator,
+    /// 2. MultiVoice: Narracja wieloosobowa (oddzielne głosy postaci i narratora, czyste studio bez filtrów lo-fi)
+    #[value(name = "multi-voice", alias = "multivoice", alias = "wieloosobowa")]
+    MultiVoice,
+    /// 3. AudioDrama: Pełne słuchowisko (wielogłosowość + pełne efekty otoczenia: telefon, radio, katedra, myśli)
+    #[value(name = "audio-drama", alias = "audiodrama", alias = "sluchowisko")]
+    AudioDrama,
+}
+
+impl From<ProductionStyleArg> for audioticon_core::ProductionStyle {
+    fn from(arg: ProductionStyleArg) -> Self {
+        match arg {
+            ProductionStyleArg::Narrator => audioticon_core::ProductionStyle::Narrator,
+            ProductionStyleArg::MultiVoice => audioticon_core::ProductionStyle::MultiVoice,
+            ProductionStyleArg::AudioDrama => audioticon_core::ProductionStyle::AudioDrama,
+        }
+    }
+}
+
+impl std::fmt::Display for ProductionStyleArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProductionStyleArg::Narrator => write!(f, "narrator (tradycyjny lektor)"),
+            ProductionStyleArg::MultiVoice => {
+                write!(f, "multi-voice (wieloosobowa w czystym studio)")
+            }
+            ProductionStyleArg::AudioDrama => {
+                write!(f, "audio-drama (słuchowisko z efektami otoczenia)")
+            }
+        }
+    }
+}
+
 #[derive(Subcommand, Debug, Clone)]
 pub enum Commands {
     /// Renderuje tekst ze znacznikami emoji do pliku audio (.wav lub .mp3)
@@ -101,6 +138,10 @@ pub enum Commands {
         /// Liczba równoległych zadań syntezy TTS (domyślnie dopasowana do silnika i rdzeni CPU)
         #[arg(short = 'j', long = "jobs")]
         jobs: Option<usize>,
+
+        /// Styl produkcji: narrator (jeden lektor), multi-voice (kilka głosów w czystym studio) lub audio-drama (słuchowisko z efektami otoczenia)
+        #[arg(short = 's', long = "style", value_enum, default_value_t = ProductionStyleArg::AudioDrama)]
+        style: ProductionStyleArg,
     },
     /// Zarządzanie lokalnym buforem audio (cache)
     Cache {

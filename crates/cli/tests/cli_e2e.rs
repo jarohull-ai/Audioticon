@@ -897,3 +897,41 @@ fn test_cli_cache_stats_and_prune() {
 
     let _ = std::fs::remove_dir_all(&tmp_cache);
 }
+
+#[test]
+fn test_cli_production_styles_and_aliases() {
+    let exe = env!("CARGO_BIN_EXE_audioticon");
+
+    // 1. Verify --help documents --style
+    let output_help = Command::new(exe)
+        .args(["render", "--help"])
+        .output()
+        .expect("Run audioticon render --help");
+    assert!(output_help.status.success());
+    let help_stdout = String::from_utf8_lossy(&output_help.stdout);
+    assert!(help_stdout.contains("--style"));
+    assert!(help_stdout.contains("narrator"));
+    assert!(help_stdout.contains("multi-voice"));
+    assert!(help_stdout.contains("audio-drama"));
+
+    // 2. Test estimate with style narrator
+    let output_narrator = Command::new(exe)
+        .args(["render", "--demo", "--estimate", "--style", "narrator"])
+        .output()
+        .expect("Run audioticon render --estimate with narrator");
+    assert!(output_narrator.status.success());
+
+    // 3. Test estimate with style multi-voice
+    let output_multivoice = Command::new(exe)
+        .args(["render", "--demo", "--estimate", "--style", "multi-voice"])
+        .output()
+        .expect("Run audioticon render --estimate with multi-voice");
+    assert!(output_multivoice.status.success());
+
+    // 4. Test estimate with alias sluchowisko
+    let output_sluchowisko = Command::new(exe)
+        .args(["render", "--demo", "--estimate", "-s", "sluchowisko"])
+        .output()
+        .expect("Run audioticon render --estimate with -s sluchowisko");
+    assert!(output_sluchowisko.status.success());
+}
