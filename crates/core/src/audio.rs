@@ -548,9 +548,15 @@ impl SpeechSynthesizer for EdgeTtsBridge {
 
 /// Inner state of the persistent Piper Python worker process.
 struct PiperWorkerProcess {
-    _process: std::process::Child,
+    process: std::process::Child,
     stdin: std::process::ChildStdin,
     reader: BufReader<std::process::ChildStdout>,
+}
+
+impl Drop for PiperWorkerProcess {
+    fn drop(&mut self) {
+        let _ = self.process.kill();
+    }
 }
 
 const PIPER_WORKER_CODE: &str = include_str!("piper_worker.py");
@@ -561,7 +567,7 @@ pub struct PiperBridge {
     pub voice_id: String,
     pub python_bin: PathBuf,
     pub worker_script: PathBuf,
-    workers: Mutex<HashMap<PathBuf, PiperWorkerProcess>>,
+    workers: Mutex<HashMap<PathBuf, Vec<PiperWorkerProcess>>>,
 }
 
 impl PiperBridge {
@@ -582,6 +588,27 @@ impl PiperBridge {
             worker_script: script,
             workers: Mutex::new(HashMap::new()),
         }
+    }
+
+    async fn acquire_worker(&self, model_path: &Path) -> Result<PiperWorkerProcess> {
+        let worker_opt = {
+            let mut guard = self.workers.lock().await;
+            guard.get_mut(model_path).and_then(|pool| pool.pop())
+        };
+
+        if let Some(worker) = worker_opt {
+            Ok(worker)
+        } else {
+            self.spawn_worker_for(model_path)
+        }
+    }
+
+    async fn return_worker(&self, model_path: &Path, worker: PiperWorkerProcess) {
+        let mut guard = self.workers.lock().await;
+        guard
+            .entry(model_path.to_path_buf())
+            .or_default()
+            .push(worker);
     }
 
     fn ensure_worker_script() -> PathBuf {
@@ -654,7 +681,7 @@ impl PiperBridge {
         reader.read_line(&mut ready_line)?;
 
         Ok(PiperWorkerProcess {
-            _process: child,
+            process: child,
             stdin,
             reader,
         })
@@ -785,12 +812,22 @@ impl SpeechSynthesizer for PiperBridge {
     }
 
     fn max_concurrency(&self) -> usize {
-        1 // Serialized access to in-memory model worker (runs in ~100ms per sentence)
+        let cpus = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
+        // Piper ONNX synthesis is CPU-bound. Clamping between 1 and 6 threads utilizes
+        // multi-core processors (e.g. Ryzen 12-core) for 3-4x speedups without thrashing CPU cache.
+        cpus.clamp(1, 6)
     }
 
     async fn synthesize(&self, segment: &TextSegment, out_path: &Path) -> Result<()> {
-        let temp_raw_wav = out_path.with_extension("piper_raw.wav");
-        let temp_wav = out_path.with_extension("temp.wav");
+        let pid = std::process::id();
+        let unique_id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let temp_raw_wav = out_path.with_extension(format!("{}_{}.piper_raw.wav", pid, unique_id));
+        let temp_wav = out_path.with_extension(format!("{}_{}.temp.wav", pid, unique_id));
 
         let length_scale = if segment.rate_mod < 0 {
             1.0 - (segment.rate_mod as f32 / 100.0)
@@ -808,15 +845,11 @@ impl SpeechSynthesizer for PiperBridge {
 
         let target_model_path = self.resolve_model_path(segment.voice.as_deref());
 
-        // Acquire worker and synthesize in-memory
-        {
-            let mut workers_guard = self.workers.lock().await;
-            if !workers_guard.contains_key(&target_model_path) {
-                let worker = self.spawn_worker_for(&target_model_path)?;
-                workers_guard.insert(target_model_path.clone(), worker);
-            }
+        // Acquire worker from model pool
+        let mut worker = self.acquire_worker(&target_model_path).await?;
 
-            let worker = workers_guard.get_mut(&target_model_path).unwrap();
+        // Synthesize in-memory via stdin/stdout
+        let synth_res: Result<()> = {
             let mut line = req_json.to_string();
             line.push('\n');
 
@@ -832,7 +865,17 @@ impl SpeechSynthesizer for PiperBridge {
             if val.get("status").and_then(|s| s.as_str()) != Some("ok") {
                 anyhow::bail!("Piper worker error: {:?}", val);
             }
+            Ok(())
+        };
+
+        if let Err(e) = synth_res {
+            // Worker is in an invalid state or pipe broke; do NOT return to pool, drop it!
+            let _ = tokio::fs::remove_file(&temp_raw_wav).await;
+            return Err(e);
         }
+
+        // Return healthy worker to pool for reuse
+        self.return_worker(&target_model_path, worker).await;
 
         let actual_sr = match hound::WavReader::open(&temp_raw_wav) {
             Ok(reader) => reader.spec().sample_rate,
@@ -1135,6 +1178,7 @@ impl SpeechSynthesizer for ElevenLabsBridge {
 pub struct AudioDirectorEngine {
     pub cache_dir: PathBuf,
     pub synthesizer: Arc<dyn SpeechSynthesizer>,
+    pub concurrency_override: Option<usize>,
 }
 
 impl AudioDirectorEngine {
@@ -1143,7 +1187,15 @@ impl AudioDirectorEngine {
         Self {
             cache_dir,
             synthesizer,
+            concurrency_override: None,
         }
+    }
+
+    pub fn with_concurrency(mut self, concurrency: usize) -> Self {
+        if concurrency > 0 {
+            self.concurrency_override = Some(concurrency);
+        }
+        self
     }
 
     /// Renders a directed script into a single master audio file with parallel async synthesis.
@@ -1151,6 +1203,7 @@ impl AudioDirectorEngine {
     pub async fn render(&self, script: &DirectedScript, final_wav: &Path) -> Result<RenderResult> {
         let mut chunk_paths = Vec::new();
         let mut missing_tasks = Vec::new();
+        let mut scheduled_hashes = std::collections::HashSet::new();
         let mut scheduled_items = Vec::new();
         let mut cache_hits = 0;
 
@@ -1205,7 +1258,8 @@ impl AudioDirectorEngine {
                                 &hash[0..8]
                             );
                         }
-                    } else {
+                    } else if scheduled_hashes.insert(hash.clone()) {
+                        // Deduplicate: only synthesize unique segment hashes once per render session
                         missing_tasks.push((idx, segment.clone(), cached_wav.clone(), hash));
                     }
                     chunk_paths.push(cached_wav.clone());
@@ -1216,7 +1270,10 @@ impl AudioDirectorEngine {
 
         // Phase 2: Parallel async synthesis of missing segments
         if !missing_tasks.is_empty() {
-            let concurrency = self.synthesizer.max_concurrency();
+            let concurrency = self
+                .concurrency_override
+                .unwrap_or_else(|| self.synthesizer.max_concurrency())
+                .max(1);
             let semaphore = Arc::new(Semaphore::new(concurrency));
             let total_missing = missing_tasks.len();
             println!(
@@ -1724,6 +1781,159 @@ mod tests {
             "Error must report sample rate mismatch: {}",
             err
         );
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    struct MockParallelSynthesizer {
+        active_count: std::sync::atomic::AtomicUsize,
+        max_seen: std::sync::atomic::AtomicUsize,
+        total_calls: std::sync::atomic::AtomicUsize,
+    }
+
+    impl MockParallelSynthesizer {
+        fn new() -> Self {
+            Self {
+                active_count: std::sync::atomic::AtomicUsize::new(0),
+                max_seen: std::sync::atomic::AtomicUsize::new(0),
+                total_calls: std::sync::atomic::AtomicUsize::new(0),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl SpeechSynthesizer for MockParallelSynthesizer {
+        fn voice_name(&self) -> &str {
+            "mock-parallel"
+        }
+        fn max_concurrency(&self) -> usize {
+            4
+        }
+        async fn synthesize(&self, _segment: &TextSegment, out_path: &Path) -> Result<()> {
+            use std::sync::atomic::Ordering;
+            self.total_calls.fetch_add(1, Ordering::SeqCst);
+            let cur = self.active_count.fetch_add(1, Ordering::SeqCst) + 1;
+            let mut prev_max = self.max_seen.load(Ordering::SeqCst);
+            while cur > prev_max {
+                match self.max_seen.compare_exchange_weak(
+                    prev_max,
+                    cur,
+                    Ordering::SeqCst,
+                    Ordering::SeqCst,
+                ) {
+                    Ok(_) => break,
+                    Err(actual) => prev_max = actual,
+                }
+            }
+
+            tokio::time::sleep(std::time::Duration::from_millis(15)).await;
+
+            let spec = WavSpec {
+                channels: 1,
+                sample_rate: 24000,
+                bits_per_sample: 16,
+                sample_format: SampleFormat::Int,
+            };
+            let mut writer = WavWriter::create(out_path, spec)?;
+            for _ in 0..2400 {
+                writer.write_sample(500i16)?;
+            }
+            writer.finalize()?;
+
+            self.active_count.fetch_sub(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_parallel_multi_threaded_render_and_deduplication() {
+        use std::sync::atomic::Ordering;
+        let tmp_dir = std::env::temp_dir().join(format!("test_parallel_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp_dir);
+        let cache_dir = tmp_dir.join("cache");
+        let final_wav = tmp_dir.join("master.wav");
+
+        let mock_synth = Arc::new(MockParallelSynthesizer::new());
+        let engine = AudioDirectorEngine::new(cache_dir.clone(), mock_synth.clone())
+            .with_concurrency(4);
+
+        let mut script = DirectedScript::new();
+        script.items.push(DirectedItem::Chapter("Rozdział 1".to_string()));
+        script.items.push(DirectedItem::Speech(TextSegment {
+            text: "Zdanie numer jeden.".to_string(),
+            voice: None,
+            rate_mod: 0,
+            pitch_mod: 0,
+            volume_mod: 0,
+            filter: None,
+            actor_tags: vec![],
+        }));
+        script.items.push(DirectedItem::Speech(TextSegment {
+            text: "Zdanie numer dwa.".to_string(),
+            voice: None,
+            rate_mod: 0,
+            pitch_mod: 0,
+            volume_mod: 0,
+            filter: None,
+            actor_tags: vec![],
+        }));
+        // Duplicate text of segment 1 -> must deduplicate in synthesis!
+        script.items.push(DirectedItem::Speech(TextSegment {
+            text: "Zdanie numer jeden.".to_string(),
+            voice: None,
+            rate_mod: 0,
+            pitch_mod: 0,
+            volume_mod: 0,
+            filter: None,
+            actor_tags: vec![],
+        }));
+        script.items.push(DirectedItem::Silence(100));
+        script.items.push(DirectedItem::Chapter("Rozdział 2".to_string()));
+        script.items.push(DirectedItem::Speech(TextSegment {
+            text: "Zdanie numer trzy.".to_string(),
+            voice: None,
+            rate_mod: 0,
+            pitch_mod: 0,
+            volume_mod: 0,
+            filter: None,
+            actor_tags: vec![],
+        }));
+        script.items.push(DirectedItem::Speech(TextSegment {
+            text: "Zdanie numer cztery.".to_string(),
+            voice: None,
+            rate_mod: 0,
+            pitch_mod: 0,
+            volume_mod: 0,
+            filter: None,
+            actor_tags: vec![],
+        }));
+
+        let res = engine.render(&script, &final_wav).await;
+        assert!(res.is_ok(), "Render must succeed: {:?}", res.err());
+        let render_info = res.unwrap();
+
+        // 5 speech segments + 1 silence = 6 total chunks stitched
+        assert_eq!(render_info.total_segments, 6);
+        assert_eq!(render_info.chapters.len(), 2);
+        assert_eq!(render_info.chapters[0].title, "Rozdział 1");
+        assert_eq!(render_info.chapters[1].title, "Rozdział 2");
+
+        // Total unique speech texts: 4 ("jeden", "dwa", "trzy", "cztery").
+        // "jeden" appeared twice so total synthesis calls must be 4, NOT 5!
+        assert_eq!(mock_synth.total_calls.load(Ordering::SeqCst), 4);
+
+        // Verify parallel execution occurred concurrently
+        assert!(
+            mock_synth.max_seen.load(Ordering::SeqCst) >= 2,
+            "Concurrency must be >= 2 during parallel rendering, was: {}",
+            mock_synth.max_seen.load(Ordering::SeqCst)
+        );
+
+        // Verify stitched file integrity
+        assert!(final_wav.exists());
+        let reader = WavReader::open(&final_wav).expect("Open final master WAV");
+        assert_eq!(reader.spec().sample_rate, 24000);
+        assert!(reader.duration() > 0);
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
     }

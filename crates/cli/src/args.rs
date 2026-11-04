@@ -97,6 +97,10 @@ pub enum Commands {
         /// Maksymalny rozmiar bufora cache (np. 1GB, 500MB, domyślnie 2GB); starsze segmenty są automatycznie czyszczone (LRU)
         #[arg(long)]
         max_cache_size: Option<String>,
+
+        /// Liczba równoległych zadań syntezy TTS (domyślnie dopasowana do silnika i rdzeni CPU)
+        #[arg(short = 'j', long = "jobs")]
+        jobs: Option<usize>,
     },
     /// Zarządzanie lokalnym buforem audio (cache)
     Cache {

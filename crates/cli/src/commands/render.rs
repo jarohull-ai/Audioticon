@@ -30,6 +30,7 @@ pub async fn run_render(
     demo_effects: bool,
     estimate: bool,
     max_cache_size: Option<String>,
+    jobs: Option<usize>,
 ) -> Result<()> {
     let (script_text, imported_title, imported_author) = match input {
         Some(ref file_path) if !demo && !demo_effects => {
@@ -239,7 +240,10 @@ pub async fn run_render(
         script.total_pause_ms()
     );
 
-    let engine = AudioDirectorEngine::new(cache_path.clone(), synthesizer);
+    let mut engine = AudioDirectorEngine::new(cache_path.clone(), synthesizer);
+    if let Some(j) = jobs {
+        engine = engine.with_concurrency(j);
+    }
 
     let wav_target = if is_wav {
         output.clone()
