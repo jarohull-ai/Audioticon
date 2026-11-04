@@ -74,12 +74,21 @@ pub fn estimate_cost(
     let segments_to_synthesize = total_speech_segments.saturating_sub(cached_segments);
     let characters_to_synthesize = total_characters.saturating_sub(cached_characters);
 
-    // Cost rates in USD per character
+    // Cost rates in USD per character (with environment variable override support)
     let rate_per_char = match clean_provider.as_str() {
-        "elevenlabs" => 0.00030, // ~$0.30 per 1,000 chars (standard tier)
-        "openai" => 0.000015,    // ~$0.015 per 1,000 chars
-        "azure" => 0.000016,     // ~$0.016 per 1,000 chars
-        _ => 0.0,                // Piper and Edge are free
+        "elevenlabs" => std::env::var("AUDIOTICON_ELEVENLABS_RATE")
+            .ok()
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(0.00030), // ~$0.30 per 1,000 chars (standard tier)
+        "openai" => std::env::var("AUDIOTICON_OPENAI_RATE")
+            .ok()
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(0.000015), // ~$0.015 per 1,000 chars
+        "azure" => std::env::var("AUDIOTICON_AZURE_RATE")
+            .ok()
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(0.000016), // ~$0.016 per 1,000 chars
+        _ => 0.0, // Piper and Edge are free
     };
 
     let estimated_cost_usd = (characters_to_synthesize as f64) * rate_per_char;
@@ -129,5 +138,16 @@ mod tests {
         assert_eq!(est.total_speech_segments, 1);
         assert_eq!(est.cached_segments, 0);
         assert!(est.estimated_cost_usd > 0.0);
+    }
+
+    #[test]
+    fn test_estimate_cost_env_override() {
+        let tmp = std::env::temp_dir().join("non_existent_cache_test_env");
+        let text = "Testowanie stawki.";
+        std::env::set_var("AUDIOTICON_ELEVENLABS_RATE", "0.00050");
+        let est = estimate_cost(text, "elevenlabs", "adam", &tmp);
+        std::env::remove_var("AUDIOTICON_ELEVENLABS_RATE");
+        let expected = (text.chars().count() as f64) * 0.00050;
+        assert!((est.estimated_cost_usd - expected).abs() < 1e-6);
     }
 }

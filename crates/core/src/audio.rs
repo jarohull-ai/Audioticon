@@ -348,6 +348,10 @@ pub fn build_ffmpeg_filter_chain_with_registry(
         if !dsp_filter.is_empty() {
             filters.push(dsp_filter);
         }
+    } else {
+        // Natural narration default: clean studio vocal conditioning
+        // (75 Hz subsonic roll-off, de-essing for harsh sibilants, +1.2dB clarity at 3.2kHz, -1.0dB chestiness cut at 260Hz)
+        filters.push("highpass=f=75,deesser=i=0.35:m=0.5:f=0.5:s=o,equalizer=f=3200:t=q:w=1.2:g=1.2,equalizer=f=260:t=q:w=1.0:g=-1.0".to_string());
     }
 
     filters.join(",")
@@ -1418,7 +1422,7 @@ pub async fn export_to_m4b(
         .arg("-map")
         .arg("0:a")
         .arg("-af")
-        .arg("aresample=44100,loudnorm=I=-19:TP=-3.5:LRA=7,alimiter=limit=0.55:level=false")
+        .arg("aresample=44100,loudnorm=I=-19:TP=-3.5:LRA=7,alimiter=limit=0.67:level=false")
         .arg("-ar")
         .arg("44100")
         .arg("-c:a")
@@ -1500,7 +1504,7 @@ pub async fn export_to_mp3(
         .arg("-map_metadata")
         .arg("1")
         .arg("-af")
-        .arg("aresample=44100,loudnorm=I=-19:TP=-3.5:LRA=7,alimiter=limit=0.55:level=false")
+        .arg("aresample=44100,loudnorm=I=-19:TP=-3.5:LRA=7,alimiter=limit=0.67:level=false")
         .arg("-ar")
         .arg("44100")
         .arg("-codec:a")

@@ -108,6 +108,39 @@ impl Default for EmojiDirector {
             EmojiAction::Filter("robot".to_string()),
         );
 
+        // Studio, Warmth, Brightness & Raw Audio presets
+        m.insert(
+            "[studio]".to_string(),
+            EmojiAction::Filter("studio".to_string()),
+        );
+        m.insert("☕".to_string(), EmojiAction::Filter("warm".to_string()));
+        m.insert(
+            "[warm]".to_string(),
+            EmojiAction::Filter("warm".to_string()),
+        );
+        m.insert(
+            "[cieply]".to_string(),
+            EmojiAction::Filter("warm".to_string()),
+        );
+        m.insert(
+            "[ciepły]".to_string(),
+            EmojiAction::Filter("warm".to_string()),
+        );
+        m.insert("✨".to_string(), EmojiAction::Filter("bright".to_string()));
+        m.insert(
+            "[bright]".to_string(),
+            EmojiAction::Filter("bright".to_string()),
+        );
+        m.insert(
+            "[jasny]".to_string(),
+            EmojiAction::Filter("bright".to_string()),
+        );
+        m.insert("[raw]".to_string(), EmojiAction::Filter("raw".to_string()));
+        m.insert(
+            "[surowy]".to_string(),
+            EmojiAction::Filter("raw".to_string()),
+        );
+
         // Multi-Voice Casting & Characters
         m.insert("👩".to_string(), EmojiAction::Voice("female".to_string()));
         m.insert("👨".to_string(), EmojiAction::Voice("male".to_string()));

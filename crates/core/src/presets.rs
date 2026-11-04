@@ -70,6 +70,18 @@ pub struct EffectPreset {
     /// High-frequency breath friction boost (for whispers)
     #[serde(default)]
     pub air: Option<f32>,
+
+    /// De-essing intensity (0.0 = none, 1.0 = aggressive, default for studio: 0.38)
+    #[serde(default)]
+    pub deesser: Option<f32>,
+
+    /// Vocal presence boost / clarity in dB (e.g. +1.5, -2.0)
+    #[serde(default)]
+    pub clarity: Option<f32>,
+
+    /// Warmth / low-mid body in dB (e.g. +2.0, -1.5)
+    #[serde(default)]
+    pub warmth: Option<f32>,
 }
 
 impl Default for EffectPreset {
@@ -86,6 +98,9 @@ impl Default for EffectPreset {
             damping: None,
             modulation: None,
             air: None,
+            deesser: None,
+            clarity: None,
+            warmth: None,
         }
     }
 }
@@ -209,6 +224,52 @@ impl EffectPreset {
                     "highpass=f={},lowpass=f=6000,equalizer=f=3200:t=q:w=1.5:g={},volume={:.2}",
                     cut_lows, g, vol
                 )
+            }
+            "studio" => {
+                let d_val = self.deesser.unwrap_or(0.38).clamp(0.0, 1.0);
+                let clar = self.clarity.unwrap_or(1.5).clamp(-6.0, 6.0);
+                let warm = self.warmth.unwrap_or(-1.2).clamp(-6.0, 6.0);
+                let mut filter = format!(
+                    "highpass=f=75,deesser=i={:.2}:m=0.5:f=0.5:s=o,equalizer=f=3200:t=q:w=1.2:g={:.1},equalizer=f=260:t=q:w=1.0:g={:.1}",
+                    d_val, clar, warm
+                );
+                if (vol - 1.0).abs() > 0.01 {
+                    filter.push_str(&format!(",volume={:.2}", vol));
+                }
+                filter
+            }
+            "warm" => {
+                let d_val = self.deesser.unwrap_or(0.40).clamp(0.0, 1.0);
+                let clar = self.clarity.unwrap_or(-1.0).clamp(-6.0, 6.0);
+                let warm = self.warmth.unwrap_or(2.0).clamp(-6.0, 6.0);
+                let mut filter = format!(
+                    "highpass=f=70,deesser=i={:.2}:m=0.5:f=0.5:s=o,equalizer=f=200:t=q:w=0.9:g={:.1},equalizer=f=3400:t=q:w=1.0:g={:.1}",
+                    d_val, warm, clar
+                );
+                if (vol - 1.0).abs() > 0.01 {
+                    filter.push_str(&format!(",volume={:.2}", vol));
+                }
+                filter
+            }
+            "bright" => {
+                let d_val = self.deesser.unwrap_or(0.45).clamp(0.0, 1.0);
+                let clar = self.clarity.unwrap_or(2.2).clamp(-6.0, 6.0);
+                let warm = self.warmth.unwrap_or(-1.8).clamp(-6.0, 6.0);
+                let mut filter = format!(
+                    "highpass=f=85,deesser=i={:.2}:m=0.5:f=0.55:s=o,equalizer=f=3600:t=q:w=1.2:g={:.1},equalizer=f=260:t=q:w=1.0:g={:.1}",
+                    d_val, clar, warm
+                );
+                if (vol - 1.0).abs() > 0.01 {
+                    filter.push_str(&format!(",volume={:.2}", vol));
+                }
+                filter
+            }
+            "raw" => {
+                if (vol - 1.0).abs() > 0.01 {
+                    format!("volume={:.2}", vol)
+                } else {
+                    String::new()
+                }
             }
             _ => {
                 if (vol - 1.0).abs() > 0.01 {
@@ -432,6 +493,43 @@ impl PresetRegistry {
                 ..Default::default()
             },
         );
+        self.presets.insert(
+            "studio".to_string(),
+            EffectPreset {
+                base: "studio".to_string(),
+                deesser: Some(0.38),
+                clarity: Some(1.5),
+                warmth: Some(-1.2),
+                ..Default::default()
+            },
+        );
+        self.presets.insert(
+            "warm".to_string(),
+            EffectPreset {
+                base: "warm".to_string(),
+                deesser: Some(0.40),
+                clarity: Some(-1.0),
+                warmth: Some(2.0),
+                ..Default::default()
+            },
+        );
+        self.presets.insert(
+            "bright".to_string(),
+            EffectPreset {
+                base: "bright".to_string(),
+                deesser: Some(0.45),
+                clarity: Some(2.2),
+                warmth: Some(-1.8),
+                ..Default::default()
+            },
+        );
+        self.presets.insert(
+            "raw".to_string(),
+            EffectPreset {
+                base: "raw".to_string(),
+                ..Default::default()
+            },
+        );
     }
 
     /// Loads custom presets, character voice mappings, and custom emojis from project config
@@ -533,6 +631,10 @@ impl PresetRegistry {
                 "💭" | "thought" | "mysli" | "myśli" => "thought",
                 "🤖" | "robot" => "robot",
                 "🤫" | "whisper" | "szept" => "whisper",
+                "studio" => "studio",
+                "☕" | "warm" | "cieply" | "ciepły" => "warm",
+                "✨" | "bright" | "jasny" => "bright",
+                "raw" | "surowy" => "raw",
                 other => other,
             };
 
@@ -563,6 +665,10 @@ impl PresetRegistry {
             "💭" | "thought" | "mysli" | "myśli" => "thought",
             "🤖" | "robot" => "robot",
             "🤫" | "whisper" | "szept" => "whisper",
+            "studio" => "studio",
+            "☕" | "warm" | "cieply" | "ciepły" => "warm",
+            "✨" | "bright" | "jasny" => "bright",
+            "raw" | "surowy" => "raw",
             other => other,
         };
 
