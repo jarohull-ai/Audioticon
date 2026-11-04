@@ -29,6 +29,7 @@ pub async fn dispatch(command: Commands) -> Result<()> {
             demo,
             demo_effects,
             estimate,
+            max_cache_size,
         } => {
             render::run_render(
                 input,
@@ -45,10 +46,16 @@ pub async fn dispatch(command: Commands) -> Result<()> {
                 demo,
                 demo_effects,
                 estimate,
+                max_cache_size,
             )
             .await
         }
-        Commands::Cache { clear, dir } => cache::run_cache(clear, dir),
+        Commands::Cache {
+            clear,
+            dir,
+            prune,
+            stats,
+        } => cache::run_cache(clear, dir, prune, stats),
         Commands::Presets { config } => cache::run_presets(config),
         Commands::Estimate {
             input,

@@ -19,7 +19,10 @@ pub use audio::{
 pub use auto_director::{
     auto_direct_text, strip_markdown_code_blocks, AUDIOTICON_DIRECTOR_SYSTEM_PROMPT,
 };
-pub use cache::compute_segment_hash;
+pub use cache::{
+    compute_segment_hash, get_cache_stats, parse_size_string, prune_cache_lru, CacheStats,
+    CACHE_VERSION, DEFAULT_MAX_CACHE_BYTES,
+};
 pub use credentials::{
     credentials_path, get_api_key, get_masked_key, load_credentials, mask_api_key, remove_api_key,
     save_credentials, set_api_key, verify_elevenlabs_key, CredentialsConfig, ElevenLabsAccountInfo,

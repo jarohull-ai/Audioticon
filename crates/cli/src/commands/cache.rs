@@ -1,5 +1,8 @@
 use anyhow::{Context, Result};
-use audioticon_core::{estimate_cost, presets::PresetRegistry, CostEstimate, ProjectConfig};
+use audioticon_core::{
+    estimate_cost, get_cache_stats, parse_size_string, presets::PresetRegistry, prune_cache_lru,
+    CostEstimate, ProjectConfig,
+};
 use std::path::PathBuf;
 
 use crate::args::{get_default_cache_dir, DEMO_SCENE};
@@ -29,7 +32,12 @@ pub fn print_estimate_report(est: &CostEstimate) {
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
 
-pub fn run_cache(clear: bool, dir: Option<PathBuf>) -> Result<()> {
+pub fn run_cache(
+    clear: bool,
+    dir: Option<PathBuf>,
+    prune: Option<String>,
+    stats: bool,
+) -> Result<()> {
     let cache_path = dir.unwrap_or_else(get_default_cache_dir);
     if clear {
         if cache_path.exists() {
@@ -39,16 +47,45 @@ pub fn run_cache(clear: bool, dir: Option<PathBuf>) -> Result<()> {
         } else {
             println!("Bufor jest pusty: {:?}", cache_path);
         }
-    } else {
-        let count = if cache_path.exists() {
-            std::fs::read_dir(&cache_path)?
-                .filter_map(|e| e.ok())
-                .count()
-        } else {
-            0
-        };
-        println!("📂 Katalog cache: {:?}", cache_path);
-        println!("📦 Zapisanych plików segmentów: {}", count);
+        return Ok(());
+    }
+
+    if let Some(ref prune_str) = prune {
+        let max_bytes = parse_size_string(prune_str)?;
+        let before_stats = get_cache_stats(&cache_path)?;
+        println!(
+            "🔍 Rozpoczynam porządkowanie bufora LRU (limit: {}, obecny rozmiar: {:.2} MB)...",
+            prune_str,
+            before_stats.size_mb()
+        );
+        let (pruned_count, bytes_freed) = prune_cache_lru(&cache_path, max_bytes)?;
+        let freed_mb = bytes_freed as f64 / (1024.0 * 1024.0);
+        let after_stats = get_cache_stats(&cache_path)?;
+        println!(
+            "✅ Usunięto {} najstarszych plików TTS, zwolniono {:.2} MB.",
+            pruned_count, freed_mb
+        );
+        println!(
+            "📦 Aktualny rozmiar bufora: {:.2} MB ({} plików)",
+            after_stats.size_mb(),
+            after_stats.total_files
+        );
+        return Ok(());
+    }
+
+    let cache_stats = get_cache_stats(&cache_path)?;
+    println!("📂 Katalog cache: {:?}", cache_path);
+    println!("📦 Zapisanych plików segmentów: {}", cache_stats.total_files);
+    println!(
+        "💾 Całkowity rozmiar bufora:     {:.2} MB ({:.3} GB)",
+        cache_stats.size_mb(),
+        cache_stats.size_gb()
+    );
+    if stats {
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        println!("ℹ️ Informacje szczegółowe:");
+        println!("   Ochrona punch-in: Aktywna (nagrania lektorskie są nienaruszalne)");
+        println!("   Polityka LRU:     Automatyczne czyszczenie najstarszych plików TTS");
     }
     Ok(())
 }

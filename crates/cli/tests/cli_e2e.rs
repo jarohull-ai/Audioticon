@@ -853,3 +853,49 @@ fn test_api_auto_direct_csrf_and_error_handling() {
     let _ = child.wait();
     let _ = std::fs::remove_dir_all(&tmp_home);
 }
+
+#[test]
+fn test_cli_cache_stats_and_prune() {
+    let tmp_cache = std::env::temp_dir().join(format!("test_cli_cache_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp_cache);
+
+    // Write a dummy chunk and dummy punchin
+    std::fs::write(tmp_cache.join("dummy_chunk_1.wav"), vec![0u8; 5000]).unwrap();
+    std::fs::write(tmp_cache.join("dummy_chunk_2.wav"), vec![0u8; 5000]).unwrap();
+    std::fs::write(tmp_cache.join("recorded_punchin.wav"), vec![0u8; 5000]).unwrap();
+
+    let exe = env!("CARGO_BIN_EXE_audioticon");
+
+    // 1. Check stats
+    let output_stats = std::process::Command::new(exe)
+        .args([
+            "cache",
+            "--dir",
+            tmp_cache.to_str().unwrap(),
+            "--stats",
+        ])
+        .output()
+        .expect("Run audioticon cache --stats");
+    assert!(output_stats.status.success());
+    let stats_stdout = String::from_utf8_lossy(&output_stats.stdout);
+    assert!(stats_stdout.contains("Zapisanych plików segmentów: 3"));
+    assert!(stats_stdout.contains("Ochrona punch-in: Aktywna"));
+
+    // 2. Prune with limit 8KB -> should prune 1 or 2 dummy chunks, keep recorded_punchin
+    let output_prune = std::process::Command::new(exe)
+        .args([
+            "cache",
+            "--dir",
+            tmp_cache.to_str().unwrap(),
+            "--prune",
+            "8KB",
+        ])
+        .output()
+        .expect("Run audioticon cache --prune");
+    assert!(output_prune.status.success());
+    let prune_stdout = String::from_utf8_lossy(&output_prune.stdout);
+    assert!(prune_stdout.contains("Usunięto"));
+    assert!(tmp_cache.join("recorded_punchin.wav").exists(), "Punch-in file must survive pruning!");
+
+    let _ = std::fs::remove_dir_all(&tmp_cache);
+}

@@ -1,8 +1,9 @@
 use anyhow::{Context, Result};
 use audioticon_core::{
-    credentials, estimate_cost, export_to_m4b, export_to_mp3, find_model, models_dir, presets,
-    AudioDirectorEngine, AudiobookMetadata, EdgeTtsBridge, ElevenLabsBridge, EmojiDirector,
-    ImportedBook, PiperBridge, PresetRegistry, ProjectConfig, SpeechSynthesizer,
+    credentials, estimate_cost, export_to_m4b, export_to_mp3, find_model, models_dir,
+    parse_size_string, presets, prune_cache_lru, AudioDirectorEngine, AudiobookMetadata,
+    EdgeTtsBridge, ElevenLabsBridge, EmojiDirector, ImportedBook, PiperBridge, PresetRegistry,
+    ProjectConfig, SpeechSynthesizer, DEFAULT_MAX_CACHE_BYTES,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -28,6 +29,7 @@ pub async fn run_render(
     demo: bool,
     demo_effects: bool,
     estimate: bool,
+    max_cache_size: Option<String>,
 ) -> Result<()> {
     let (script_text, imported_title, imported_author) = match input {
         Some(ref file_path) if !demo && !demo_effects => {
@@ -303,6 +305,21 @@ pub async fn run_render(
         dur_sec % 60.0,
         elapsed
     );
+
+    // Automatic LRU cache cleanup
+    let limit_bytes = match max_cache_size {
+        Some(ref sz) => parse_size_string(sz).unwrap_or(DEFAULT_MAX_CACHE_BYTES),
+        None => DEFAULT_MAX_CACHE_BYTES,
+    };
+    if let Ok((pruned, freed)) = prune_cache_lru(&cache_path, limit_bytes) {
+        if pruned > 0 {
+            println!(
+                "🧹 Porządkowanie cache (LRU): usunięto {} starych plików TTS, zwolniono {:.2} MB",
+                pruned,
+                freed as f64 / (1024.0 * 1024.0)
+            );
+        }
+    }
     println!("============================================================");
 
     Ok(())

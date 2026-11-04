@@ -93,6 +93,10 @@ pub enum Commands {
         /// Wyświetl tylko szacunkową liczbę znaków i koszt bez generowania audio
         #[arg(long)]
         estimate: bool,
+
+        /// Maksymalny rozmiar bufora cache (np. 1GB, 500MB, domyślnie 2GB); starsze segmenty są automatycznie czyszczone (LRU)
+        #[arg(long)]
+        max_cache_size: Option<String>,
     },
     /// Zarządzanie lokalnym buforem audio (cache)
     Cache {
@@ -103,6 +107,14 @@ pub enum Commands {
         /// Własny katalog bufora
         #[arg(short, long)]
         dir: Option<PathBuf>,
+
+        /// Ogranicz rozmiar bufora do podanej wielkości (np. 1GB, 500MB) metodą LRU (najstarsze pliki)
+        #[arg(long)]
+        prune: Option<String>,
+
+        /// Wyświetl statystyki rozmiaru bufora cache
+        #[arg(long)]
+        stats: bool,
     },
     /// Eksportuje zareżyserowany tekst z emotikonami do formatów modeli ekspresyjnych (ElevenLabs, ChatTTS)
     Script {
