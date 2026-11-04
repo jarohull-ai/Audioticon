@@ -120,6 +120,16 @@ impl BiquadFilter {
 /// Uses a procedural acoustic model with vocal tract formants (750Hz and 1750Hz)
 /// shaped by an organic attack/decay respiratory envelope.
 pub fn create_breath_wav(out_path: &Path, duration_ms: u32, sample_rate: u32) -> Result<()> {
+    create_breath_wav_with_gain(out_path, duration_ms, sample_rate, -27.5)
+}
+
+/// Generates a procedural human lektor breath WAV with configurable amplitude gain in dBFS.
+pub fn create_breath_wav_with_gain(
+    out_path: &Path,
+    duration_ms: u32,
+    sample_rate: u32,
+    gain_db: f32,
+) -> Result<()> {
     let tmp_path = out_path.with_extension("tmp.wav");
     let spec = WavSpec {
         channels: 1,
@@ -140,6 +150,9 @@ pub fn create_breath_wav(out_path: &Path, duration_ms: u32, sample_rate: u32) ->
         .saturating_sub(attack_samples)
         .max(1);
 
+    // Convert dBFS to linear amplitude factor
+    let gain = 10.0f32.powf(gain_db / 20.0);
+
     for i in 0..total_samples as usize {
         let white_sample = rng.next_f32();
         let f1 = bp_pharynx.process(white_sample);
@@ -156,7 +169,6 @@ pub fn create_breath_wav(out_path: &Path, duration_ms: u32, sample_rate: u32) ->
                 .powi(2)
         };
 
-        let gain = 0.042; // ~ -27.5 dBFS subtle lektor breath
         let val = (colored_noise * env * gain * 32767.0).clamp(-32768.0, 32767.0) as i16;
         writer.write_sample(val)?;
     }

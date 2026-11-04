@@ -1,6 +1,7 @@
 pub mod audio;
 pub mod auto_director;
 pub mod cache;
+pub mod cadence;
 pub mod credentials;
 pub mod estimator;
 pub mod importer;
@@ -12,9 +13,10 @@ pub mod verbalizer;
 pub mod voicelab;
 
 pub use audio::{
-    create_ambient_track, create_breath_wav, create_sfx_wav, create_silence_wav, export_to_m4b,
-    export_to_mp3, mix_dialogue_with_ambience, stitch_wav_files, AudioDirectorEngine,
-    EdgeTtsBridge, ElevenLabsBridge, PiperBridge, SpeechSynthesizer, DEFAULT_SAMPLE_RATE,
+    create_ambient_track, create_breath_wav, create_breath_wav_with_gain, create_sfx_wav,
+    create_silence_wav, export_to_m4b, export_to_mp3, mix_dialogue_with_ambience, stitch_wav_files,
+    AudioDirectorEngine, EdgeTtsBridge, ElevenLabsBridge, PiperBridge, SpeechSynthesizer,
+    DEFAULT_SAMPLE_RATE,
 };
 pub use auto_director::{
     auto_direct_text, strip_markdown_code_blocks, AUDIOTICON_DIRECTOR_SYSTEM_PROMPT,
@@ -23,6 +25,7 @@ pub use cache::{
     compute_segment_hash, get_cache_stats, parse_size_string, prune_cache_lru, CacheStats,
     CACHE_VERSION, DEFAULT_MAX_CACHE_BYTES,
 };
+pub use cadence::{apply_cadence, count_polish_syllables, CadenceConfig};
 pub use credentials::{
     credentials_path, get_api_key, get_masked_key, load_credentials, mask_api_key, remove_api_key,
     save_credentials, set_api_key, verify_elevenlabs_key, CredentialsConfig, ElevenLabsAccountInfo,
@@ -39,9 +42,9 @@ pub use models::{
 pub use parser::EmojiDirector;
 pub use presets::{CustomEmojiDef, EffectPreset, PresetRegistry, ProjectConfig, ProjectMetaConfig};
 pub use types::{
-    ActorTag, AudiobookMetadata, AudioticonProject, ChapterMark, DirectedItem, DirectedScript,
-    EmojiAction, ProductionStyle, ProjectChapter, ProjectMasteringConfig, ProjectSettings,
-    RenderResult, TextSegment,
+    ActorTag, AudiobookMetadata, AudioticonProject, BreathIntensity, ChapterMark, DirectedItem,
+    DirectedScript, EmojiAction, ProductionStyle, ProjectChapter, ProjectMasteringConfig,
+    ProjectSettings, RenderResult, TextSegment,
 };
 pub use verbalizer::normalize_polish_text;
 pub use voicelab::{

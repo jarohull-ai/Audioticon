@@ -935,3 +935,49 @@ fn test_cli_production_styles_and_aliases() {
         .expect("Run audioticon render --estimate with -s sluchowisko");
     assert!(output_sluchowisko.status.success());
 }
+
+#[test]
+fn test_cli_cadence_and_breath_intensity_flags() {
+    let exe = env!("CARGO_BIN_EXE_audioticon");
+
+    // 1. Verify --help documents --cadence and --breath-intensity
+    let output_help = Command::new(exe)
+        .args(["render", "--help"])
+        .output()
+        .expect("Run audioticon render --help");
+    assert!(output_help.status.success());
+    let help_stdout = String::from_utf8_lossy(&output_help.stdout);
+    assert!(help_stdout.contains("--cadence"));
+    assert!(help_stdout.contains("--breath-intensity"));
+    assert!(help_stdout.contains("subtle"));
+    assert!(help_stdout.contains("natural"));
+    assert!(help_stdout.contains("off"));
+
+    // 2. Test estimate with cadence natural
+    let output_natural = Command::new(exe)
+        .args([
+            "render",
+            "--demo",
+            "--estimate",
+            "--cadence=true",
+            "--breath-intensity",
+            "natural",
+        ])
+        .output()
+        .expect("Run audioticon render with natural cadence");
+    assert!(output_natural.status.success());
+
+    // 3. Test estimate with cadence off
+    let output_off = Command::new(exe)
+        .args([
+            "render",
+            "--demo",
+            "--estimate",
+            "--cadence=false",
+            "--breath-intensity",
+            "off",
+        ])
+        .output()
+        .expect("Run audioticon render with disabled cadence");
+    assert!(output_off.status.success());
+}

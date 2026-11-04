@@ -9,8 +9,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::args::{
-    get_default_cache_dir, get_default_piper_model, ProductionStyleArg, TtsProvider,
-    DEMO_EFFECTS_SCENE, DEMO_SCENE,
+    get_default_cache_dir, get_default_piper_model, BreathIntensityArg, ProductionStyleArg,
+    TtsProvider, DEMO_EFFECTS_SCENE, DEMO_SCENE,
 };
 use crate::commands::cache::print_estimate_report;
 
@@ -33,6 +33,8 @@ pub async fn run_render(
     max_cache_size: Option<String>,
     jobs: Option<usize>,
     style: ProductionStyleArg,
+    cadence: bool,
+    breath_intensity: BreathIntensityArg,
 ) -> Result<()> {
     let (script_text, imported_title, imported_author) = match input {
         Some(ref file_path) if !demo && !demo_effects => {
@@ -223,6 +225,11 @@ pub async fn run_render(
     println!("Lektor:    {}", book_narrator);
     println!("Rok:       {}", book_year);
     println!("Styl:      {}", style);
+    if cadence {
+        println!("Kadencja:  aktywna ({})", breath_intensity);
+    } else {
+        println!("Kadencja:  wyłączona");
+    }
     println!("Provider:  {:?}", provider);
     println!("Cache dir: {:?}", cache_path);
     println!("Wyjście:   {:?}", output);
@@ -237,7 +244,16 @@ pub async fn run_render(
     let director = EmojiDirector::with_registry(registry)
         .with_lang(&lang)
         .with_style(style.into());
-    let script = director.parse(&script_text);
+    let mut script = director.parse(&script_text);
+
+    if cadence {
+        let cadence_cfg = match breath_intensity {
+            BreathIntensityArg::Subtle => audioticon_core::CadenceConfig::subtle(),
+            BreathIntensityArg::Natural => audioticon_core::CadenceConfig::natural(),
+            BreathIntensityArg::Off => audioticon_core::CadenceConfig::off(),
+        };
+        script = audioticon_core::apply_cadence(script, &cadence_cfg);
+    }
 
     println!(
         "Oś czasu:  {} segmentów. Łączny czas pauz: {} ms",

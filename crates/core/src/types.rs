@@ -23,6 +23,29 @@ impl std::fmt::Display for ProductionStyle {
     }
 }
 
+/// Poziom intensywności automatycznych oddechów lektora
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum BreathIntensity {
+    /// Subtelny, naturalny oddech studyjny (-33 dBFS, niesłyszalny na pierwszy rzut oka, ale ożywiający lektora)
+    #[default]
+    Subtle,
+    /// Wyraźniejszy, organiczny oddech lektorski (-27.5 dBFS)
+    Natural,
+    /// Całkowicie wyłączone automatyczne oddechy (jedynie jawne 😮‍💨 w tekście)
+    Off,
+}
+
+impl std::fmt::Display for BreathIntensity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BreathIntensity::Subtle => write!(f, "subtle"),
+            BreathIntensity::Natural => write!(f, "natural"),
+            BreathIntensity::Off => write!(f, "off"),
+        }
+    }
+}
+
 /// Action triggered by an emoji in the script.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum EmojiAction {

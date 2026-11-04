@@ -71,6 +71,39 @@ impl std::fmt::Display for ProductionStyleArg {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+pub enum BreathIntensityArg {
+    /// Subtelny, organiczny oddech studyjny (-33 dBFS, domyślny)
+    #[value(name = "subtle", alias = "subtelny")]
+    Subtle,
+    /// Naturalny, wyraźniejszy oddech lektorski (-27.5 dBFS)
+    #[value(name = "natural", alias = "naturalny")]
+    Natural,
+    /// Wyłączone automatyczne oddechy (jedynie jawne w tekście)
+    #[value(name = "off", alias = "wylaczony")]
+    Off,
+}
+
+impl From<BreathIntensityArg> for audioticon_core::BreathIntensity {
+    fn from(arg: BreathIntensityArg) -> Self {
+        match arg {
+            BreathIntensityArg::Subtle => audioticon_core::BreathIntensity::Subtle,
+            BreathIntensityArg::Natural => audioticon_core::BreathIntensity::Natural,
+            BreathIntensityArg::Off => audioticon_core::BreathIntensity::Off,
+        }
+    }
+}
+
+impl std::fmt::Display for BreathIntensityArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BreathIntensityArg::Subtle => write!(f, "subtle (subtelny)"),
+            BreathIntensityArg::Natural => write!(f, "natural (naturalny)"),
+            BreathIntensityArg::Off => write!(f, "off (wyłączony)"),
+        }
+    }
+}
+
 #[derive(Subcommand, Debug, Clone)]
 pub enum Commands {
     /// Renderuje tekst ze znacznikami emoji do pliku audio (.wav lub .mp3)
@@ -142,6 +175,14 @@ pub enum Commands {
         /// Styl produkcji: narrator (jeden lektor), multi-voice (kilka głosów w czystym studio) lub audio-drama (słuchowisko z efektami otoczenia)
         #[arg(short = 's', long = "style", value_enum, default_value_t = ProductionStyleArg::AudioDrama)]
         style: ProductionStyleArg,
+
+        /// Inteligentna kadencja oddechowa i frazowanie zdań lektora (automatyczne mikro-pauzy i oddechy w długich frazach)
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+        cadence: bool,
+
+        /// Poziom intensywności oddechów lektora: subtle (subtelny, domyślny), natural (naturalny), off (wyłączony)
+        #[arg(long, value_enum, default_value_t = BreathIntensityArg::Subtle)]
+        breath_intensity: BreathIntensityArg,
     },
     /// Zarządzanie lokalnym buforem audio (cache)
     Cache {
