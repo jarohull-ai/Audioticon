@@ -162,6 +162,66 @@ impl Default for EmojiDirector {
             EmojiAction::Voice("default".to_string()),
         );
 
+        // Sound Effects (Foley / SFX)
+        m.insert(
+            "🔔".to_string(),
+            EmojiAction::SoundEffect("bell".to_string()),
+        );
+        m.insert(
+            "🚪".to_string(),
+            EmojiAction::SoundEffect("door".to_string()),
+        );
+        m.insert(
+            "👣".to_string(),
+            EmojiAction::SoundEffect("footsteps".to_string()),
+        );
+        m.insert(
+            "📄".to_string(),
+            EmojiAction::SoundEffect("paper".to_string()),
+        );
+        m.insert(
+            "🚗".to_string(),
+            EmojiAction::SoundEffect("car".to_string()),
+        );
+        m.insert(
+            "⚡".to_string(),
+            EmojiAction::SoundEffect("thunder".to_string()),
+        );
+        m.insert(
+            "[sfx]".to_string(),
+            EmojiAction::SoundEffect("bell".to_string()),
+        );
+
+        // Ambient Soundscapes
+        m.insert(
+            "❄️".to_string(),
+            EmojiAction::Ambience(Some("wind".to_string())),
+        );
+        m.insert(
+            "❄".to_string(),
+            EmojiAction::Ambience(Some("wind".to_string())),
+        );
+        m.insert(
+            "🌧️".to_string(),
+            EmojiAction::Ambience(Some("rain".to_string())),
+        );
+        m.insert(
+            "🌧".to_string(),
+            EmojiAction::Ambience(Some("rain".to_string())),
+        );
+        m.insert(
+            "🏙️".to_string(),
+            EmojiAction::Ambience(Some("city".to_string())),
+        );
+        m.insert(
+            "🏙".to_string(),
+            EmojiAction::Ambience(Some("city".to_string())),
+        );
+        m.insert(
+            "[ambient]".to_string(),
+            EmojiAction::Ambience(Some("wind".to_string())),
+        );
+
         // Structure & Chapter markers
         m.insert("📖".to_string(), EmojiAction::Chapter);
         m.insert("📑".to_string(), EmojiAction::Chapter);
@@ -525,8 +585,14 @@ impl EmojiDirector {
                             } else {
                                 current_segment.voice.clone()
                             };
+                            let current_pan = if self.style == ProductionStyle::AudioDrama {
+                                current_segment.pan
+                            } else {
+                                0.0
+                            };
                             current_segment = TextSegment::default();
                             current_segment.voice = current_voice.clone();
+                            current_segment.pan = current_pan;
                             let (base_pitch, base_rate) =
                                 Self::base_acoustics_for_speaker(current_voice.as_deref());
                             current_segment.pitch_mod = base_pitch;
@@ -606,6 +672,7 @@ impl EmojiDirector {
                             current_segment.voice = None;
                             current_segment.pitch_mod = 0;
                             current_segment.rate_mod = 0;
+                            current_segment.pan = 0.0;
                         } else {
                             let voice_spec = variant.unwrap_or(default_name);
                             let resolved = self.resolve_voice(voice_spec);
@@ -614,14 +681,50 @@ impl EmojiDirector {
                                 || resolved.is_empty()
                             {
                                 current_segment.voice = None;
+                                current_segment.pan = 0.0;
                             } else {
                                 current_segment.voice = Some(resolved);
+                                if self.style == ProductionStyle::AudioDrama {
+                                    let v_lower = voice_spec.to_lowercase();
+                                    if v_lower.contains("kobieta")
+                                        || v_lower.contains("female")
+                                        || v_lower.contains("zofia")
+                                    {
+                                        current_segment.pan = 0.22;
+                                    } else if v_lower.contains("mezczyzna")
+                                        || v_lower.contains("mężczyzna")
+                                        || v_lower.contains("male")
+                                        || v_lower.contains("marek")
+                                    {
+                                        current_segment.pan = -0.22;
+                                    } else {
+                                        current_segment.pan = 0.0;
+                                    }
+                                } else {
+                                    current_segment.pan = 0.0;
+                                }
                             }
                             // Explicitly apply the speaker's canonical baseline acoustics upon every speaker switch
                             let (base_pitch, base_rate) =
                                 Self::base_acoustics_for_speaker(current_segment.voice.as_deref());
                             current_segment.pitch_mod = base_pitch;
                             current_segment.rate_mod = base_rate;
+                        }
+                    }
+                    EmojiAction::SoundEffect(default_name) => {
+                        if self.style == ProductionStyle::AudioDrama {
+                            let effect_name = variant.unwrap_or(default_name).to_string();
+                            script.items.push(DirectedItem::SoundEffect(effect_name));
+                        }
+                    }
+                    EmojiAction::Ambience(default_amb) => {
+                        if self.style == ProductionStyle::AudioDrama {
+                            let amb_val = match variant {
+                                Some("off") | Some("stop") | Some("none") => None,
+                                Some(v) => Some(v.to_string()),
+                                None => default_amb.clone(),
+                            };
+                            script.items.push(DirectedItem::Ambience(amb_val));
                         }
                     }
                 }

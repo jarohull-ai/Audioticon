@@ -69,6 +69,13 @@ pub fn run_script(
                         };
                         println!("  [{:02}] 🗣️ \"{}\"{}", idx, seg.text, meta_str);
                     }
+                    DirectedItem::SoundEffect(sfx) => {
+                        println!("  [{:02}] 🔊 EFEKT SFX: \"{}\"", idx, sfx);
+                    }
+                    DirectedItem::Ambience(amb) => match amb {
+                        Some(a) => println!("  [{:02}] 🌲 TŁO AMBIENCE START: \"{}\"", idx, a),
+                        None => println!("  [{:02}] 🌲 TŁO AMBIENCE STOP", idx),
+                    },
                 }
             }
             println!("\n============================================================");

@@ -42,6 +42,10 @@ pub enum EmojiAction {
     Chapter,
     /// Character / Speaker voice override for multi-voice casting (e.g. "zofia", "marek", "ryan")
     Voice(String),
+    /// Sound effect / foley trigger (e.g. 🔔, 🚪, 👣, 📄, [sfx:notes])
+    SoundEffect(String),
+    /// Ambient background soundscape (e.g. ❄️ winter wind, 🌧️ rain, [ambient:wiatr], None to stop)
+    Ambience(Option<String>),
 }
 
 /// Expressive actor delivery and emotion tags for next-gen neural voice models.
@@ -108,6 +112,9 @@ pub struct TextSegment {
     pub actor_tags: Vec<ActorTag>,
     #[serde(default)]
     pub voice: Option<String>,
+    /// Stereo panning modifier (-1.0 = 100% left, 0.0 = center, 1.0 = 100% right)
+    #[serde(default)]
+    pub pan: f32,
 }
 
 impl Default for TextSegment {
@@ -120,6 +127,7 @@ impl Default for TextSegment {
             filter: None,
             actor_tags: Vec::new(),
             voice: None,
+            pan: 0.0,
         }
     }
 }
@@ -178,6 +186,8 @@ pub enum DirectedItem {
     Silence(u32),
     Breath(u32),
     Chapter(String),
+    SoundEffect(String),
+    Ambience(Option<String>),
 }
 
 /// A chapter boundary marker with title and time range in milliseconds.
@@ -222,7 +232,10 @@ impl DirectedScript {
             .iter()
             .map(|item| match item {
                 DirectedItem::Silence(ms) | DirectedItem::Breath(ms) => *ms,
-                DirectedItem::Speech(_) | DirectedItem::Chapter(_) => 0,
+                DirectedItem::Speech(_)
+                | DirectedItem::Chapter(_)
+                | DirectedItem::SoundEffect(_)
+                | DirectedItem::Ambience(_) => 0,
             })
             .sum()
     }
@@ -241,6 +254,14 @@ impl DirectedScript {
                     }
                     out.push_str(&seg.format_for_chattts());
                     out.push(' ');
+                }
+                DirectedItem::SoundEffect(sfx) => {
+                    out.push_str(&format!("[sfx:{}] ", sfx));
+                }
+                DirectedItem::Ambience(amb) => {
+                    if let Some(a) = amb {
+                        out.push_str(&format!("[ambient:{}] ", a));
+                    }
                 }
                 DirectedItem::Breath(_) => {
                     out.push_str("[sigh] ");
@@ -272,6 +293,10 @@ impl DirectedScript {
                     out.push_str(&seg.format_for_elevenlabs());
                     out.push(' ');
                 }
+                DirectedItem::SoundEffect(sfx) => {
+                    out.push_str(&format!("[sound effect: {}] ", sfx));
+                }
+                DirectedItem::Ambience(_) => {}
                 DirectedItem::Breath(_) => {
                     out.push_str("[sighs] ");
                 }

@@ -219,6 +219,7 @@ mod tests {
             filter: None,
             actor_tags: vec![ActorTag::Whisper],
             voice: None,
+            ..Default::default()
         };
         let seg2 = seg1.clone();
         assert_eq!(
@@ -237,6 +238,7 @@ mod tests {
             filter: None,
             actor_tags: vec![],
             voice: None,
+            ..Default::default()
         };
         let mut seg2 = seg1.clone();
         seg2.actor_tags.push(ActorTag::Whisper);

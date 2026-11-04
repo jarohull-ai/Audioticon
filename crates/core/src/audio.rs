@@ -169,6 +169,283 @@ pub fn create_breath_wav(out_path: &Path, duration_ms: u32, sample_rate: u32) ->
     Ok(())
 }
 
+fn sanitize_file_name(s: &str) -> String {
+    s.chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+        .collect()
+}
+
+/// Generates or loads a sound effect (Foley / SFX) WAV file.
+/// Looks for custom assets on disk (`./sfx/{name}.wav`, `~/.local/share/audioticon/sfx/{name}.wav`),
+/// and falls back to pure Rust procedural sound synthesis.
+pub fn create_sfx_wav(name: &str, out_path: &Path, sample_rate: u32) -> Result<()> {
+    let clean = name.trim().to_lowercase();
+
+    // Check disk assets
+    let user_sfx = PathBuf::from(format!("sfx/{}.wav", clean));
+    let home_sfx = dirs::data_dir()
+        .map(|d| {
+            d.join("audioticon")
+                .join("sfx")
+                .join(format!("{}.wav", clean))
+        })
+        .or_else(|| {
+            dirs::home_dir().map(|h| {
+                h.join(".local")
+                    .join("share")
+                    .join("audioticon")
+                    .join("sfx")
+                    .join(format!("{}.wav", clean))
+            })
+        });
+
+    let asset_to_use = if user_sfx.exists() {
+        Some(user_sfx)
+    } else if let Some(ref h) = home_sfx {
+        if h.exists() {
+            Some(h.clone())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    if let Some(src) = asset_to_use {
+        let status = std::process::Command::new("ffmpeg")
+            .args([
+                "-y",
+                "-i",
+                src.to_str().unwrap(),
+                "-ar",
+                &sample_rate.to_string(),
+                "-ac",
+                "1",
+                out_path.to_str().unwrap(),
+            ])
+            .output();
+        if let Ok(res) = status {
+            if res.status.success() {
+                return Ok(());
+            }
+        }
+    }
+
+    // Pure Rust procedural synthesis
+    let tmp_path = out_path.with_extension("tmp.wav");
+    let spec = WavSpec {
+        channels: 1,
+        sample_rate,
+        bits_per_sample: 16,
+        sample_format: SampleFormat::Int,
+    };
+    let mut writer = WavWriter::create(&tmp_path, spec)
+        .with_context(|| format!("Nie można utworzyć pliku SFX: {:?}", tmp_path))?;
+
+    let duration_ms = match clean.as_str() {
+        s if s.contains("bell")
+            || s.contains("telefon")
+            || s.contains("ding")
+            || s.contains("ping") =>
+        {
+            380
+        }
+        s if s.contains("paper") || s.contains("notes") || s.contains("kartka") => 320,
+        s if s.contains("footstep")
+            || s.contains("crunch")
+            || s.contains("lod")
+            || s.contains("krok") =>
+        {
+            280
+        }
+        s if s.contains("door") || s.contains("drzwi") => 400,
+        s if s.contains("thunder") || s.contains("boom") || s.contains("grzmot") => 900,
+        s if s.contains("car") || s.contains("auto") || s.contains("silnik") => 600,
+        _ => 250,
+    };
+
+    let total_samples = (sample_rate as u64 * duration_ms as u64) / 1000;
+    let mut rng = SimpleNoiseRng::new(0x1337_c001_beef_cafe ^ (duration_ms as u64));
+
+    if clean.contains("bell")
+        || clean.contains("telefon")
+        || clean.contains("ding")
+        || clean.contains("ping")
+    {
+        // Bell / Phone notification chime: dual sine (880Hz + 1760Hz) with exponential decay
+        for i in 0..total_samples {
+            let t = i as f32 / sample_rate as f32;
+            let decay = (-12.0 * t).exp();
+            let tone = (2.0 * std::f32::consts::PI * 880.0 * t).sin() * 0.65
+                + (2.0 * std::f32::consts::PI * 1760.0 * t).sin() * 0.35;
+            let val = (tone * decay * 0.28 * 32767.0).clamp(-32768.0, 32767.0) as i16;
+            writer.write_sample(val)?;
+        }
+    } else if clean.contains("paper") || clean.contains("notes") || clean.contains("kartka") {
+        // Paper rustle: bandpass-filtered noise around 2400Hz with flutter modulation
+        let mut bp = BiquadFilter::bandpass(sample_rate as f32, 2400.0, 2.2);
+        for i in 0..total_samples {
+            let t = i as f32 / total_samples as f32;
+            let env = (t * std::f32::consts::PI).sin();
+            let flutter = 0.7
+                + 0.3 * (2.0 * std::f32::consts::PI * 18.0 * (i as f32 / sample_rate as f32)).sin();
+            let noise = bp.process(rng.next_f32());
+            let val = (noise * env * flutter * 0.16 * 32767.0).clamp(-32768.0, 32767.0) as i16;
+            writer.write_sample(val)?;
+        }
+    } else if clean.contains("footstep")
+        || clean.contains("crunch")
+        || clean.contains("lod")
+        || clean.contains("krok")
+    {
+        // Ice/snow crunch: crisp high-frequency burst around 3500Hz with fast decay
+        let mut bp = BiquadFilter::bandpass(sample_rate as f32, 3500.0, 2.5);
+        for i in 0..total_samples {
+            let t = i as f32 / total_samples as f32;
+            let env = (1.0 - t).powi(3);
+            let noise = bp.process(rng.next_f32());
+            let val = (noise * env * 0.22 * 32767.0).clamp(-32768.0, 32767.0) as i16;
+            writer.write_sample(val)?;
+        }
+    } else if clean.contains("door") || clean.contains("drzwi") {
+        // Door thud: decaying low frequency (110Hz)
+        for i in 0..total_samples {
+            let t = i as f32 / sample_rate as f32;
+            let decay = (-10.0 * t).exp();
+            let tone = (2.0 * std::f32::consts::PI * 110.0 * t).sin();
+            let val = (tone * decay * 0.35 * 32767.0).clamp(-32768.0, 32767.0) as i16;
+            writer.write_sample(val)?;
+        }
+    } else if clean.contains("thunder") || clean.contains("boom") || clean.contains("grzmot") {
+        // Thunder: lowpass rumble
+        let mut bp = BiquadFilter::bandpass(sample_rate as f32, 85.0, 1.2);
+        for i in 0..total_samples {
+            let t = i as f32 / total_samples as f32;
+            let env = (1.0 - t).powi(2);
+            let noise = bp.process(rng.next_f32());
+            let val = (noise * env * 0.35 * 32767.0).clamp(-32768.0, 32767.0) as i16;
+            writer.write_sample(val)?;
+        }
+    } else {
+        // Default engine / vehicle low drone
+        for i in 0..total_samples {
+            let t = i as f32 / sample_rate as f32;
+            let decay = (-3.0 * t).exp();
+            let tone = (2.0 * std::f32::consts::PI * 55.0 * t).sin() * 0.7
+                + (2.0 * std::f32::consts::PI * 110.0 * t).sin() * 0.3;
+            let val = (tone * decay * 0.20 * 32767.0).clamp(-32768.0, 32767.0) as i16;
+            writer.write_sample(val)?;
+        }
+    }
+
+    writer.finalize()?;
+    std::fs::rename(&tmp_path, out_path)?;
+    Ok(())
+}
+
+/// Generates an assembled ambient background track across the entire timeline duration.
+/// Each ambient interval (start_ms, end_ms, name) is rendered with smooth procedural soundscapes.
+pub fn create_ambient_track(
+    spans: &[(u64, u64, String)],
+    total_duration_ms: u64,
+    out_path: &Path,
+    sample_rate: u32,
+) -> Result<()> {
+    let tmp_path = out_path.with_extension("tmp.wav");
+    let spec = WavSpec {
+        channels: 1,
+        sample_rate,
+        bits_per_sample: 16,
+        sample_format: SampleFormat::Int,
+    };
+    let mut writer = WavWriter::create(&tmp_path, spec).with_context(|| {
+        format!(
+            "Nie można utworzyć ścieżki tła akustycznego: {:?}",
+            tmp_path
+        )
+    })?;
+
+    let total_samples = (sample_rate as u64 * total_duration_ms) / 1000;
+    let mut rng = SimpleNoiseRng::new(0xcafe_babe_dead_beef ^ total_duration_ms);
+
+    let mut bp_wind = BiquadFilter::bandpass(sample_rate as f32, 380.0, 1.1);
+    let mut bp_rain = BiquadFilter::bandpass(sample_rate as f32, 2200.0, 0.9);
+    let mut bp_border = BiquadFilter::bandpass(sample_rate as f32, 320.0, 1.2);
+
+    for s_idx in 0..total_samples {
+        let current_ms = (s_idx * 1000) / sample_rate as u64;
+        let active_span = spans
+            .iter()
+            .find(|(start, end, _)| current_ms >= *start && current_ms < *end);
+
+        if let Some((_, _, name)) = active_span {
+            let clean = name.to_lowercase();
+            let t = s_idx as f32 / sample_rate as f32;
+
+            let sample_f32 = if clean.contains("rain") || clean.contains("deszcz") {
+                let noise = bp_rain.process(rng.next_f32());
+                noise * 0.035
+            } else if clean.contains("border")
+                || clean.contains("granica")
+                || clean.contains("car")
+                || clean.contains("auto")
+            {
+                let engine = (2.0 * std::f32::consts::PI * 45.0 * t).sin() * 0.5
+                    + (2.0 * std::f32::consts::PI * 90.0 * t).sin() * 0.25;
+                let wind = bp_border.process(rng.next_f32()) * 0.5;
+                engine * 0.03 + wind * 0.025
+            } else {
+                // Winter wind
+                let gust = 0.55 + 0.45 * (2.0 * std::f32::consts::PI * 0.18 * t).sin();
+                let wind = bp_wind.process(rng.next_f32());
+                wind * gust * 0.040
+            };
+
+            let val = (sample_f32 * 32767.0).clamp(-32768.0, 32767.0) as i16;
+            writer.write_sample(val)?;
+        } else {
+            // Subtle room tone silence
+            writer.write_sample(0)?;
+        }
+    }
+
+    writer.finalize()?;
+    std::fs::rename(&tmp_path, out_path)?;
+    Ok(())
+}
+
+/// Mixes dialogue track and ambient background track using sidechain auto-ducking.
+/// When speech is present, the ambient soundscape ducks down smoothly by -16dB.
+/// In pauses, the atmospheric soundscape rises back to audible immersion.
+pub fn mix_dialogue_with_ambience(
+    dialogue_path: &Path,
+    ambient_path: &Path,
+    out_path: &Path,
+) -> Result<()> {
+    let tmp_path = out_path.with_extension("duck_mix.tmp.wav");
+    let output = std::process::Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-i",
+            ambient_path.to_str().unwrap(),
+            "-i",
+            dialogue_path.to_str().unwrap(),
+            "-filter_complex",
+            "[0:a][1:a]sidechaincompress=threshold=0.07:ratio=6:attack=40:release=350[ducked];[ducked][1:a]amix=inputs=2:duration=first:dropout_transition=0",
+            tmp_path.to_str().unwrap(),
+        ])
+        .output()
+        .with_context(|| "Nie można uruchomić ffmpeg do miksowania tła ze ścieżką lektora")?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("Błąd FFmpeg podczas miksowania tła akustycznego: {}", err);
+    }
+
+    std::fs::rename(&tmp_path, out_path)?;
+    Ok(())
+}
+
 /// Pure Rust seamless sample-accurate stitching of multiple WAV files into one.
 /// Validates headers, enforces bit depth & sample rate, supports mono downmixing,
 /// and applies a seamless 5ms equal-power crossfade between consecutive chunks to prevent audible clicks.
@@ -1224,13 +1501,27 @@ impl AudioDirectorEngine {
         let mut missing_tasks = Vec::new();
         let mut scheduled_hashes = std::collections::HashSet::new();
         let mut scheduled_items = Vec::new();
+        let mut ambient_events = Vec::new();
         let mut cache_hits = 0;
 
-        // Phase 1: Scan timeline, schedule silences and identify missing cache segments
+        // Phase 1: Scan timeline, schedule silences, breaths, SFX and identify missing cache segments
         for (idx, item) in script.items.iter().enumerate() {
             match item {
                 DirectedItem::Chapter(title) => {
                     scheduled_items.push((None, Some(title.clone())));
+                }
+                DirectedItem::Ambience(amb) => {
+                    ambient_events.push((scheduled_items.len(), amb.clone()));
+                }
+                DirectedItem::SoundEffect(sfx_name) => {
+                    let sfx_file = self
+                        .cache_dir
+                        .join(format!("sfx_{}.wav", sanitize_file_name(sfx_name)));
+                    if !sfx_file.exists() {
+                        create_sfx_wav(sfx_name, &sfx_file, DEFAULT_SAMPLE_RATE)?;
+                    }
+                    chunk_paths.push(sfx_file.clone());
+                    scheduled_items.push((Some(sfx_file), None));
                 }
                 DirectedItem::Silence(ms) => {
                     let silence_file = self.cache_dir.join(format!("silence_{}ms.wav", ms));
@@ -1324,12 +1615,14 @@ impl AudioDirectorEngine {
             }
         }
 
-        // Phase 3: Calculate accurate chapter marks from generated audio duration
+        // Phase 3: Calculate accurate chapter marks & ambient soundscape spans from generated audio duration
         let mut chapters: Vec<ChapterMark> = Vec::new();
         let mut active_chapter: Option<(String, u64)> = None;
         let mut current_ms: u64 = 0;
+        let mut item_start_ms: Vec<u64> = Vec::new();
 
-        for (wav_opt, chapter_opt) in scheduled_items {
+        for (wav_opt, chapter_opt) in &scheduled_items {
+            item_start_ms.push(current_ms);
             if let Some(ch_title) = chapter_opt {
                 if let Some((prev_title, start)) = active_chapter.take() {
                     chapters.push(ChapterMark {
@@ -1338,15 +1631,16 @@ impl AudioDirectorEngine {
                         end_ms: current_ms,
                     });
                 }
-                active_chapter = Some((ch_title, current_ms));
+                active_chapter = Some((ch_title.clone(), current_ms));
             }
             if let Some(wav_path) = wav_opt {
-                if let Ok(reader) = WavReader::open(&wav_path) {
+                if let Ok(reader) = WavReader::open(wav_path) {
                     let dur = (reader.duration() as u64 * 1000) / reader.spec().sample_rate as u64;
                     current_ms += dur;
                 }
             }
         }
+        item_start_ms.push(current_ms);
 
         if let Some((title, start)) = active_chapter.take() {
             chapters.push(ChapterMark {
@@ -1364,12 +1658,59 @@ impl AudioDirectorEngine {
             });
         }
 
-        // Phase 4: Stitching all verified segments into master WAV
+        // Build ambient spans (start_ms, end_ms, name)
+        let mut ambient_spans: Vec<(u64, u64, String)> = Vec::new();
+        let mut current_amb: Option<(u64, String)> = None;
+
+        for (item_idx, amb_opt) in ambient_events {
+            let event_ms = *item_start_ms.get(item_idx).unwrap_or(&current_ms);
+            if let Some((start, name)) = current_amb.take() {
+                if event_ms > start {
+                    ambient_spans.push((start, event_ms, name));
+                }
+            }
+            if let Some(new_name) = amb_opt {
+                current_amb = Some((event_ms, new_name));
+            }
+        }
+        if let Some((start, name)) = current_amb.take() {
+            if current_ms > start {
+                ambient_spans.push((start, current_ms, name));
+            }
+        }
+
+        // Phase 4: Stitching all verified segments and ambient soundscape mixing
         println!(
             "\nŁączenie {} segmentów audio w plik wynikowy...",
             chunk_paths.len()
         );
-        stitch_wav_files(&chunk_paths, final_wav, DEFAULT_SAMPLE_RATE)?;
+        let dialogue_target = if ambient_spans.is_empty() {
+            final_wav.to_path_buf()
+        } else {
+            self.cache_dir
+                .join(format!("dialogue_raw_{}.wav", std::process::id()))
+        };
+
+        stitch_wav_files(&chunk_paths, &dialogue_target, DEFAULT_SAMPLE_RATE)?;
+
+        if !ambient_spans.is_empty() {
+            println!(
+                "🌲 Generowanie tła akustycznego (ambience: {} sekwencji, sidechain ducking)...",
+                ambient_spans.len()
+            );
+            let ambient_track = self
+                .cache_dir
+                .join(format!("ambient_{}.wav", std::process::id()));
+            create_ambient_track(
+                &ambient_spans,
+                current_ms,
+                &ambient_track,
+                DEFAULT_SAMPLE_RATE,
+            )?;
+            mix_dialogue_with_ambience(&dialogue_target, &ambient_track, final_wav)?;
+            let _ = std::fs::remove_file(&dialogue_target);
+            let _ = std::fs::remove_file(&ambient_track);
+        }
 
         println!(
             "Zakończono! Cache hits: {}, Nowo wygenerowane: {}",
@@ -1888,6 +2229,7 @@ mod tests {
             volume_mod: 0,
             filter: None,
             actor_tags: vec![],
+            ..Default::default()
         }));
         script.items.push(DirectedItem::Speech(TextSegment {
             text: "Zdanie numer dwa.".to_string(),
@@ -1897,6 +2239,7 @@ mod tests {
             volume_mod: 0,
             filter: None,
             actor_tags: vec![],
+            ..Default::default()
         }));
         // Duplicate text of segment 1 -> must deduplicate in synthesis!
         script.items.push(DirectedItem::Speech(TextSegment {
@@ -1907,6 +2250,7 @@ mod tests {
             volume_mod: 0,
             filter: None,
             actor_tags: vec![],
+            ..Default::default()
         }));
         script.items.push(DirectedItem::Silence(100));
         script
@@ -1920,6 +2264,7 @@ mod tests {
             volume_mod: 0,
             filter: None,
             actor_tags: vec![],
+            ..Default::default()
         }));
         script.items.push(DirectedItem::Speech(TextSegment {
             text: "Zdanie numer cztery.".to_string(),
@@ -1929,6 +2274,7 @@ mod tests {
             volume_mod: 0,
             filter: None,
             actor_tags: vec![],
+            ..Default::default()
         }));
 
         let res = engine.render(&script, &final_wav).await;
@@ -1957,6 +2303,46 @@ mod tests {
         let reader = WavReader::open(&final_wav).expect("Open final master WAV");
         assert_eq!(reader.spec().sample_rate, 24000);
         assert!(reader.duration() > 0);
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn test_create_sfx_and_ambient_synthesis() {
+        let tmp_dir = std::env::temp_dir().join(format!("test_sfx_amb_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp_dir);
+
+        // 1. Test SFX synthesis for bell and paper
+        let bell_path = tmp_dir.join("test_bell.wav");
+        create_sfx_wav("bell", &bell_path, 24000).expect("Create bell SFX");
+        assert!(bell_path.exists());
+        let bell_reader = WavReader::open(&bell_path).expect("Read bell SFX");
+        assert_eq!(bell_reader.spec().sample_rate, 24000);
+        assert!(bell_reader.duration() > 0);
+
+        let paper_path = tmp_dir.join("test_paper.wav");
+        create_sfx_wav("paper", &paper_path, 24000).expect("Create paper SFX");
+        assert!(paper_path.exists());
+        let paper_reader = WavReader::open(&paper_path).expect("Read paper SFX");
+        assert_eq!(paper_reader.spec().sample_rate, 24000);
+        assert!(paper_reader.duration() > 0);
+
+        // 2. Test Ambient soundscape generation
+        let amb_path = tmp_dir.join("test_amb.wav");
+        let spans = vec![(0u64, 1500u64, "wind".to_string())];
+        create_ambient_track(&spans, 1500, &amb_path, 24000).expect("Create ambient track");
+        assert!(amb_path.exists());
+        let amb_reader = WavReader::open(&amb_path).expect("Read ambient track");
+        assert_eq!(amb_reader.spec().sample_rate, 24000);
+        assert_eq!(amb_reader.duration(), 36000); // 1.5s * 24000 = 36000 samples
+
+        // 3. Test mixing dialogue with ambient ducking
+        let dialogue_path = tmp_dir.join("test_dialogue.wav");
+        create_silence_wav(&dialogue_path, 1500, 24000).expect("Create dialogue dummy");
+        let mixed_path = tmp_dir.join("test_mixed.wav");
+        mix_dialogue_with_ambience(&dialogue_path, &amb_path, &mixed_path)
+            .expect("Mix dialogue with ambience");
+        assert!(mixed_path.exists());
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
     }
