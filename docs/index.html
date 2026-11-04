@@ -1994,6 +1994,7 @@
         <button class="emoji-btn" onclick="insertEmoji('😮‍💨')">😮‍💨 <span>Oddech</span></button>
         <span id="custom-emojis-slot" style="display: contents;"></span>
         <button class="emoji-btn" onclick="openCustomEmojiModal()" style="background: rgba(236, 72, 153, 0.15); border-color: rgba(236, 72, 153, 0.4); color: #f472b6;">🎨 <span>+ Własna emotka</span></button>
+        <button class="emoji-btn" onclick="openAutoDirectorModal()" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(236, 72, 153, 0.2)); border-color: rgba(168, 85, 247, 0.5); color: #c084fc; font-weight: 700;">✨ <span>Reżyser AI</span></button>
         <button class="emoji-btn" onclick="insertEmoji('[pauza]')"><span>[pauza]</span></button>
         <button class="emoji-btn" onclick="insertEmoji('[radio]')"><span>[radio]</span></button>
         <button class="emoji-btn" onclick="insertEmoji('[katedra]')"><span>[katedra]</span></button>
@@ -4851,6 +4852,153 @@ air = 0.70</pre>
         delete projectCustomEmojis[emoji];
         localStorage.setItem('audioticon_custom_emojis', JSON.stringify(projectCustomEmojis));
         renderCustomEmojisUI();
+      }
+    }
+
+    // ========================================================
+    // ✨ AI AUTO-DIRECTOR (GEMINI & OPENAI)
+    // ========================================================
+    function openAutoDirectorModal() {
+      const modal = document.getElementById('card-modal-overlay');
+      const body = document.getElementById('modal-body');
+
+      const currentText = document.getElementById('script-input')?.value.trim() || '';
+      const charCount = currentText.length;
+      const wordCount = currentText ? currentText.split(/\s+/).length : 0;
+
+      body.innerHTML = `
+        <h2 style="font-size: 1.35rem; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
+          ✨ Asystent Reżyserii AI (Auto-Director)
+        </h2>
+        <p style="color: #94a3b8; font-size: 0.85rem; margin-top: -0.4rem;">
+          Sztuczna inteligencja przeanalizuje tekst książki/rozdziału, rozpozna postaci (👨, 👩, 👴, 👧), nastroje (🤫, 💥, 🐢, 🐇), filtry (📱, 📻) i strategiczne pauzy (⏸️, 🛑), zachowując 100% oryginalnych słów.
+        </p>
+
+        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 0.8rem; margin: 1rem 0; font-size: 0.85rem;">
+          <div style="display: flex; justify-content: space-between; color: #94a3b8; margin-bottom: 0.3rem;">
+            <span>Tekst w edytorze:</span>
+            <strong style="color: #e2e8f0;">${wordCount} słów (${charCount} znaków)</strong>
+          </div>
+          ${charCount === 0 ? '<div style="color: #f87171; font-size: 0.78rem;">⚠️ Edytor jest pusty. Wklej tekst rozdziału przed uruchomieniem reżyserii.</div>' : ''}
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.85rem;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+            <div>
+              <label style="font-size: 0.78rem; font-weight: 700; color: #c084fc;">Dostawca AI:</label>
+              <select id="auto-director-provider" onchange="updateAutoDirectorModelList(this.value)" style="width: 100%; margin-top: 0.2rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.45rem; color: #fff; font-size: 0.85rem;">
+                <option value="gemini" selected>Google Gemini (błyskawiczny & precyzyjny)</option>
+                <option value="openai">OpenAI (ChatGPT)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: 0.78rem; font-weight: 700; color: #c084fc;">Model:</label>
+              <select id="auto-director-model" style="width: 100%; margin-top: 0.2rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.45rem; color: #fff; font-size: 0.85rem;">
+                <option value="gemini-2.5-flash" selected>gemini-2.5-flash (zalecany)</option>
+                <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size: 0.78rem; font-weight: 700; color: #94a3b8;">Klucz API (opcjonalny jeśli ustawiony w silniku):</label>
+            <input type="password" id="auto-director-key" placeholder="Pozostaw puste, aby użyć z ~/.config/audioticon/credentials.toml" style="width: 100%; margin-top: 0.2rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; padding: 0.45rem; color: #fff; font-size: 0.85rem;">
+          </div>
+
+          <div id="auto-director-status" style="display: none; padding: 0.6rem; border-radius: 6px; font-size: 0.82rem;"></div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem;">
+            <button onclick="closeCardModal()" class="btn-sm" style="background: transparent; color: #94a3b8; border: none; cursor: pointer;">Anuluj</button>
+            <button id="btn-submit-auto-director" onclick="submitAutoDirector()" class="btn-download" style="background: linear-gradient(135deg, #a855f7, #ec4899); border: none; font-weight: 700;" ${charCount === 0 ? 'disabled' : ''}>
+              🚀 Wyreżyseruj Scenariusz
+            </button>
+          </div>
+        </div>
+      `;
+
+      modal.classList.add('open');
+    }
+
+    function updateAutoDirectorModelList(provider) {
+      const modelSelect = document.getElementById('auto-director-model');
+      if (!modelSelect) return;
+      if (provider === 'gemini') {
+        modelSelect.innerHTML = `
+          <option value="gemini-2.5-flash" selected>gemini-2.5-flash (zalecany)</option>
+          <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+        `;
+      } else if (provider === 'openai') {
+        modelSelect.innerHTML = `
+          <option value="gpt-4o-mini" selected>gpt-4o-mini (szybki)</option>
+          <option value="gpt-4o">gpt-4o (maksymalna precyzja)</option>
+        `;
+      }
+    }
+
+    async function submitAutoDirector() {
+      const scriptInput = document.getElementById('script-input');
+      const rawText = scriptInput?.value.trim() || '';
+      if (!rawText) {
+        alert('Edytor jest pusty. Wklej tekst przed uruchomieniem reżyserii.');
+        return;
+      }
+
+      const provider = document.getElementById('auto-director-provider')?.value || 'gemini';
+      const model = document.getElementById('auto-director-model')?.value || undefined;
+      const apiKey = document.getElementById('auto-director-key')?.value.trim() || undefined;
+
+      const statusBox = document.getElementById('auto-director-status');
+      const submitBtn = document.getElementById('btn-submit-auto-director');
+
+      if (statusBox) {
+        statusBox.style.display = 'block';
+        statusBox.style.background = 'rgba(56, 189, 248, 0.1)';
+        statusBox.style.border = '1px solid rgba(56, 189, 248, 0.3)';
+        statusBox.style.color = '#38bdf8';
+        statusBox.innerHTML = '⏳ <strong>Analizuję dialogi i dramaturgię książki...</strong> To może zająć kilka sekund.';
+      }
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.5';
+      }
+
+      try {
+        const resp = await fetch(getApiUrl('/api/auto-direct'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: rawText,
+            provider,
+            model,
+            api_key: apiKey
+          })
+        });
+
+        const data = await resp.json();
+        if (resp.ok && data.success && data.directed_text) {
+          scriptInput.value = data.directed_text;
+          localStorage.setItem('audioticon_draft_script', data.directed_text);
+          if (typeof scheduleTimelineUpdate === 'function') {
+            scheduleTimelineUpdate();
+          }
+          closeCardModal();
+          alert('✅ Sukces! Tekst został wyreżyserowany i wzbogacony o emotikony postaci oraz emocji.');
+        } else {
+          throw new Error(data.error || 'Nieznany błąd serwera');
+        }
+      } catch (e) {
+        if (statusBox) {
+          statusBox.style.display = 'block';
+          statusBox.style.background = 'rgba(239, 68, 68, 0.15)';
+          statusBox.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+          statusBox.style.color = '#f87171';
+          statusBox.innerHTML = `❌ <strong>Błąd reżyserii:</strong> ${e.message}<br><small>Upewnij się, że silnik audioticon jest uruchomiony i masz skonfigurowany klucz API (np. <code>audioticon providers set ${provider} --key ...</code>).</small>`;
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.style.opacity = '1';
+        }
       }
     }
 

@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod auto_director;
 pub mod cache;
 pub mod credentials;
 pub mod estimator;
@@ -14,6 +15,9 @@ pub use audio::{
     create_breath_wav, create_silence_wav, export_to_m4b, export_to_mp3, stitch_wav_files,
     AudioDirectorEngine, EdgeTtsBridge, ElevenLabsBridge, PiperBridge, SpeechSynthesizer,
     DEFAULT_SAMPLE_RATE,
+};
+pub use auto_director::{
+    auto_direct_text, strip_markdown_code_blocks, AUDIOTICON_DIRECTOR_SYSTEM_PROMPT,
 };
 pub use cache::compute_segment_hash;
 pub use credentials::{

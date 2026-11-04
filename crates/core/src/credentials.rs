@@ -87,6 +87,7 @@ pub fn get_api_key(provider: &str) -> Option<String> {
     let env_var = match clean.as_str() {
         "elevenlabs" => "ELEVENLABS_API_KEY",
         "openai" => "OPENAI_API_KEY",
+        "gemini" => "GEMINI_API_KEY",
         "azure" => "AZURE_SPEECH_KEY",
         _ => "",
     };

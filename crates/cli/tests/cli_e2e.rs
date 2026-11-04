@@ -740,3 +740,116 @@ fn test_api_voicelab_dataset_download_e2e() {
     let _ = child.wait();
     let _ = std::fs::remove_dir_all(&tmp_voices);
 }
+
+#[test]
+fn test_cli_direct_command_missing_key() {
+    let tmp = std::env::temp_dir().join(format!("test_direct_cmd_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let sample_txt = tmp.join("rozdzial1.txt");
+    std::fs::write(&sample_txt, "Gdzie jesteś? — zapytał Piotr.").unwrap();
+
+    let tmp_home = tmp.join("empty_home");
+    let _ = std::fs::create_dir_all(&tmp_home);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .env("HOME", &tmp_home)
+        .env_remove("GEMINI_API_KEY")
+        .env_remove("OPENAI_API_KEY")
+        .args([
+            "direct",
+            sample_txt.to_str().unwrap(),
+            "--provider",
+            "gemini",
+        ])
+        .output()
+        .expect("Failed to execute audioticon direct");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Brak klucza API dla dostawcy 'gemini'"),
+        "Expected missing key error, got: {}",
+        stderr
+    );
+
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn test_api_auto_direct_csrf_and_error_handling() {
+    let port = get_free_port();
+    let tmp_home = std::env::temp_dir().join(format!(
+        "test_api_direct_home_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = std::fs::create_dir_all(&tmp_home);
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .env("HOME", &tmp_home)
+        .env_remove("GEMINI_API_KEY")
+        .env_remove("OPENAI_API_KEY")
+        .args(["serve", "--port", &port.to_string(), "--no-browser"])
+        .spawn()
+        .expect("Failed to start audioticon serve");
+
+    let mut connected = false;
+    for _ in 0..40 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        if std::net::TcpStream::connect(format!("127.0.0.1:{}", port)).is_ok() {
+            connected = true;
+            break;
+        }
+    }
+    assert!(connected, "Server did not start listening in time");
+
+    let payload = "{\"text\": \"Halo, słyszysz mnie? — zapytała.\", \"provider\": \"gemini\"}";
+
+    // 1. Untrusted Origin MUST be rejected with 403 Forbidden
+    let (s_evil, _, b_evil) = http_roundtrip_with_headers(
+        port,
+        "POST",
+        "/api/auto-direct",
+        &[("Origin", "https://evil.example")],
+        Some(payload),
+    );
+    assert_eq!(s_evil, 403, "Untrusted Origin must be rejected with 403");
+    let err_str = String::from_utf8_lossy(&b_evil);
+    assert!(err_str.contains("403 Forbidden"));
+
+    // 2. Non-JSON Content-Type MUST be rejected with 415
+    let (s_simple, _, _) = http_roundtrip_with_headers(
+        port,
+        "POST",
+        "/api/auto-direct",
+        &[
+            ("Origin", "http://localhost:3000"),
+            ("Content-Type", "text/plain"),
+        ],
+        Some(payload),
+    );
+    assert_eq!(s_simple, 415, "Non-JSON POST must be rejected with 415");
+
+    // 3. Legitimate request without configured key returns 500 with clear message
+    let (s_nokey, _, b_nokey) = http_roundtrip_with_headers(
+        port,
+        "POST",
+        "/api/auto-direct",
+        &[
+            ("Origin", "http://localhost:3000"),
+            ("Content-Type", "application/json"),
+        ],
+        Some(payload),
+    );
+    assert_eq!(s_nokey, 500);
+    let nokey_str = String::from_utf8_lossy(&b_nokey);
+    assert!(nokey_str.contains("Brak klucza API dla dostawcy 'gemini'"));
+
+    // Clean up
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = std::fs::remove_dir_all(&tmp_home);
+}

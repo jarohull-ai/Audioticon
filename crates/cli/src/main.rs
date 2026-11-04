@@ -233,6 +233,31 @@ enum Commands {
         #[command(subcommand)]
         action: Option<EmojisAction>,
     },
+    /// Automatyczna reżyseria tekstu za pomocą modeli AI (Gemini / OpenAI)
+    Direct {
+        /// Ścieżka do surowego pliku tekstowego (.txt, .md)
+        input: PathBuf,
+
+        /// Ścieżka wyjściowa dla wyreżyserowanego scenariusza (.audioticon)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Dostawca AI (gemini, openai)
+        #[arg(short, long, default_value = "gemini")]
+        provider: String,
+
+        /// Nazwa modelu AI (np. gemini-2.5-flash, gpt-4o-mini)
+        #[arg(short, long)]
+        model: Option<String>,
+
+        /// Klucz API (opcjonalny, domyślnie z credentials.toml lub zmiennej środowiskowej)
+        #[arg(short, long)]
+        key: Option<String>,
+
+        /// Tylko wyświetl wyreżyserowany scenariusz na ekranie bez zapisywania
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -1476,6 +1501,47 @@ async fn main() -> Result<()> {
                 }
             }
         }
+        Commands::Direct {
+            input,
+            output,
+            provider,
+            model,
+            key,
+            dry_run,
+        } => {
+            let raw_text = std::fs::read_to_string(&input)
+                .with_context(|| format!("Nie można odczytać pliku: {:?}", input))?;
+            println!(
+                "🎭 Uruchamiam asystenta reżyserii AI (dostawca: '{}', model: '{}')...",
+                provider,
+                model.as_deref().unwrap_or("domyślny")
+            );
+            let directed = audioticon_core::auto_direct_text(
+                &raw_text,
+                &provider,
+                model.as_deref(),
+                key.as_deref(),
+            )?;
+
+            if dry_run {
+                println!(
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                );
+                println!("{}", directed);
+                println!(
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                );
+            } else {
+                let out_path = output.unwrap_or_else(|| input.with_extension("audioticon"));
+                std::fs::write(&out_path, &directed)
+                    .with_context(|| format!("Nie można zapisać pliku: {:?}", out_path))?;
+                println!("✅ Zapisano wyreżyserowany scenariusz: {:?}", out_path);
+                println!(
+                    "💡 Odsłuchaj lub wyrenderuj audiobooka: audioticon render {:?}",
+                    out_path
+                );
+            }
+        }
     }
 
     Ok(())
@@ -1794,6 +1860,7 @@ async fn handle_studio_request(
             || url.starts_with("/api/parse")
             || url.starts_with("/api/voicelab")
             || url.starts_with("/api/custom-emojis")
+            || url.starts_with("/api/auto-direct")
             || url.starts_with("/api/cache"))
         && !has_json_content_type(&request)
     {
@@ -3727,6 +3794,97 @@ async fn handle_studio_request(
             }
             let _ = request.respond(resp);
             return;
+        }
+    }
+
+    // Route: POST /api/auto-direct
+    if method == tiny_http::Method::Post && url == "/api/auto-direct" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(50 * 1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp = tiny_http::Response::from_string(
+                "{\"error\": \"Nie można odczytać treści żądania\"}",
+            );
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct AutoDirectReq {
+            text: String,
+            #[serde(default = "default_direct_provider")]
+            provider: String,
+            model: Option<String>,
+            api_key: Option<String>,
+        }
+
+        fn default_direct_provider() -> String {
+            "gemini".to_string()
+        }
+
+        let parsed: AutoDirectReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": format!("Nieprawidłowy format JSON: {}", e)
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        match audioticon_core::auto_direct_text(
+            &parsed.text,
+            &parsed.provider,
+            parsed.model.as_deref(),
+            parsed.api_key.as_deref(),
+        ) {
+            Ok(directed) => {
+                let json_resp = serde_json::json!({
+                    "success": true,
+                    "directed_text": directed
+                });
+                let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": format!("Błąd asystenta reżyserii AI: {}", e)
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(500));
+                return;
+            }
         }
     }
 
