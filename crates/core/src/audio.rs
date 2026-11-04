@@ -1298,6 +1298,13 @@ impl ElevenLabsBridge {
             "bella" => "EXAVITQu4vr4xnSDxMaL",
             "josh" => "TxGEqnHWrfWFTfGW9XjX",
             "elli" => "MF3mGyEYCl7XYWbV9V6O",
+            "bzipek" => "JzXwT2R1MhLW7Pq3Q6p",
+            "roger" => "CwhRBWXzGAHq8TQ4Fs17",
+            "harry" => "SOYHLrjzK2X1ezoPC6cr",
+            "sam" => "UgBBs2ckDm3j6sX9q6aX",
+            "gigi" => "XrExE5yFIh4Om3iX1d2v",
+            "jessica" => "ZspeM3T1m7Df6L7OqgXhZ",
+            "aria" => "ZQ4q5T6oX8P9v3M2aN1bR",
             _ => {
                 // If the parser or script assigned a female role (👩, Zofia, Gosia)
                 if clean.contains("zofia")
@@ -2100,6 +2107,14 @@ mod tests {
         assert_eq!(
             bridge.resolve_voice_label(Some("elevenlabs:antoni")),
             "elevenlabs-ErXwobaYiN019PkySvjV"
+        );
+        assert_eq!(
+            bridge.resolve_voice_label(Some("bzipek")),
+            "elevenlabs-JzXwT2R1MhLW7Pq3Q6p"
+        );
+        assert_eq!(
+            bridge.resolve_voice_label(Some("roger")),
+            "elevenlabs-CwhRBWXzGAHq8TQ4Fs17"
         );
 
         // 5. Custom 20-char raw ID preserved
