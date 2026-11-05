@@ -1203,3 +1203,38 @@ fn test_cli_render_flac_24bit() {
     }
     let _ = std::fs::remove_dir_all(&tmp_dir);
 }
+
+#[test]
+fn test_cli_model_hub_and_safe_harbor_eula() {
+    let exe = env!("CARGO_BIN_EXE_audioticon");
+
+    // 1. Sprawdź listę modeli Hub
+    let out_hub = Command::new(exe)
+        .args(["models", "hub"])
+        .output()
+        .expect("Run audioticon models hub");
+    assert!(out_hub.status.success());
+    let stdout_hub = String::from_utf8_lossy(&out_hub.stdout);
+    assert!(stdout_hub.contains("Europe & Americas Neural Model Hub"));
+    assert!(stdout_hub.contains("kokoro-82m-int8"));
+    assert!(stdout_hub.contains("cosyvoice-3-0.5b"));
+
+    // 2. Akceptacja licencji dla modelu omnivoice-zeroshot
+    let out_accept = Command::new(exe)
+        .args(["models", "accept", "omnivoice-zeroshot"])
+        .output()
+        .expect("Run audioticon models accept");
+    assert!(out_accept.status.success());
+    let stdout_accept = String::from_utf8_lossy(&out_accept.stdout);
+    assert!(stdout_accept.contains("Licencja została zaakceptowana"));
+    assert!(stdout_accept.contains("Kryptograficzny certyfikat EULA"));
+
+    // 3. Sprawdź ponowną listę Hub - powinna zawierać znacznik [✅ EULA Podpisana]
+    let out_hub_after = Command::new(exe)
+        .args(["models", "hub"])
+        .output()
+        .expect("Run audioticon models hub after accept");
+    assert!(out_hub_after.status.success());
+    let stdout_after = String::from_utf8_lossy(&out_hub_after.stdout);
+    assert!(stdout_after.contains("[✅ EULA Podpisana]"));
+}

@@ -321,6 +321,7 @@ async fn handle_studio_request(
     if method == tiny_http::Method::Post
         && (url.starts_with("/api/providers")
             || url.starts_with("/api/models")
+            || url.starts_with("/api/hub")
             || url.starts_with("/api/render")
             || url.starts_with("/api/estimate")
             || url.starts_with("/api/import")
@@ -964,6 +965,24 @@ async fn handle_studio_request(
             }
         };
 
+        if let Err(e) = audioticon_core::check_hub_authorization(&d_req.model) {
+            let err_json = serde_json::json!({
+                "error": "Wymagana akceptacja warunków licencji (Safe-Harbor EULA)",
+                "details": e.to_string(),
+                "model": d_req.model,
+                "eula_required": true
+            });
+            let json_header =
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap();
+            let mut resp = tiny_http::Response::from_string(err_json.to_string());
+            resp.add_header(json_header);
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(403));
+            return;
+        }
+
         match download_model(&d_req.model, d_req.force) {
             Ok(path) => {
                 let res_json = serde_json::json!({
@@ -1070,6 +1089,160 @@ async fn handle_studio_request(
             Err(e) => {
                 let err_json = serde_json::json!({
                     "error": "Błąd aktualizacji bazy modeli",
+                    "details": e.to_string()
+                });
+                let json_header = Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap();
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(json_header);
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(500));
+            }
+        }
+        return;
+    }
+
+    // Route: GET /api/hub/models
+    if method == tiny_http::Method::Get && url == "/api/hub/models" {
+        let catalog = audioticon_core::get_curated_hub_catalog();
+        let store = audioticon_core::ReceiptStore::load_or_default();
+
+        #[derive(serde::Serialize)]
+        struct HubModelView {
+            #[serde(flatten)]
+            entry: audioticon_core::ModelHubEntry,
+            eula_accepted: bool,
+            receipt: Option<audioticon_core::LicenseReceipt>,
+        }
+
+        let views: Vec<HubModelView> = catalog
+            .into_iter()
+            .map(|entry| {
+                let eula_accepted = store.has_accepted(&entry.id, &entry.terms_fingerprint);
+                let receipt = store.receipts.get(&entry.id).cloned();
+                HubModelView {
+                    entry,
+                    eula_accepted,
+                    receipt,
+                }
+            })
+            .collect();
+
+        let json_resp = serde_json::to_string(&views).unwrap_or_else(|_| "[]".to_string());
+        let json_header = Header::from_bytes(
+            &b"Content-Type"[..],
+            &b"application/json; charset=utf-8"[..],
+        )
+        .unwrap();
+        let mut resp = tiny_http::Response::from_string(json_resp);
+        resp.add_header(json_header);
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: POST /api/hub/accept
+    if method == tiny_http::Method::Post && url == "/api/hub/accept" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct AcceptReq {
+            model_id: String,
+            #[serde(default)]
+            user_id: Option<String>,
+            #[serde(default)]
+            accept: bool,
+        }
+
+        let a_req = match serde_json::from_str::<AcceptReq>(&body_str) {
+            Ok(r) => r,
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": "Nieprawidłowy format JSON",
+                    "details": e.to_string()
+                });
+                let json_header =
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(json_header);
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        if !a_req.accept {
+            let err_json = serde_json::json!({
+                "error": "Wymagana jest jednoznaczna zgoda na warunki licencji (accept: true)"
+            });
+            let json_header =
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap();
+            let mut resp = tiny_http::Response::from_string(err_json.to_string());
+            resp.add_header(json_header);
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        let catalog = audioticon_core::get_curated_hub_catalog();
+        let entry_opt = catalog.into_iter().find(|m| m.id == a_req.model_id);
+
+        let res = (|| -> anyhow::Result<audioticon_core::LicenseReceipt> {
+            let entry = entry_opt.ok_or_else(|| anyhow::anyhow!("Nie znaleziono modelu '{}' w Hubie", a_req.model_id))?;
+            let mut store = audioticon_core::ReceiptStore::load_or_default();
+            let client_tag = format!("audioticon-server/0.2.8 ({})", a_req.user_id.as_deref().unwrap_or("studio_user"));
+            let receipt = store.record_acceptance(&entry.id, &entry.terms_fingerprint, true, &client_tag);
+            store.save()?;
+            Ok(receipt)
+        })();
+
+        match res {
+            Ok(receipt) => {
+                let res_json = serde_json::json!({
+                    "status": "ok",
+                    "receipt": receipt,
+                    "message": "Warunki licencji zostały pomyślnie zaakceptowane i podpisane!"
+                });
+                let json_header = Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap();
+                let mut resp = tiny_http::Response::from_string(res_json.to_string());
+                resp.add_header(json_header);
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+            }
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": "Błąd zapisu certyfikatu licencji",
                     "details": e.to_string()
                 });
                 let json_header = Header::from_bytes(

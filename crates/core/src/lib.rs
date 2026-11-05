@@ -6,16 +6,21 @@ pub mod credentials;
 pub mod estimator;
 pub mod importer;
 pub mod ledger;
+pub mod model_hub;
 pub mod models;
 pub mod parser;
+pub mod pcm_stream;
 pub mod presets;
+pub mod room_tone;
 pub mod sfx;
+pub mod studio_leveler;
 pub mod types;
 pub mod verbalizer;
 pub mod voice_design;
 pub mod voicelab;
 pub mod voucher;
 pub mod wallet;
+pub mod wsola;
 
 pub use audio::{
     create_ambient_track, create_breath_wav, create_breath_wav_with_gain, create_sfx_wav,
@@ -63,8 +68,19 @@ pub use voicelab::{
     save_voice_profile, voices_dir, SampleQualityReport, VoiceProfile, VoiceSampleMeta,
 };
 pub use ledger::AudioCertificate;
+pub use model_hub::{
+    authorize_model_access, check_hub_authorization, get_curated_hub_catalog, LicenseReceipt,
+    LicenseType, ModelCategory, ModelHubEntry, ReceiptStore,
+};
 pub use voice_design::{
     create_voice_design_previews, save_designed_voice, DesignedVoicePreview, VoiceDesignResponse,
 };
 pub use voucher::{generate_voucher_code, verify_voucher_code, VoucherPayload, WalletTier};
 pub use wallet::{AudioWallet, Transaction, STARTING_CREDITS};
+pub use room_tone::{
+    fill_gaps_with_room_tone, trim_speech_padding, AudioTrackItem, RoomToneProfile,
+    ACX_TARGET_ROOM_TONE_DB, DEFAULT_TONE_FADE_MS, PLOSIVE_PROTECTION_MARGIN_MS,
+};
+pub use studio_leveler::{level_speech, peak_limit, LevelerConfig};
+pub use wsola::wsola_time_stretch;
+pub use pcm_stream::PcmStreamFile;

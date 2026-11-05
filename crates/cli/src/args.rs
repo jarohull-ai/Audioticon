@@ -543,6 +543,13 @@ pub enum ProvidersAction {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ModelsAction {
+    /// Przeglądaj katalog Europe & Americas Neural Hub z certyfikatami licencji
+    Hub,
+    /// Akceptuj warunki licencji EULA modelu i zapisz kryptograficzny dowód
+    Accept {
+        /// Identyfikator modelu z katalogu Hub (np. kokoro-v1.0-int8, cosyvoice-3-pl-en)
+        name: String,
+    },
     /// Wyświetla listę dostępnych w katalogu i zainstalowanych modeli offline
     List {
         /// Filtruj po kodzie języka (np. pl, en, de, uk, es)
