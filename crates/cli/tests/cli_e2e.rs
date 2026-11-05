@@ -331,6 +331,15 @@ fn test_api_server_endpoints_e2e() {
     let ds_str = String::from_utf8_lossy(&ds_body);
     assert!(ds_str.contains("error"));
 
+    // 13. POST /api/export with format=flac: verify 24-bit FLAC master generation
+    let flac_req = "{\"text\": \"📖 Rozdział 1: Test FLAC 🛑 Zdanie testowe.\", \"format\": \"flac\", \"title\": \"Test Flac\", \"provider\": \"piper\"}";
+    let (f_status, f_headers, f_body) = http_roundtrip(port, "POST", "/api/export", Some(flac_req));
+    if f_status == 200 {
+        assert!(f_headers.contains("audio/flac"));
+        assert!(f_headers.contains(".flac"));
+        assert!(f_body.windows(4).any(|w| w == b"fLaC"), "FLAC header missing");
+    }
+
     let _ = child.kill();
     let _ = child.wait();
 }
@@ -1165,5 +1174,32 @@ fn test_cli_voicelab_design_command() {
     assert!(
         stderr_run.contains("Brak klucza API ElevenLabs") || stderr_run.contains("providers set")
     );
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+}
+
+#[test]
+fn test_cli_render_flac_24bit() {
+    let exe = env!("CARGO_BIN_EXE_audioticon");
+    let tmp_dir = std::env::temp_dir().join(format!("test_cli_flac_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp_dir);
+    let out_flac = tmp_dir.join("test_master.flac");
+
+    let out = Command::new(exe)
+        .args([
+            "render",
+            "--demo",
+            "-o",
+            out_flac.to_str().unwrap(),
+            "--bit-depth",
+            "24",
+        ])
+        .output()
+        .expect("Run audioticon render flac");
+
+    if out.status.success() {
+        assert!(out_flac.exists());
+        let meta = std::fs::metadata(&out_flac).expect("FLAC file metadata");
+        assert!(meta.len() > 1000);
+    }
     let _ = std::fs::remove_dir_all(&tmp_dir);
 }

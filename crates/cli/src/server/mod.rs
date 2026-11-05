@@ -1744,8 +1744,11 @@ async fn handle_studio_request(
         let wav_target = cache_dir.join(format!("export_{}_{}.wav", std::process::id(), req_id));
 
         let is_m4b = req.format.to_lowercase() == "m4b";
+        let is_flac = req.format.to_lowercase() == "flac";
         let out_target = if is_m4b {
             cache_dir.join(format!("export_{}_{}.m4b", std::process::id(), req_id))
+        } else if is_flac {
+            cache_dir.join(format!("export_{}_{}.flac", std::process::id(), req_id))
         } else {
             cache_dir.join(format!("export_{}_{}.mp3", std::process::id(), req_id))
         };
@@ -1765,6 +1768,15 @@ async fn handle_studio_request(
             Ok(render_res) => {
                 let export_res = if is_m4b {
                     export_to_m4b(&wav_target, &out_target, &render_res.chapters, &meta).await
+                } else if is_flac {
+                    audioticon_core::export_to_flac(
+                        &wav_target,
+                        &out_target,
+                        &render_res.chapters,
+                        &meta,
+                        24,
+                    )
+                    .await
                 } else {
                     export_to_mp3(&wav_target, &out_target, &render_res.chapters, &meta).await
                 };
@@ -1811,10 +1823,18 @@ async fn handle_studio_request(
                     let _ = std::fs::remove_file(&out_target);
                     let ct_bytes = if is_m4b {
                         b"audio/mp4"[..].to_vec()
+                    } else if is_flac {
+                        b"audio/flac"[..].to_vec()
                     } else {
                         b"audio/mpeg"[..].to_vec()
                     };
-                    let ext = if is_m4b { "m4b" } else { "mp3" };
+                    let ext = if is_m4b {
+                        "m4b"
+                    } else if is_flac {
+                        "flac"
+                    } else {
+                        "mp3"
+                    };
                     let safe_title = meta
                         .title
                         .as_deref()

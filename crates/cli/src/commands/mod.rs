@@ -36,6 +36,7 @@ pub async fn dispatch(command: Commands) -> Result<()> {
             style,
             cadence,
             breath_intensity,
+            bit_depth,
         } => {
             render::run_render(
                 input,
@@ -57,6 +58,7 @@ pub async fn dispatch(command: Commands) -> Result<()> {
                 style,
                 cadence,
                 breath_intensity,
+                bit_depth,
             )
             .await
         }

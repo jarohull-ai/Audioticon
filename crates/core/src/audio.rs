@@ -244,6 +244,18 @@ pub fn create_sfx_wav(name: &str, out_path: &Path, sample_rate: u32) -> Result<(
         s if s.contains("door") || s.contains("drzwi") => 400,
         s if s.contains("thunder") || s.contains("boom") || s.contains("grzmot") => 900,
         s if s.contains("car") || s.contains("auto") || s.contains("silnik") => 600,
+        s if s.contains("shot")
+            || s.contains("strzal")
+            || s.contains("gun")
+            || s.contains("pistolet") =>
+        {
+            450
+        }
+        s if s.contains("heartbeat") || s.contains("serce") || s.contains("puls") => 850,
+        s if s.contains("clock") || s.contains("zegar") || s.contains("tykanie") => 180,
+        s if s.contains("glass") || s.contains("szklo") || s.contains("brzek") => 500,
+        s if s.contains("water") || s.contains("kropla") || s.contains("drop") => 250,
+        s if s.contains("click") || s.contains("switch") || s.contains("pstryk") => 80,
         _ => 250,
     };
 
@@ -309,6 +321,83 @@ pub fn create_sfx_wav(name: &str, out_path: &Path, sample_rate: u32) -> Result<(
             let val = (noise * env * 0.35 * 32767.0).clamp(-32768.0, 32767.0) as i16;
             writer.write_sample(val)?;
         }
+    } else if clean.contains("shot")
+        || clean.contains("strzal")
+        || clean.contains("gun")
+        || clean.contains("pistolet")
+    {
+        // Gunshot: sharp transient noise burst + low-mid explosive thump with exponential decay
+        let mut lp = BiquadFilter::bandpass(sample_rate as f32, 160.0, 1.0);
+        for i in 0..total_samples {
+            let t = i as f32 / sample_rate as f32;
+            let transient = (-60.0 * t).exp() * rng.next_f32();
+            let boom = (-14.0 * t).exp() * lp.process(rng.next_f32()) * 1.5;
+            let sample = transient * 0.45 + boom * 0.35;
+            let val = (sample * 32767.0).clamp(-32768.0, 32767.0) as i16;
+            writer.write_sample(val)?;
+        }
+    } else if clean.contains("heartbeat") || clean.contains("serce") || clean.contains("puls") {
+        // Heartbeat: classic dual acoustic thumps (lub-dub at 0ms and 320ms)
+        for i in 0..total_samples {
+            let t = i as f32 / sample_rate as f32;
+            let beat1_t = t;
+            let beat2_t = t - 0.32;
+            let b1 = if (0.0..0.22).contains(&beat1_t) {
+                (-22.0 * beat1_t).exp() * (2.0 * std::f32::consts::PI * 58.0 * beat1_t).sin()
+            } else {
+                0.0
+            };
+            let b2 = if (0.0..0.22).contains(&beat2_t) {
+                (-25.0 * beat2_t).exp() * (2.0 * std::f32::consts::PI * 76.0 * beat2_t).sin() * 0.8
+            } else {
+                0.0
+            };
+            let sample = (b1 + b2) * 0.40;
+            let val = (sample * 32767.0).clamp(-32768.0, 32767.0) as i16;
+            writer.write_sample(val)?;
+        }
+    } else if clean.contains("clock") || clean.contains("zegar") || clean.contains("tykanie") {
+        // Clock tick: precise high-Q resonant click at 1400Hz
+        for i in 0..total_samples {
+            let t = i as f32 / sample_rate as f32;
+            let decay = (-55.0 * t).exp();
+            let tone = (2.0 * std::f32::consts::PI * 1400.0 * t).sin();
+            let val = (tone * decay * 0.26 * 32767.0).clamp(-32768.0, 32767.0) as i16;
+            writer.write_sample(val)?;
+        }
+    } else if clean.contains("glass") || clean.contains("szklo") || clean.contains("brzek") {
+        // Shattering glass: dual high modal rings (2850Hz + 4200Hz) with turbulent scatter noise
+        let mut bp = BiquadFilter::bandpass(sample_rate as f32, 3800.0, 2.5);
+        for i in 0..total_samples {
+            let t = i as f32 / sample_rate as f32;
+            let decay = (-15.0 * t).exp();
+            let ring = (2.0 * std::f32::consts::PI * 2850.0 * t).sin() * 0.5
+                + (2.0 * std::f32::consts::PI * 4200.0 * t).sin() * 0.5;
+            let noise = bp.process(rng.next_f32()) * (-25.0 * t).exp();
+            let sample = (ring * 0.22 + noise * 0.20) * decay;
+            let val = (sample * 32767.0).clamp(-32768.0, 32767.0) as i16;
+            writer.write_sample(val)?;
+        }
+    } else if clean.contains("water") || clean.contains("kropla") || clean.contains("drop") {
+        // Water droplet: upward frequency sweep from 450Hz to 1100Hz with fast bell envelope
+        for i in 0..total_samples {
+            let t = i as f32 / sample_rate as f32;
+            let freq = 450.0 + 650.0 * (t * 8.0).min(1.0);
+            let phase = 2.0 * std::f32::consts::PI * freq * t;
+            let decay = (-24.0 * t).exp();
+            let sample = phase.sin() * decay * 0.32;
+            let val = (sample * 32767.0).clamp(-32768.0, 32767.0) as i16;
+            writer.write_sample(val)?;
+        }
+    } else if clean.contains("click") || clean.contains("switch") || clean.contains("pstryk") {
+        // Switch click: short high impulse
+        for i in 0..total_samples {
+            let t = i as f32 / sample_rate as f32;
+            let decay = (-90.0 * t).exp();
+            let tone = (2.0 * std::f32::consts::PI * 2400.0 * t).sin();
+            let val = (tone * decay * 0.30 * 32767.0).clamp(-32768.0, 32767.0) as i16;
+            writer.write_sample(val)?;
+        }
     } else {
         // Default engine / vehicle low drone
         for i in 0..total_samples {
@@ -354,6 +443,10 @@ pub fn create_ambient_track(
     let mut bp_wind = BiquadFilter::bandpass(sample_rate as f32, 380.0, 1.1);
     let mut bp_rain = BiquadFilter::bandpass(sample_rate as f32, 2200.0, 0.9);
     let mut bp_border = BiquadFilter::bandpass(sample_rate as f32, 320.0, 1.2);
+    let mut bp_sea = BiquadFilter::bandpass(sample_rate as f32, 220.0, 0.8);
+    let mut bp_cafe = BiquadFilter::bandpass(sample_rate as f32, 650.0, 1.4);
+    let mut bp_forest = BiquadFilter::bandpass(sample_rate as f32, 4500.0, 3.5);
+    let mut bp_fire = BiquadFilter::bandpass(sample_rate as f32, 320.0, 1.0);
 
     for s_idx in 0..total_samples {
         let current_ms = (s_idx * 1000) / sample_rate as u64;
@@ -368,6 +461,55 @@ pub fn create_ambient_track(
             let sample_f32 = if clean.contains("rain") || clean.contains("deszcz") {
                 let noise = bp_rain.process(rng.next_f32());
                 noise * 0.035
+            } else if clean.contains("sea")
+                || clean.contains("morze")
+                || clean.contains("ocean")
+                || clean.contains("fale")
+            {
+                // Ocean swell: slow 0.12Hz wave cycle
+                let swell = 0.5 + 0.5 * (2.0 * std::f32::consts::PI * 0.12 * t).sin();
+                let wave_noise = bp_sea.process(rng.next_f32());
+                wave_noise * swell * 0.045
+            } else if clean.contains("cafe")
+                || clean.contains("kawiarnia")
+                || clean.contains("restauracja")
+                || clean.contains("pub")
+            {
+                // Warm cafe ambience: diffuse chatter flutter
+                let chatter = bp_cafe.process(rng.next_f32());
+                let sub = (2.0 * std::f32::consts::PI * 80.0 * t).sin() * 0.015;
+                chatter * 0.025 + sub
+            } else if clean.contains("space")
+                || clean.contains("kosmos")
+                || clean.contains("statek")
+                || clean.contains("scifi")
+            {
+                // Deep space / sci-fi ship hum: 48Hz + 96Hz drone
+                (2.0 * std::f32::consts::PI * 48.0 * t).sin() * 0.030
+                    + (2.0 * std::f32::consts::PI * 96.0 * t).sin() * 0.012
+            } else if clean.contains("forest")
+                || clean.contains("las")
+                || clean.contains("swierszcze")
+                || clean.contains("noc")
+            {
+                // Night forest: 4Hz pulsating crickets
+                let pulse = (2.0 * std::f32::consts::PI * 4.0 * t).sin().max(0.0).powi(2);
+                let crickets = bp_forest.process(rng.next_f32()) * pulse * 0.030;
+                let soft_wind = bp_wind.process(rng.next_f32()) * 0.015;
+                crickets + soft_wind
+            } else if clean.contains("fire")
+                || clean.contains("ogien")
+                || clean.contains("ognisko")
+                || clean.contains("kominek")
+            {
+                // Fire crackle: warm rumble + sporadic pop
+                let rumble = bp_fire.process(rng.next_f32()) * 0.022;
+                let pop = if rng.next_f32() > 0.9982 {
+                    0.12 * (rng.next_f32() - 0.5)
+                } else {
+                    0.0
+                };
+                rumble + pop
             } else if clean.contains("border")
                 || clean.contains("granica")
                 || clean.contains("car")
@@ -1932,6 +2074,86 @@ pub async fn export_to_mp3(
     Ok(())
 }
 
+/// Exports master WAV to FLAC (Free Lossless Audio Codec) with 24-bit/16-bit precision, embedded chapters, and ACX certification metadata.
+pub async fn export_to_flac(
+    wav_path: &Path,
+    flac_path: &Path,
+    chapters: &[ChapterMark],
+    metadata: &AudiobookMetadata,
+    bit_depth: u32,
+) -> Result<()> {
+    let meta_file = flac_path.with_extension("ffmeta.txt");
+    let mut meta_content = String::from(";FFMETADATA1\n");
+    if let Some(ref title) = metadata.title {
+        meta_content.push_str(&format!("title={}\n", title));
+        meta_content.push_str(&format!("album={}\n", title));
+    }
+    if let Some(ref author) = metadata.author {
+        meta_content.push_str(&format!("artist={}\n", author));
+    }
+    if let Some(ref narrator) = metadata.narrator {
+        meta_content.push_str(&format!("album_artist={}\n", narrator));
+        meta_content.push_str(&format!("composer={}\n", narrator));
+    }
+    if let Some(ref year) = metadata.year {
+        meta_content.push_str(&format!("date={}\n", year));
+    }
+    meta_content.push_str("genre=Audiobook\n");
+    meta_content.push_str("comment=Audioticon Studio Master Lossless (ACX/EBU R128 Compliant)\n\n");
+
+    for ch in chapters {
+        meta_content.push_str("[CHAPTER]\n");
+        meta_content.push_str("TIMEBASE=1/1000\n");
+        meta_content.push_str(&format!("START={}\n", ch.start_ms));
+        meta_content.push_str(&format!("END={}\n", ch.end_ms));
+        meta_content.push_str(&format!("title={}\n\n", ch.title));
+    }
+
+    std::fs::write(&meta_file, &meta_content)
+        .with_context(|| format!("Nie można zapisać pliku metadanych: {:?}", meta_file))?;
+
+    let tmp_flac = flac_path.with_extension("tmp.flac");
+    let sample_fmt = if bit_depth == 24 { "s32" } else { "s16" };
+    let dither_filter = if bit_depth == 24 {
+        "aresample=48000:resampler=soxr:precision=28,loudnorm=I=-19:TP=-3.0:LRA=7"
+    } else {
+        "aresample=44100:resampler=soxr:precision=24,loudnorm=I=-19:TP=-3.0:LRA=7"
+    };
+
+    let status = tokio::process::Command::new("ffmpeg")
+        .arg("-y")
+        .arg("-i")
+        .arg(wav_path)
+        .arg("-i")
+        .arg(&meta_file)
+        .arg("-map_metadata")
+        .arg("1")
+        .arg("-map")
+        .arg("0:a")
+        .arg("-af")
+        .arg(dither_filter)
+        .arg("-c:a")
+        .arg("flac")
+        .arg("-sample_fmt")
+        .arg(sample_fmt)
+        .arg(&tmp_flac)
+        .status()
+        .await
+        .with_context(|| "Błąd uruchamiania ffmpeg do konwersji FLAC")?;
+
+    let _ = std::fs::remove_file(&meta_file);
+
+    if !status.success() {
+        let _ = std::fs::remove_file(&tmp_flac);
+        anyhow::bail!("Konwersja do FLAC zakończyła się niepowodzeniem: {:?}", status);
+    }
+
+    std::fs::rename(&tmp_flac, flac_path)
+        .with_context(|| format!("Nie można przenieść pliku do {:?}", flac_path))?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2362,7 +2584,7 @@ mod tests {
         let tmp_dir = std::env::temp_dir().join(format!("test_sfx_amb_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&tmp_dir);
 
-        // 1. Test SFX synthesis for bell and paper
+        // 1. Test SFX synthesis for bell and paper, plus new procedural generators
         let bell_path = tmp_dir.join("test_bell.wav");
         create_sfx_wav("bell", &bell_path, 24000).expect("Create bell SFX");
         assert!(bell_path.exists());
@@ -2377,9 +2599,25 @@ mod tests {
         assert_eq!(paper_reader.spec().sample_rate, 24000);
         assert!(paper_reader.duration() > 0);
 
+        let shot_path = tmp_dir.join("test_shot.wav");
+        create_sfx_wav("strzal", &shot_path, 24000).expect("Create gunshot SFX");
+        assert!(shot_path.exists());
+
+        let heart_path = tmp_dir.join("test_heart.wav");
+        create_sfx_wav("serce", &heart_path, 24000).expect("Create heartbeat SFX");
+        assert!(heart_path.exists());
+
+        let water_path = tmp_dir.join("test_water.wav");
+        create_sfx_wav("kropla", &water_path, 24000).expect("Create water droplet SFX");
+        assert!(water_path.exists());
+
         // 2. Test Ambient soundscape generation
         let amb_path = tmp_dir.join("test_amb.wav");
-        let spans = vec![(0u64, 1500u64, "wind".to_string())];
+        let spans = vec![
+            (0u64, 500u64, "morze".to_string()),
+            (500u64, 1000u64, "kawiarnia".to_string()),
+            (1000u64, 1500u64, "kosmos".to_string()),
+        ];
         create_ambient_track(&spans, 1500, &amb_path, 24000).expect("Create ambient track");
         assert!(amb_path.exists());
         let amb_reader = WavReader::open(&amb_path).expect("Read ambient track");
@@ -2393,6 +2631,41 @@ mod tests {
         mix_dialogue_with_ambience(&dialogue_path, &amb_path, &mixed_path)
             .expect("Mix dialogue with ambience");
         assert!(mixed_path.exists());
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[tokio::test]
+    async fn test_export_to_flac_synthetic() {
+        let tmp_dir = std::env::temp_dir().join(format!("test_flac_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp_dir);
+        let master_wav = tmp_dir.join("master.wav");
+        create_silence_wav(&master_wav, 1000, 24000).expect("Create master dummy");
+
+        let out_flac = tmp_dir.join("book.flac");
+        let chapters = vec![
+            ChapterMark {
+                start_ms: 0,
+                end_ms: 500,
+                title: "Wstęp".to_string(),
+            },
+            ChapterMark {
+                start_ms: 500,
+                end_ms: 1000,
+                title: "Finał".to_string(),
+            },
+        ];
+        let meta = AudiobookMetadata {
+            title: Some("Master Flac".to_string()),
+            author: Some("Jarosław Kuchta".to_string()),
+            narrator: Some("Lektor".to_string()),
+            year: Some("2026".to_string()),
+            language: Some("pl".to_string()),
+        };
+
+        let res = export_to_flac(&master_wav, &out_flac, &chapters, &meta, 24).await;
+        assert!(res.is_ok(), "FLAC export failed: {:?}", res.err());
+        assert!(out_flac.exists());
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
     }

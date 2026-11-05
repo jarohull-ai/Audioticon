@@ -183,6 +183,10 @@ pub enum Commands {
         /// Poziom intensywności oddechów lektora: subtle (subtelny, domyślny), natural (naturalny), off (wyłączony)
         #[arg(long, value_enum, default_value_t = BreathIntensityArg::Subtle)]
         breath_intensity: BreathIntensityArg,
+
+        /// Głębia bitowa dla bezstratnego formatu FLAC/WAV: 16 (standard CD) lub 24 (studyjny Hi-Fi Master)
+        #[arg(long, default_value_t = 16)]
+        bit_depth: u32,
     },
     /// Zarządzanie lokalnym buforem audio (cache)
     Cache {

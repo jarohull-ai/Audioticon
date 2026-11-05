@@ -36,6 +36,7 @@ pub async fn run_render(
     style: ProductionStyleArg,
     cadence: bool,
     breath_intensity: BreathIntensityArg,
+    bit_depth: u32,
 ) -> Result<()> {
     let (script_text, imported_title, imported_author) = match input {
         Some(ref file_path) if !demo && !demo_effects => {
@@ -177,11 +178,12 @@ pub async fn run_render(
         .to_lowercase();
     let is_m4b = ext == "m4b";
     let is_mp3 = ext == "mp3";
+    let is_flac = ext == "flac";
     let is_wav = ext == "wav";
 
-    if !is_m4b && !is_mp3 && !is_wav {
+    if !is_m4b && !is_mp3 && !is_flac && !is_wav {
         anyhow::bail!(
-            "Nieobsługiwany format pliku wyjściowego: {:?}. Obsługiwane rozszerzenia: .m4b, .mp3, .wav",
+            "Nieobsługiwany format pliku wyjściowego: {:?}. Obsługiwane rozszerzenia: .m4b, .mp3, .flac, .wav",
             output
         );
     }
@@ -296,6 +298,20 @@ pub async fn run_render(
     if is_m4b {
         println!("\n📦 Eksportowanie audiobooka M4B z rozdziałami...");
         export_to_m4b(&wav_target, &output, &render_result.chapters, &metadata).await?;
+        let _ = std::fs::remove_file(&wav_target);
+    } else if is_flac {
+        println!(
+            "\n📦 Eksportowanie bezstratnego audiobooka FLAC ({}-bit Studio Master)...",
+            bit_depth
+        );
+        audioticon_core::export_to_flac(
+            &wav_target,
+            &output,
+            &render_result.chapters,
+            &metadata,
+            bit_depth,
+        )
+        .await?;
         let _ = std::fs::remove_file(&wav_target);
     } else if is_mp3 {
         println!("\n📦 Eksportowanie audiobooka MP3 z metadanymi i rozdziałami...");

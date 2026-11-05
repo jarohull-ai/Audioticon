@@ -2974,6 +2974,18 @@
       }
     }
 
+    function downloadAudiobookFlac(btn) {
+      if (hasExplicitEngineConnection) {
+        requestAudiobookExport('flac', btn);
+      } else {
+        alert(
+          "🎚️ Format 24-bit FLAC (Master Lossless Studio):\n\n" +
+          "Generowanie pliku FLAC klasy studyjnej z certyfikatem ACX wymaga lokalnego silnika Audioticon i ffmpeg.\n\n" +
+          "Uruchom w terminalu: audioticon studio"
+        );
+      }
+    }
+
     function downloadAudiobookM4b(btn) {
       if (hasExplicitEngineConnection) {
         requestAudiobookExport('m4b', btn);
@@ -3876,12 +3888,15 @@ air = 0.70</pre>
           desc = "Formaty dystrybucyjne Apple M4B z rozdziałami, MP3 oraz skrypty aktorskie.";
           contentHtml = `
             <div style="display: flex; flex-direction: column; gap: 1rem;">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                <button onclick="downloadAudiobookM4b(this);" class="btn-download" style="justify-content: center;">
-                  🍏 Pobierz Apple M4B (Rozdziały)
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.6rem;">
+                <button onclick="downloadAudiobookM4b(this);" class="btn-download" style="justify-content: center; font-size: 0.78rem; padding: 0.5rem 0.3rem;">
+                  🍏 Apple M4B (Rozdziały)
                 </button>
-                <button onclick="downloadAudiobookMp3(this);" class="btn-download" style="justify-content: center; background: linear-gradient(135deg, #10b981, #059669);">
-                  🎵 Pobierz MP3 z rozdziałami
+                <button onclick="downloadAudiobookMp3(this);" class="btn-download" style="justify-content: center; font-size: 0.78rem; padding: 0.5rem 0.3rem; background: linear-gradient(135deg, #10b981, #059669);">
+                  🎵 MP3 z rozdziałami
+                </button>
+                <button onclick="downloadAudiobookFlac(this);" class="btn-download" style="justify-content: center; font-size: 0.78rem; padding: 0.5rem 0.3rem; background: linear-gradient(135deg, #6366f1, #4f46e5);">
+                  🎚️ 24-bit FLAC Master
                 </button>
               </div>
               <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
