@@ -61,6 +61,9 @@ pub struct VoiceProfile {
     pub samples: Vec<VoiceSampleMeta>,
     #[serde(default)]
     pub elevenlabs_voice_id: Option<String>,
+    /// 256-dimensional zero-shot speaker embedding vector (timbre & formant signature)
+    #[serde(default)]
+    pub embedding: Option<Vec<f32>>,
     #[serde(default)]
     pub consent: bool,
     pub created_at: String,
@@ -82,6 +85,7 @@ impl VoiceProfile {
             description: None,
             samples: Vec::new(),
             elevenlabs_voice_id: None,
+            embedding: None,
             consent: true,
             created_at: now,
         }

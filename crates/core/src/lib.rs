@@ -1,3 +1,4 @@
+pub mod aligner;
 pub mod audio;
 pub mod auto_director;
 pub mod cache;
@@ -5,6 +6,7 @@ pub mod cadence;
 pub mod credentials;
 pub mod estimator;
 pub mod importer;
+pub mod kokoro;
 pub mod ledger;
 pub mod model_hub;
 pub mod models;
@@ -13,6 +15,7 @@ pub mod pcm_stream;
 pub mod presets;
 pub mod room_tone;
 pub mod sfx;
+pub mod speaker_clone;
 pub mod studio_leveler;
 pub mod types;
 pub mod verbalizer;
@@ -84,3 +87,10 @@ pub use room_tone::{
 pub use studio_leveler::{level_speech, peak_limit, LevelerConfig};
 pub use wsola::wsola_time_stretch;
 pub use pcm_stream::PcmStreamFile;
+pub use aligner::{align_words_with_audio, export_to_webvtt, AlignedWord, SegmentTimeline};
+pub use kokoro::{KokoroBridge, KokoroVoice, KOKORO_SAMPLE_RATE};
+pub use speaker_clone::{
+    compute_embedding_similarity, compute_speaker_embedding, extract_ideal_reference_window,
+    CloneWindowConfig, ADJACENT_TURN_GUARD_S, IDEAL_SPEAKER_REF_DURATION_S,
+    MAX_SPEAKER_REF_DURATION_S, MIN_SPEAKER_REF_DURATION_S, SPEAKER_EMBEDDING_DIM,
+};
