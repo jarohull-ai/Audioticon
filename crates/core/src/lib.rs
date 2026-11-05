@@ -12,6 +12,7 @@ pub mod presets;
 pub mod sfx;
 pub mod types;
 pub mod verbalizer;
+pub mod voice_design;
 pub mod voicelab;
 pub mod voucher;
 pub mod wallet;
@@ -62,5 +63,8 @@ pub use voicelab::{
     save_voice_profile, voices_dir, SampleQualityReport, VoiceProfile, VoiceSampleMeta,
 };
 pub use ledger::AudioCertificate;
+pub use voice_design::{
+    create_voice_design_previews, save_designed_voice, DesignedVoicePreview, VoiceDesignResponse,
+};
 pub use voucher::{generate_voucher_code, verify_voucher_code, VoucherPayload, WalletTier};
 pub use wallet::{AudioWallet, Transaction, STARTING_CREDITS};

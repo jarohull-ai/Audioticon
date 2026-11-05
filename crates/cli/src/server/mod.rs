@@ -2,7 +2,7 @@ use anyhow::Result;
 use audioticon_core::{
     base64_decode, compute_segment_hash, credentials, download_model, estimate_cost, export_to_m4b,
     export_to_mp3, find_model, list_models, models_dir, presets, remove_model,
-    update_voices_catalog, voicelab, AudioCertificate, AudioDirectorEngine, AudioWallet,
+    update_voices_catalog, voice_design, voicelab, AudioCertificate, AudioDirectorEngine, AudioWallet,
     AudiobookMetadata, CustomEmojiDef, DirectedItem, EdgeTtsBridge, ElevenLabsBridge,
     EmojiDirector, ImportedBook, PiperBridge, ProjectConfig, SpeechSynthesizer, VoiceProfile,
 };
@@ -2418,6 +2418,213 @@ async fn handle_studio_request(
             Err(e) => {
                 let err_json =
                     serde_json::json!({ "error": format!("Błąd klonowania w ElevenLabs: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(500));
+                return;
+            }
+        }
+    }
+
+    // Route: POST /api/voicelab/design/preview
+    if method == tiny_http::Method::Post && url == "/api/voicelab/design/preview" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct DesignPreviewReq {
+            description: String,
+            #[serde(default)]
+            text: Option<String>,
+        }
+
+        let parsed: DesignPreviewReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd parsowania JSON: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let api_key = match credentials::get_api_key("elevenlabs") {
+            Some(k) if !k.trim().is_empty() => k,
+            _ => {
+                let err_json = serde_json::json!({
+                    "error": "Brak skonfigurowanego klucza API ElevenLabs. Skonfiguruj klucz w zakładce 'Dostawcy'."
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        match voice_design::create_voice_design_previews(
+            &api_key,
+            &parsed.description,
+            parsed.text.as_deref(),
+        ) {
+            Ok(resp_data) => {
+                // Deduct 50 AudioCoins from wallet
+                let mut wallet = AudioWallet::load();
+                let _ = wallet.spend(50, "Projektowanie głosu ElevenLabs (Voice Design)", None);
+                let _ = wallet.save();
+
+                let json_resp = serde_json::json!({
+                    "success": true,
+                    "previews": resp_data.previews,
+                    "text": resp_data.text,
+                    "balance": wallet.balance,
+                });
+                let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": format!("Błąd generowania głosu w ElevenLabs: {}", e)
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(500));
+                return;
+            }
+        }
+    }
+
+    // Route: POST /api/voicelab/design/save
+    if method == tiny_http::Method::Post && url == "/api/voicelab/design/save" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(10 * 1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct DesignSaveReq {
+            name: String,
+            description: String,
+            generated_voice_id: String,
+            #[serde(default)]
+            preview_audio_base64: Option<String>,
+        }
+
+        let parsed: DesignSaveReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd parsowania JSON: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let api_key = match credentials::get_api_key("elevenlabs") {
+            Some(k) if !k.trim().is_empty() => k,
+            _ => {
+                let err_json = serde_json::json!({
+                    "error": "Brak skonfigurowanego klucza API ElevenLabs."
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        match voice_design::save_designed_voice(
+            &api_key,
+            &parsed.name,
+            &parsed.description,
+            &parsed.generated_voice_id,
+            parsed.preview_audio_base64.as_deref(),
+        ) {
+            Ok(voice_id) => {
+                let json_resp = serde_json::json!({
+                    "success": true,
+                    "voice_id": voice_id,
+                    "name": parsed.name,
+                    "alias": audioticon_core::sanitize_slug(&parsed.name),
+                });
+                let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": format!("Błąd zapisu głosu w ElevenLabs: {}", e)
+                });
                 let mut resp = tiny_http::Response::from_string(err_json.to_string());
                 resp.add_header(
                     Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),

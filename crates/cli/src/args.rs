@@ -448,6 +448,20 @@ pub enum VoiceLabAction {
         /// Identyfikator profilu do usunięcia
         profile: String,
     },
+    /// Projektuje unikalny głos aktorski z opisu tekstowego za pomocą ElevenLabs Voice Design
+    Design {
+        /// Opis pożądanego głosu (np. "stary marynarz, chrapliwy niski bas, mówi powoli")
+        prompt: String,
+        /// Nazwa głosu / aliasu postaci (np. "kapitan")
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Przykładowy tekst wypowiadany przez głos
+        #[arg(short, long)]
+        text: Option<String>,
+        /// Automatycznie zapisz pierwszy wygenerowany wariant do biblioteki
+        #[arg(long)]
+        save: bool,
+    },
 }
 
 #[derive(Subcommand, Debug, Clone)]

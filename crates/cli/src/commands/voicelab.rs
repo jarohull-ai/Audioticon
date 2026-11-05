@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use audioticon_core::{credentials, voicelab, VoiceProfile};
+use audioticon_core::{credentials, sanitize_slug, voice_design, voicelab, AudioWallet, VoiceProfile};
 
 use crate::args::{get_default_cache_dir, VoiceLabAction};
 
@@ -132,6 +132,75 @@ pub fn run_voicelab(action: Option<VoiceLabAction>) -> Result<()> {
                 "✅ Profil głosu '{}' został usunięty wraz z próbkami.",
                 profile
             );
+        }
+        VoiceLabAction::Design {
+            prompt,
+            name,
+            text,
+            save,
+        } => {
+            let key = credentials::get_api_key("elevenlabs").ok_or_else(|| {
+                anyhow::anyhow!("Brak klucza API ElevenLabs. Użyj: audioticon providers set elevenlabs --key <KLUCZ>")
+            })?;
+
+            println!("🎨 PROJEKTOWANIE GŁOSU (ELEVENLABS VOICE DESIGN)");
+            println!(
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            );
+            println!("  Opis postaci:      \"{}\"", prompt);
+            if let Some(ref t) = text {
+                println!("  Przykładowy tekst: \"{}\"", t);
+            }
+            println!("⏳ Generowanie próbek audio przez ElevenLabs AI...");
+
+            let resp =
+                voice_design::create_voice_design_previews(&key, &prompt, text.as_deref())?;
+
+            println!(
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            );
+            println!("✅ Wygenerowano {} wariantów głosu!", resp.previews.len());
+
+            for (i, p) in resp.previews.iter().enumerate() {
+                let dur = p.duration_secs.unwrap_or(0.0);
+                println!(
+                    "  [{}] ID Próbki: {} ({:.1}s)",
+                    i + 1,
+                    p.generated_voice_id,
+                    dur
+                );
+            }
+
+            // Spend AudioCoin$ if wallet is active
+            let mut wallet = AudioWallet::load();
+            let _ = wallet.spend(50, "Projektowanie głosu ElevenLabs (Voice Design)", None);
+            let _ = wallet.save();
+
+            let target_name = name.unwrap_or_else(|| "Głos Zaprojektowany".to_string());
+            if save {
+                if let Some(first) = resp.previews.first() {
+                    println!("\n💾 Zapisuję wariant 1 do biblioteki konta ElevenLabs...");
+                    let voice_id = voice_design::save_designed_voice(
+                        &key,
+                        &target_name,
+                        &prompt,
+                        &first.generated_voice_id,
+                        Some(&first.audio_base_64),
+                    )?;
+                    println!("✅ Pomyślnie dodano głos '{}' do biblioteki!", target_name);
+                    println!("   ID głosu: {}", voice_id);
+                    println!(
+                        "💡 W scenariuszu możesz teraz używać tagu [{}], aby przemawiał tym głosem!",
+                        sanitize_slug(&target_name)
+                    );
+                }
+            } else {
+                println!("\n💡 Aby zapisać wybraną próbkę do biblioteki, uruchom:");
+                println!(
+                    "   audioticon voicelab design \"{}\" --name \"{}\" --save",
+                    prompt, target_name
+                );
+            }
         }
     }
     Ok(())

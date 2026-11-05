@@ -308,6 +308,29 @@ fn test_api_server_endpoints_e2e() {
     assert!(cert_str.contains("master_lufs"));
     assert!(cert_str.contains("acx_compliant"));
 
+    // 11. POST /api/voicelab/design/preview: error handling when API key is missing
+    let (dp_status, _, dp_body) = http_roundtrip(
+        port,
+        "POST",
+        "/api/voicelab/design/preview",
+        Some("{\"description\": \"stary marynarz, chrapliwy bas\"}"),
+    );
+    // Either 400 (missing key) or 500 (if invalid key configured in user env)
+    assert!(dp_status == 400 || dp_status == 500);
+    let dp_str = String::from_utf8_lossy(&dp_body);
+    assert!(dp_str.contains("error"));
+
+    // 12. POST /api/voicelab/design/save: error handling when voice id is missing or key missing
+    let (ds_status, _, ds_body) = http_roundtrip(
+        port,
+        "POST",
+        "/api/voicelab/design/save",
+        Some("{\"name\": \"Kapitan\", \"description\": \"marynarz\", \"generated_voice_id\": \"test_voice_123\"}"),
+    );
+    assert!(ds_status == 400 || ds_status == 500);
+    let ds_str = String::from_utf8_lossy(&ds_body);
+    assert!(ds_str.contains("error"));
+
     let _ = child.kill();
     let _ = child.wait();
 }
@@ -1111,4 +1134,36 @@ fn test_cli_wallet_balance_topup_and_redeem() {
     let stdout_valid = String::from_utf8_lossy(&out_valid.stdout);
     assert!(stdout_valid.contains("Zrealizowano voucher VIP"));
     assert!(stdout_valid.contains("Pisarz"));
+}
+
+#[test]
+fn test_cli_voicelab_design_command() {
+    let exe = env!("CARGO_BIN_EXE_audioticon");
+
+    // 1. Help flag check
+    let out_help = Command::new(exe)
+        .args(["voicelab", "design", "--help"])
+        .output()
+        .expect("Run audioticon voicelab design --help");
+    assert!(out_help.status.success());
+    let stdout_help = String::from_utf8_lossy(&out_help.stdout);
+    assert!(stdout_help.contains("<PROMPT>"));
+    assert!(stdout_help.contains("--name"));
+    assert!(stdout_help.contains("--save"));
+
+    // 2. Execution with isolated empty home/config directory (missing ElevenLabs API key)
+    let tmp_dir = std::env::temp_dir().join(format!("isolated_home_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp_dir);
+    let out_run = Command::new(exe)
+        .args(["voicelab", "design", "stary marynarz"])
+        .env("HOME", &tmp_dir)
+        .env("XDG_CONFIG_HOME", &tmp_dir)
+        .output()
+        .expect("Run audioticon voicelab design without api key");
+    assert!(!out_run.status.success());
+    let stderr_run = String::from_utf8_lossy(&out_run.stderr);
+    assert!(
+        stderr_run.contains("Brak klucza API ElevenLabs") || stderr_run.contains("providers set")
+    );
+    let _ = std::fs::remove_dir_all(&tmp_dir);
 }

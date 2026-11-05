@@ -1309,6 +1309,26 @@ impl ElevenLabsBridge {
             }
         }
     }
+
+    /// Resolves voice alias or character name, checking both built-in mappings and local custom designed/cloned voices
+    pub fn resolve_voice_id(alias_or_id: &str) -> String {
+        let mapped = Self::map_voice_alias(alias_or_id);
+        if mapped != alias_or_id.trim() {
+            return mapped.to_string();
+        }
+        // Check local VoiceLab profiles for custom cloned or designed voices
+        let clean = alias_or_id.trim().to_lowercase();
+        if let Ok(profiles) = crate::voicelab::list_voice_profiles() {
+            for p in profiles {
+                if p.id.eq_ignore_ascii_case(&clean) || p.name.to_lowercase() == clean {
+                    if let Some(voice_id) = p.elevenlabs_voice_id {
+                        return voice_id;
+                    }
+                }
+            }
+        }
+        alias_or_id.trim().to_string()
+    }
 }
 
 #[async_trait::async_trait]
@@ -1366,7 +1386,7 @@ impl SpeechSynthesizer for ElevenLabsBridge {
         let raw_voice = voice_label
             .strip_prefix("elevenlabs-")
             .unwrap_or(&voice_label);
-        let actual_voice_id = Self::map_voice_alias(raw_voice);
+        let actual_voice_id = Self::resolve_voice_id(raw_voice);
 
         let formatted_text = segment.format_for_elevenlabs();
 
