@@ -30,6 +30,42 @@ audioticon/
 ├── SPEC.md                     # Niniejsza specyfikacja
 ├── crates/
 │   ├── core/                   # Parser emotikonów, buforowanie i reguły audio
-│   └── cli/                    # Narzędzie konsolowe do testowania
+│   └── cli/                    # Narzędzie konsolowe i lokalny serwer Studio
 └── ui/                         # Aplikacja desktopowa Tauri 2 + React + Tailwind
 ```
+
+---
+
+## 3. Plan Rozwoju i Ekosystem: Writing Agent na Bieliku
+
+> **Status:** 🔬 W trakcie prac badawczo-rozwojowych (R&D) prowadzonych przez Autora projektu.  
+> **Zasada:** Brak bezpośredniej integracji z kodem silnika audio do czasu zakończenia testów i pełnego ustabilizowania jakości generowanego formatu.
+
+### Koncepcja Podziału Ról w Kombajnie Audio:
+Bielik nie zastępuje silnika głosowego (TTS), lecz stanowi **inteligentną warstwę pre-produkcyjną (mózg przed syntezą audio)**:
+
+```text
+Surowy tekst / Rozdział książki
+   ↓
+Bielik jako Writing Agent & Reżyser AI
+   ↓ (Analiza scen, dialogów, emocji, pauz, ról głosowych)
+Scenariusz w stabilnym formacie Audioticonu
+   ↓
+Audioticon Core (Parser + Granular Cache + DSP + Audio Ledger ACX)
+   ↓
+Piper / Edge TTS / ElevenLabs v3
+   ↓
+Gotowy Audiobook (MP3 / M4B)
+```
+
+### Zadania Bielika w Audioticonie:
+1. **Analiza struktury:** Automatyczne rozdzielanie narracji od dialogów (myślniki `—`, dwukropki, kwestie).
+2. **Casting i role:** Przypisywanie kwestii konkretnym aktorom za pomocą tagów `[narrator]`, `[kapitan]`, `[anna]`.
+3. **Reżyseria emocjonalna:** Wstrzykiwanie znaczników tempa i dynamiki (`🐢`, `🐇`, `💥`, `🤫`).
+4. **Plany akustyczne (DSP):** Wykrywanie kontekstu rozmów telefonicznych (`📱`), radiostacji (`📻`), jaskiń i świątyń (`🏛️`).
+5. **Rytmika i dramaturgia:** Wstawianie pauz dramaturgicznych (`🛑`), oddechowych (`⏸️`) oraz westchnień lektorskich (`😮‍💨`).
+
+### Stabilny Kontrakt Tekstowy (Zasady Integracji):
+* **Wierność 100%:** Model nie streszcza, nie dopisuje ani nie modyfikuje oryginalnych słów autora — wyłącznie wstrzykuje znaczniki i emotikony Audioticonu.
+* **Izolacja testowa:** Zanim nastąpi wpięcie do oficjalnego UI/CLI, Bielik przejdzie etap testów na rzeczywistych rozdziałach, weryfikujący poprawność generowanych znaczników przez parser `audioticon-core`.
+* **Zbieranie danych treningowych (Flywheel):** Ręczne poprawki reżyserskie nanoszone przez użytkownika w Studio posłużą docelowo jako dataset do fine-tuningu dedykowanego adaptera LoRA (`Bielik-AudioDirector`).
