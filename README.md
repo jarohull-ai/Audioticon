@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Audioticon Logo" width="300" style="border-radius: 20px;" />
+  <img src="assets/logo.gif" alt="Audioticon Animated Logo" width="220" style="border-radius: 20px;" />
 </p>
 
 <h1 align="center">🎧 Audioticon</h1>

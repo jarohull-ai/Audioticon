@@ -21,6 +21,7 @@ static REQ_COUNTER: AtomicU64 = AtomicU64::new(0);
 const STUDIO_HTML: &str = include_str!("../../../../docs/index.html");
 const MODULAR_STUDIO_HTML: &str = include_str!("../../../../docs/studio.html");
 const LOGO_PNG: &[u8] = include_bytes!("../../../../docs/logo.png");
+const LOGO_GIF: &[u8] = include_bytes!("../../../../docs/logo.gif");
 
 #[derive(serde::Deserialize)]
 struct ApiRenderRequest {
@@ -382,6 +383,18 @@ async fn handle_studio_request(
         let png_header = Header::from_bytes(&b"Content-Type"[..], &b"image/png"[..]).unwrap();
         let mut resp = tiny_http::Response::from_data(LOGO_PNG);
         resp.add_header(png_header);
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: GET /logo.gif
+    if method == tiny_http::Method::Get && url == "/logo.gif" {
+        let gif_header = Header::from_bytes(&b"Content-Type"[..], &b"image/gif"[..]).unwrap();
+        let mut resp = tiny_http::Response::from_data(LOGO_GIF);
+        resp.add_header(gif_header);
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
         }
