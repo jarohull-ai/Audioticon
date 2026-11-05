@@ -5,6 +5,7 @@ pub mod cadence;
 pub mod credentials;
 pub mod estimator;
 pub mod importer;
+pub mod ledger;
 pub mod models;
 pub mod parser;
 pub mod presets;
@@ -12,6 +13,8 @@ pub mod sfx;
 pub mod types;
 pub mod verbalizer;
 pub mod voicelab;
+pub mod voucher;
+pub mod wallet;
 
 pub use audio::{
     create_ambient_track, create_breath_wav, create_breath_wav_with_gain, create_sfx_wav,
@@ -58,3 +61,6 @@ pub use voicelab::{
     list_voice_profiles, profile_dir, punch_in_sentence, read_wav_samples, sanitize_slug,
     save_voice_profile, voices_dir, SampleQualityReport, VoiceProfile, VoiceSampleMeta,
 };
+pub use ledger::AudioCertificate;
+pub use voucher::{generate_voucher_code, verify_voucher_code, VoucherPayload, WalletTier};
+pub use wallet::{AudioWallet, Transaction, STARTING_CREDITS};

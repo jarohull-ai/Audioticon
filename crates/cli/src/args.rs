@@ -348,6 +348,25 @@ pub enum Commands {
         #[command(subcommand)]
         action: Option<SfxAction>,
     },
+    /// Zarządzanie portfelem AudioCoin$, voucherami VIP i licencjami
+    #[command(alias = "coins")]
+    Wallet {
+        #[command(subcommand)]
+        action: Option<WalletAction>,
+    },
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum WalletAction {
+    /// Wyświetla stan portfela AudioCoin$, odblokowane funkcje i historię transakcji
+    Balance,
+    /// Aktywuje voucher VIP (np. pakiet Pisarza z certyfikatem ACX)
+    Redeem {
+        /// Kod vouchera (np. AUD-WRITER-20000-XXXXXXXXXXXX)
+        code: String,
+    },
+    /// Wyświetla dostępne pakiety doładowań w aplikacji
+    Topup,
 }
 
 #[derive(Subcommand, Debug, Clone)]

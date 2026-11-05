@@ -1006,3 +1006,36 @@ fn test_cli_sfx_list_and_catalog() {
     assert!(stdout_cat.contains("CC0"));
     assert!(stdout_cat.contains("freesound.org"));
 }
+
+#[test]
+fn test_cli_wallet_balance_topup_and_redeem() {
+    let exe = env!("CARGO_BIN_EXE_audioticon");
+
+    // 1. Balance check
+    let out_balance = Command::new(exe)
+        .args(["wallet", "balance"])
+        .output()
+        .expect("Run audioticon wallet balance");
+    assert!(out_balance.status.success());
+    let stdout_balance = String::from_utf8_lossy(&out_balance.stdout);
+    assert!(stdout_balance.contains("PORTFEL AUDIOCOIN$"));
+    assert!(stdout_balance.contains("AudioCoin$"));
+
+    // 2. Top-up pricing list check
+    let out_topup = Command::new(exe)
+        .args(["wallet", "topup"])
+        .output()
+        .expect("Run audioticon wallet topup");
+    assert!(out_topup.status.success());
+    let stdout_topup = String::from_utf8_lossy(&out_topup.stdout);
+    assert!(stdout_topup.contains("PAKIET PISARZ"));
+    assert!(stdout_topup.contains("CERTYFIKAT ZGODNOŚCI ACX"));
+
+    // 3. Redeem invalid voucher error handling
+    let out_invalid = Command::new(exe)
+        .args(["wallet", "redeem", "INVALID-CODE-999"])
+        .output()
+        .expect("Run audioticon wallet redeem with invalid code");
+    let stderr_invalid = String::from_utf8_lossy(&out_invalid.stderr);
+    assert!(stderr_invalid.contains("Błąd realizacji vouchera"));
+}

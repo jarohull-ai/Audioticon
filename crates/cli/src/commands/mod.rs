@@ -8,6 +8,7 @@ pub mod render;
 pub mod script;
 pub mod sfx;
 pub mod voicelab;
+pub mod wallet;
 
 use anyhow::Result;
 
@@ -107,5 +108,6 @@ pub async fn dispatch(command: Commands) -> Result<()> {
             dry_run,
         } => direct::run_direct(input, output, provider, model, key, dry_run),
         Commands::Sfx { action } => sfx::run_sfx(action),
+        Commands::Wallet { action } => wallet::run_wallet(action),
     }
 }

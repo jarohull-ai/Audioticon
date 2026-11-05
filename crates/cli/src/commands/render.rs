@@ -1,9 +1,10 @@
 use anyhow::{Context, Result};
 use audioticon_core::{
     credentials, estimate_cost, export_to_m4b, export_to_mp3, find_model, models_dir,
-    parse_size_string, presets, prune_cache_lru, AudioDirectorEngine, AudiobookMetadata,
-    EdgeTtsBridge, ElevenLabsBridge, EmojiDirector, ImportedBook, PiperBridge, PresetRegistry,
-    ProjectConfig, SpeechSynthesizer, DEFAULT_MAX_CACHE_BYTES,
+    parse_size_string, presets, prune_cache_lru, AudioCertificate, AudioDirectorEngine,
+    AudioWallet, AudiobookMetadata, EdgeTtsBridge, ElevenLabsBridge, EmojiDirector, ImportedBook,
+    PiperBridge, PresetRegistry, ProjectConfig, SpeechSynthesizer, DEFAULT_MAX_CACHE_BYTES,
+    DEFAULT_SAMPLE_RATE,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -330,6 +331,64 @@ pub async fn run_render(
         dur_sec % 60.0,
         elapsed
     );
+
+    // Audio Ledger: ACX / Storytel Cryptographic Certification
+    let wallet = AudioWallet::load();
+    if wallet.acx_certificate_unlocked {
+        let cert_title = metadata.title.as_deref().unwrap_or("Audiobook");
+        let cert_author = metadata.author.as_deref().unwrap_or("Audioticon");
+        match AudioCertificate::create_and_save(
+            &output,
+            input.as_deref(),
+            cert_title,
+            cert_author,
+            DEFAULT_SAMPLE_RATE,
+            dur_sec,
+            &wallet,
+        ) {
+            Ok(cert) => {
+                println!("\n📜 AUDIO LEDGER — CERTYFIKAT ZGODNOŚCI ACX / STORYTEL");
+                println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                println!("  Identyfikator:    {}", cert.ledger_id);
+                println!(
+                    "  Zgodność ACX:     {}",
+                    if cert.acx_compliant {
+                        "✅ ZGODNY (Audible Ready)"
+                    } else {
+                        "⚠️ Poza zakresem"
+                    }
+                );
+                println!(
+                    "  Zgodność Storytel:{}",
+                    if cert.storytel_compliant {
+                        "✅ ZGODNY (EBU R128)"
+                    } else {
+                        "⚠️ Poza zakresem"
+                    }
+                );
+                println!(
+                    "  Poziom głośności: {:.1} LUFS (Norma: -23.0 do -19.0 LUFS)",
+                    cert.master_lufs
+                );
+                println!(
+                    "  True Peak:        {:.1} dBFS (Norma: <= -3.0 dBFS)",
+                    cert.true_peak_db
+                );
+                println!("  Suma SHA-256:     {}...", &cert.audio_sha256[..16]);
+                println!(
+                    "  Zapisano certyfikat: {:?}",
+                    output.with_extension("certificate.json")
+                );
+                println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            }
+            Err(e) => {
+                eprintln!("⚠️ Nie udało się wygenerować certyfikatu ACX: {}", e);
+            }
+        }
+    } else {
+        println!("\n💡 Wskazówka: Odblokuj oficjalny Certyfikat Zgodności ACX/Storytel (Audio Ledger) w Pakiecie Pisarz!");
+        println!("   Wpisz w terminalu: audioticon wallet topup");
+    }
 
     // Automatic LRU cache cleanup
     let limit_bytes = match max_cache_size {
