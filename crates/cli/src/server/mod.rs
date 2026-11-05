@@ -19,6 +19,7 @@ use crate::args::{get_default_cache_dir, get_default_piper_model, TtsProvider};
 static REQ_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 const STUDIO_HTML: &str = include_str!("../../../../docs/index.html");
+const MODULAR_STUDIO_HTML: &str = include_str!("../../../../docs/studio.html");
 const LOGO_PNG: &[u8] = include_bytes!("../../../../docs/logo.png");
 
 #[derive(serde::Deserialize)]
@@ -353,6 +354,19 @@ async fn handle_studio_request(
         let html_header =
             Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap();
         let mut resp = tiny_http::Response::from_string(STUDIO_HTML);
+        resp.add_header(html_header);
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: GET /studio or GET /studio.html (Modular Tiling Studio)
+    if method == tiny_http::Method::Get && (url == "/studio" || url == "/studio.html") {
+        let html_header =
+            Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap();
+        let mut resp = tiny_http::Response::from_string(MODULAR_STUDIO_HTML);
         resp.add_header(html_header);
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());

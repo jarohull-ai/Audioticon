@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="pl" data-theme="ice-cyber">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audioticon Studio — Modular Audio Workbench</title>
+  <meta name="description" content="Audioticon Studio — Modular audiobook director workspace with Notion block editor and CapCut multi-track timeline">
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ==========================================================================
+       THEME VARIABLES & 3D CYBER GLASS STYLING (Inspired by przyklad dla UI.pptx)
+       ========================================================================== */
+    :root, [data-theme="ice-cyber"] {
+      --bg: #edf2f7;
+      --bg-gradient: radial-gradient(circle at 15% 15%, #f1f5f9 0%, #e2e8f0 50%, #cbd5e1 100%);
+      --surface: rgba(255, 255, 255, 0.72);
+      --surface-elev: rgba(255, 255, 255, 0.90);
+      --surface-glass: rgba(248, 250, 252, 0.65);
+      --border: rgba(148, 163, 184, 0.35);
+      --border-highlight: rgba(255, 255, 255, 0.9);
+      --border-focus: #0284c7;
+      --accent: #0284c7;
+      --accent-hover: #0369a1;
+      --accent-glow: rgba(2, 132, 199, 0.28);
+      --accent-secondary: #0d9488;
+      --text: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
+      --danger: #e11d48;
+      --success: #16a34a;
+      --warning: #d97706;
+      --card-shadow: 0 12px 36px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
+      --card-shadow-active: 0 18px 48px rgba(2, 132, 199, 0.16), 0 4px 12px rgba(15, 23, 42, 0.06);
+      --inner-glow: inset 0 1px 1px rgba(255, 255, 255, 0.95), inset 0 -1px 1px rgba(148, 163, 184, 0.2);
+      --grid-line: rgba(148, 163, 184, 0.15);
+      --track-bg: rgba(226, 232, 240, 0.6);
+      --playhead-color: #ef4444;
+    }
+
+    [data-theme="cyber-neon"] {
+      --bg: #07090e;
+      --bg-gradient: radial-gradient(circle at 20% 20%, #0f172a 0%, #090d16 50%, #030712 100%);
+      --surface: rgba(15, 23, 42, 0.75);
+      --surface-elev: rgba(30, 41, 59, 0.85);
+      --surface-glass: rgba(15, 23, 42, 0.60);
+      --border: rgba(255, 255, 255, 0.10);
+      --border-highlight: rgba(6, 182, 212, 0.4);
+      --border-focus: #06b6d4;
+      --accent: #06b6d4;
+      --accent-hover: #22d3ee;
+      --accent-glow: rgba(6, 182, 212, 0.35);
+      --accent-secondary: #a855f7;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --danger: #f43f5e;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --card-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+      --card-shadow-active: 0 20px 50px rgba(6, 182, 212, 0.25);
+      --inner-glow: inset 0 1px 1px rgba(255, 255, 255, 0.18), inset 0 -1px 1px rgba(0, 0, 0, 0.4);
+      --grid-line: rgba(255, 255, 255, 0.04);
+      --track-bg: rgba(10, 15, 28, 0.7);
+      --playhead-color: #06b6d4;
+    }
+
+    [data-theme="obsidian-daw"] {
+      --bg: #111215;
+      --bg-gradient: linear-gradient(180deg, #181a1f 0%, #111215 100%);
+      --surface: rgba(26, 29, 36, 0.85);
+      --surface-elev: rgba(38, 42, 53, 0.95);
+      --surface-glass: rgba(26, 29, 36, 0.70);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-highlight: rgba(245, 158, 11, 0.4);
+      --border-focus: #f59e0b;
+      --accent: #f59e0b;
+      --accent-hover: #fbbf24;
+      --accent-glow: rgba(245, 158, 11, 0.3);
+      --accent-secondary: #3b82f6;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+      --danger: #ef4444;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --card-shadow: 0 14px 38px rgba(0, 0, 0, 0.6);
+      --card-shadow-active: 0 20px 45px rgba(245, 158, 11, 0.2);
+      --inner-glow: inset 0 1px 1px rgba(255, 255, 255, 0.12), inset 0 -1px 1px rgba(0, 0, 0, 0.6);
+      --grid-line: rgba(255, 255, 255, 0.03);
+      --track-bg: rgba(17, 18, 21, 0.85);
+      --playhead-color: #f59e0b;
+    }
+
+    /* ==========================================================================
+       BASE RESET & APP SHELL
+       ========================================================================== */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      background-image: var(--bg-gradient);
+      color: var(--text);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      transition: background 0.3s ease, color 0.3s ease;
+    }
+
+    input, textarea, select, button {
+      font-family: inherit;
+      color: inherit;
+    }
+
+    .app-shell {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      max-height: 100vh;
+      position: relative;
+    }
+
+    /* ==========================================================================
+       TOP APP HEADER
+       ========================================================================== */
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 52px;
+      padding: 0 1.25rem;
+      background: var(--surface);
+      backdrop-filter: blur(18px) saturate(160%);
+      -webkit-backdrop-filter: blur(18px) saturate(160%);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+      z-index: 1000;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+    }
+
+    .app-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 1.05rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .app-brand .brand-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 0.15rem 0.45rem;
+      border-radius: 9999px;
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+
+    .workspace-presets {
+      display: flex;
+      gap: 0.35rem;
+      align-items: center;
+      background: var(--track-bg);
+      padding: 0.25rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .preset-btn {
+      padding: 0.3rem 0.65rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .preset-btn:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .preset-btn.active {
+      background: var(--surface-elev);
+      color: var(--accent);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      height: 32px;
+      padding: 0 0.85rem;
+      background: var(--surface-elev);
+      border: 1px solid var(--border);
+      box-shadow: var(--inner-glow);
+      color: var(--text);
+      border-radius: 7px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #ffffff;
+      border-color: var(--accent);
+      box-shadow: 0 2px 10px var(--accent-glow);
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      color: #ffffff;
+    }
+
+    .theme-selector {
+      height: 32px;
+      padding: 0 0.75rem;
+      background: var(--surface-elev);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      outline: none;
+    }
+
+    .wallet-chip {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.7rem;
+      background: var(--accent-glow);
+      border: 1px solid var(--accent);
+      border-radius: 9999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+      cursor: pointer;
+    }
+
+    /* ==========================================================================
+       MODULAR TILING WORKBENCH (GRID CONTAINER)
+       ========================================================================== */
+    .workbench {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      gap: 12px;
+      padding: 12px;
+      height: calc(100vh - 52px);
+      max-height: calc(100vh - 52px);
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ==========================================================================
+       TILE CARD COMPONENT (3D FROSTED GLASS)
+       ========================================================================== */
+    .tile {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--card-shadow), var(--inner-glow);
+      overflow: hidden;
+      position: relative;
+      transition: box-shadow 0.2s ease, border-color 0.2s ease;
+      z-index: 10;
+    }
+
+    .tile:focus-within, .tile.active-focus {
+      border-color: var(--accent);
+      box-shadow: var(--card-shadow-active), var(--inner-glow);
+      z-index: 20;
+    }
+
+    .tile-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 38px;
+      padding: 0 0.85rem;
+      background: var(--surface-elev);
+      border-bottom: 1px solid var(--border);
+      cursor: grab;
+      user-select: none;
+    }
+
+    .tile-header:active {
+      cursor: grabbing;
+    }
+
+    .tile-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--text);
+    }
+
+    .tile-title .tile-icon {
+      font-size: 0.95rem;
+    }
+
+    .tile-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .tile-btn {
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      border-radius: 4px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .tile-btn:hover {
+      background: var(--track-bg);
+      color: var(--text);
+    }
+
+    .tile-body {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 0.85rem;
+      position: relative;
+      user-select: text;
+    }
+
+    /* Custom scrollbars */
+    .tile-body::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .tile-body::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .tile-body::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 9999px;
+    }
+    .tile-body::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
+    }
+
+    /* Resize handle (bottom right corner) */
+    .tile-resize-handle {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 14px;
+      height: 14px;
+      cursor: nwse-resize;
+      background: linear-gradient(135deg, transparent 50%, var(--border) 50%);
+      border-bottom-right-radius: 12px;
+      z-index: 30;
+    }
+
+    /* ==========================================================================
+       TILE 1: NOTION-STYLE BLOCK SCRIPT EDITOR
+       ========================================================================== */
+    .block-editor-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .emoji-pill-bar {
+      display: flex;
+      gap: 0.3rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .emoji-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.2rem 0.5rem;
+      background: var(--surface-elev);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .emoji-pill:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-glow);
+    }
+
+    .blocks-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+
+    .script-block {
+      background: var(--surface-elev);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.65rem 0.8rem;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+
+    .script-block:focus-within, .script-block.selected {
+      border-color: var(--accent);
+      box-shadow: 0 2px 10px var(--accent-glow);
+    }
+
+    .block-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.4rem;
+    }
+
+    .actor-tag-selector {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+      background: var(--track-bg);
+      font-size: 0.75rem;
+      font-weight: 700;
+      border: 1px solid var(--border);
+      cursor: pointer;
+    }
+
+    .block-meta {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-family: 'Fira Code', monospace;
+    }
+
+    .block-content {
+      width: 100%;
+      min-height: 48px;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      color: var(--text);
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    .block-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 0.3rem;
+      padding-top: 0.3rem;
+      border-top: 1px dashed var(--border);
+      font-size: 0.7rem;
+      color: var(--text-dim);
+    }
+
+    .block-actions {
+      display: flex;
+      gap: 0.3rem;
+    }
+
+    .btn-icon-xs {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 0.15rem 0.3rem;
+      border-radius: 4px;
+    }
+    .btn-icon-xs:hover {
+      color: var(--accent);
+      background: var(--track-bg);
+    }
+
+    .add-block-btn {
+      width: 100%;
+      padding: 0.6rem;
+      background: var(--track-bg);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .add-block-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-glow);
+    }
+
+    /* ==========================================================================
+       TILE 2: CAPCUT-STYLE MULTI-TRACK TIMELINE
+       ========================================================================== */
+    .timeline-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      position: relative;
+    }
+
+    .timeline-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 32px;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--border);
+      gap: 0.5rem;
+    }
+
+    .timeline-transport {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .timecode-display {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+      padding: 0.2rem 0.5rem;
+      background: var(--track-bg);
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    .tracks-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 0.5rem;
+      position: relative;
+      overflow-x: auto;
+      overflow-y: auto;
+    }
+
+    .time-ruler {
+      height: 20px;
+      background: var(--track-bg);
+      border-radius: 4px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      font-size: 0.65rem;
+      font-family: 'Fira Code', monospace;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+    }
+
+    .track-row {
+      display: flex;
+      height: 48px;
+      background: var(--track-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .track-label {
+      width: 110px;
+      min-width: 110px;
+      background: var(--surface-elev);
+      border-right: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 0.6rem;
+      gap: 0.4rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text);
+      z-index: 5;
+    }
+
+    .track-lane {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      padding: 4px;
+      min-width: 800px;
+    }
+
+    .audio-clip {
+      position: absolute;
+      height: 38px;
+      border-radius: 6px;
+      background: var(--surface-elev);
+      border: 1px solid var(--accent);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      display: flex;
+      align-items: center;
+      padding: 0 0.5rem;
+      gap: 0.4rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+
+    .audio-clip:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px var(--accent-glow);
+    }
+
+    .audio-clip.clip-dialogue {
+      background: linear-gradient(90deg, rgba(2, 132, 199, 0.2), var(--surface-elev));
+      border-color: var(--accent);
+    }
+    .audio-clip.clip-sfx {
+      background: linear-gradient(90deg, rgba(217, 119, 6, 0.25), var(--surface-elev));
+      border-color: var(--warning);
+    }
+    .audio-clip.clip-ambient {
+      background: linear-gradient(90deg, rgba(13, 148, 136, 0.25), var(--surface-elev));
+      border-color: var(--accent-secondary);
+    }
+
+    .clip-waveform {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0.25;
+      pointer-events: none;
+    }
+
+    .playhead-scrubber {
+      position: absolute;
+      top: 0;
+      left: 220px;
+      width: 2px;
+      height: 100%;
+      background: var(--playhead-color);
+      box-shadow: 0 0 8px var(--playhead-color);
+      z-index: 50;
+      pointer-events: none;
+      transition: left 0.08s linear;
+    }
+
+    .playhead-scrubber::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: -5px;
+      width: 12px;
+      height: 12px;
+      background: var(--playhead-color);
+      border-radius: 50%;
+    }
+
+    /* ==========================================================================
+       TILE 3: INSPECTOR & DSP SETTINGS
+       ========================================================================== */
+    .inspector-group {
+      margin-bottom: 1rem;
+    }
+
+    .inspector-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      margin-bottom: 0.35rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .inspector-input, .inspector-select {
+      width: 100%;
+      height: 32px;
+      padding: 0 0.6rem;
+      background: var(--surface-elev);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.8rem;
+      color: var(--text);
+      outline: none;
+    }
+
+    .inspector-input:focus, .inspector-select:focus {
+      border-color: var(--accent);
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .slider-input {
+      flex: 1;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .slider-val {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.75rem;
+      width: 48px;
+      text-align: right;
+      color: var(--accent);
+    }
+
+    /* ==========================================================================
+       TILE 4: MASTER TRANSPORT & DUAL VU METER
+       ========================================================================== */
+    .transport-controls-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      height: 100%;
+      justify-content: center;
+    }
+
+    .transport-btn-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+    }
+
+    .transport-btn-large {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      box-shadow: 0 4px 14px var(--accent-glow);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .transport-btn-large:hover {
+      transform: scale(1.08);
+    }
+
+    .vu-meter-rack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      background: var(--track-bg);
+      padding: 0.6rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .vu-channel {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .vu-label {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--text-dim);
+      width: 14px;
+    }
+
+    .vu-bar-track {
+      flex: 1;
+      height: 8px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .vu-bar-fill {
+      height: 100%;
+      width: 65%;
+      background: linear-gradient(90deg, #10b981 60%, #f59e0b 85%, #ef4444 100%);
+      border-radius: 4px;
+      transition: width 0.05s ease;
+    }
+
+    /* ==========================================================================
+       TILE 5: VOICELAB & ELEVENLABS CATALOG
+       ========================================================================== */
+    .voice-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 0.5rem;
+    }
+
+    .voice-card {
+      background: var(--surface-elev);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .voice-card:hover, .voice-card.active {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+    }
+
+    .voice-name {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .voice-tag {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+    }
+
+    /* ==========================================================================
+       MODAL STYLES (Custom Emojis, Wallet, Export)
+       ========================================================================== */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 5000;
+    }
+
+    .modal-card {
+      width: 90%;
+      max-width: 520px;
+      background: var(--surface);
+      backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .modal-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Bar -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="app-brand" onclick="window.location.reload()">
+          <span>🎧 Audioticon Studio</span>
+          <span class="brand-badge">v0.2.8</span>
+        </div>
+
+        <!-- Presets -->
+        <div class="workspace-presets">
+          <button class="preset-btn active" onclick="applyPreset('director')">🎬 Reżyser</button>
+          <button class="preset-btn" onclick="applyPreset('writer')">✍️ Pisarz Zen</button>
+          <button class="preset-btn" onclick="applyPreset('daw')">🎛️ Studio DAW</button>
+          <button class="preset-btn" onclick="applyPreset('voicelab')">🎭 VoiceLab</button>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <!-- AudioCoin$ Wallet Chip -->
+        <div class="wallet-chip" onclick="openWalletModal()">
+          <span>🪙</span>
+          <span id="walletBalance">1,250 ACX$</span>
+        </div>
+
+        <!-- Theme Picker -->
+        <select class="theme-selector" id="themePicker" onchange="changeTheme(this.value)">
+          <option value="ice-cyber">💎 Ice Cyber Glass</option>
+          <option value="cyber-neon">🌌 Cyber Neon Dark</option>
+          <option value="obsidian-daw">🌑 Obsidian Slate DAW</option>
+        </select>
+
+        <!-- Tile Toggle Menu -->
+        <button class="btn" onclick="toggleTilePalette()">
+          <span>🪟</span> Kafelki
+        </button>
+
+        <!-- Render All / Export -->
+        <button class="btn btn-primary" onclick="renderAllAudio()">
+          <span>⚡</span> Renderuj Audio
+        </button>
+      </div>
+    </header>
+
+    <!-- Modular Tiling Workbench -->
+    <main class="workbench" id="workbench">
+      
+      <!-- TILE 1: NOTION SCRIPT EDITOR -->
+      <section class="tile" id="tile-editor" style="grid-column: 1 / 8; grid-row: 1 / 6;">
+        <div class="tile-header">
+          <div class="tile-title">
+            <span class="tile-icon">📝</span>
+            <span>Edytor Blokowy (Notion)</span>
+          </div>
+          <div class="tile-actions">
+            <button class="tile-btn" title="Zwiń" onclick="minimizeTile('tile-editor')">━</button>
+            <button class="tile-btn" title="Maksymalizuj" onclick="maximizeTile('tile-editor')">⤢</button>
+          </div>
+        </div>
+        <div class="tile-body">
+          <div class="block-editor-toolbar">
+            <div class="emoji-pill-bar">
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('🤫')">🤫 Szept</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('💥')">💥 Krzyk</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('📞')">📞 Telefon</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('🏛️')">🏛️ Katedra</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('🛑')">🛑 Pauza 0.8s</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('🌧️')">🌧️ Deszcz</span>
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-muted);">
+              Słowa: <b id="wordCount">38</b> | Czas: <b id="estDuration">0:14s</b>
+            </div>
+          </div>
+
+          <div class="blocks-container" id="blocksContainer">
+            <!-- Initial Block 1 -->
+            <div class="script-block selected" data-id="1">
+              <div class="block-header">
+                <div class="actor-tag-selector" onclick="switchBlockActor(1)">
+                  <span>👨</span> <span>Narrator</span> ▾
+                </div>
+                <div class="block-meta">#1 · 18 słów · 42 sylaby</div>
+              </div>
+              <textarea class="block-content" oninput="onBlockInput(1)">W ciemnym zaułku Nowego Światu deszcz bębnił o blaszany dach. 🌧️ Jan zatrzymał się gwałtownie i spojrzał w mrok.</textarea>
+              <div class="block-footer">
+                <span>DSP: Brak · Głos: Bzipek (Piper)</span>
+                <div class="block-actions">
+                  <button class="btn-icon-xs" title="Odtwórz ten blok" onclick="previewBlock(1)">▶</button>
+                  <button class="btn-icon-xs" title="Duplikuj" onclick="duplicateBlock(1)">📋</button>
+                  <button class="btn-icon-xs" title="Usuń" onclick="deleteBlock(1)">🗑️</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Initial Block 2 -->
+            <div class="script-block" data-id="2">
+              <div class="block-header">
+                <div class="actor-tag-selector" onclick="switchBlockActor(2)">
+                  <span>👩</span> <span>Anna</span> ▾
+                </div>
+                <div class="block-meta">#2 · 12 słów · 28 sylab</div>
+              </div>
+              <textarea class="block-content" oninput="onBlockInput(2)">🤫 Nie ruszaj się! — wyszeptała przez słuchawkę. 📞 — Oni już tu są.</textarea>
+              <div class="block-footer">
+                <span>DSP: 📞 Telefon + 🤫 Szept · Głos: Dorota (ElevenLabs)</span>
+                <div class="block-actions">
+                  <button class="btn-icon-xs" title="Odtwórz ten blok" onclick="previewBlock(2)">▶</button>
+                  <button class="btn-icon-xs" title="Duplikuj" onclick="duplicateBlock(2)">📋</button>
+                  <button class="btn-icon-xs" title="Usuń" onclick="deleteBlock(2)">🗑️</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Initial Block 3 -->
+            <div class="script-block" data-id="3">
+              <div class="block-header">
+                <div class="actor-tag-selector" onclick="switchBlockActor(3)">
+                  <span>🧔</span> <span>Jan</span> ▾
+                </div>
+                <div class="block-meta">#3 · 8 słów · 19 sylab</div>
+              </div>
+              <textarea class="block-content" oninput="onBlockInput(3)">💥 Za późno! — krzyknął, zatrzaskując pancerne drzwi krypty. 🏛️</textarea>
+              <div class="block-footer">
+                <span>DSP: 🏛️ Katedra Reverb · Głos: Antoni (EdgeTTS)</span>
+                <div class="block-actions">
+                  <button class="btn-icon-xs" title="Odtwórz ten blok" onclick="previewBlock(3)">▶</button>
+                  <button class="btn-icon-xs" title="Duplikuj" onclick="duplicateBlock(3)">📋</button>
+                  <button class="btn-icon-xs" title="Usuń" onclick="deleteBlock(3)">🗑️</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button class="add-block-btn" onclick="addNewBlock()" style="margin-top:0.75rem;">
+            + Dodaj nowy blok narracyjny lub dialog
+          </button>
+        </div>
+        <div class="tile-resize-handle"></div>
+      </section>
+
+      <!-- TILE 2: INSPECTOR & DSP -->
+      <section class="tile" id="tile-inspector" style="grid-column: 8 / 13; grid-row: 1 / 4;">
+        <div class="tile-header">
+          <div class="tile-title">
+            <span class="tile-icon">🎛️</span>
+            <span>Inspektor Bloku</span>
+          </div>
+          <div class="tile-actions">
+            <button class="tile-btn" title="Zwiń" onclick="minimizeTile('tile-inspector')">━</button>
+          </div>
+        </div>
+        <div class="tile-body">
+          <div class="inspector-group">
+            <div class="inspector-label">
+              <span>Lektor / Silnik</span>
+              <span style="color:var(--accent);">ElevenLabs v3</span>
+            </div>
+            <select class="inspector-select" id="insVoice" onchange="updateSelectedBlock()">
+              <optgroup label="ElevenLabs HD (Chmura)">
+                <option value="dorota">Dorota (PL Kobieta, Ciepły)</option>
+                <option value="antoni">Antoni (PL Mężczyzna, Niski)</option>
+                <option value="adam">Adam (PL Głęboki Narrator)</option>
+              </optgroup>
+              <optgroup label="Piper TTS (Lokalny offline)">
+                <option value="bzipek" selected>Bzipek (PL Męski, Domyślny)</option>
+                <option value="gert">Gert (PL Radiowy)</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <div class="inspector-group">
+            <div class="inspector-label">
+              <span>Efekt DSP (Filtr)</span>
+              <span id="dspLabel">Telefon</span>
+            </div>
+            <select class="inspector-select" id="insDsp" onchange="updateSelectedBlock()">
+              <option value="none">Brak (Czysty wokal)</option>
+              <option value="phone" selected>📞 Telefon (Bandpass 300Hz-3.4kHz)</option>
+              <option value="cathedral">🏛️ Katedra (Reverb 3.2s)</option>
+              <option value="radio">📻 Vintage Radio (Distortion + HPF)</option>
+              <option value="robot">🤖 Vocoder Robot (Ring Mod)</option>
+              <option value="dungeon">🕳️ Lochy / Piwnica (Dark Echo)</option>
+            </select>
+          </div>
+
+          <div class="inspector-group">
+            <div class="inspector-label">
+              <span>Tempo (Rate)</span>
+              <span class="slider-val" id="rateVal">1.00x</span>
+            </div>
+            <div class="slider-row">
+              <input type="range" class="slider-input" min="0.5" max="1.5" step="0.05" value="1.0" oninput="document.getElementById('rateVal').innerText=this.value+'x'">
+            </div>
+          </div>
+        </div>
+        <div class="tile-resize-handle"></div>
+      </section>
+
+      <!-- TILE 3: MASTER TRANSPORT & VU METER -->
+      <section class="tile" id="tile-transport" style="grid-column: 8 / 13; grid-row: 4 / 6;">
+        <div class="tile-header">
+          <div class="tile-title">
+            <span class="tile-icon">🔊</span>
+            <span>Master & Odsłuch</span>
+          </div>
+          <div class="tile-actions">
+            <button class="tile-btn" title="Zwiń" onclick="minimizeTile('tile-transport')">━</button>
+          </div>
+        </div>
+        <div class="tile-body">
+          <div class="transport-controls-grid">
+            <div class="transport-btn-row">
+              <button class="btn" onclick="seekOffset(-5)">⏪ -5s</button>
+              <button class="transport-btn-large" id="playMasterBtn" onclick="toggleMasterPlay()">▶</button>
+              <button class="btn" onclick="seekOffset(5)">+5s ⏩</button>
+            </div>
+
+            <!-- Dual Stereo VU Meter -->
+            <div class="vu-meter-rack">
+              <div class="vu-channel">
+                <span class="vu-label">L</span>
+                <div class="vu-bar-track">
+                  <div class="vu-bar-fill" id="vuBarL" style="width: 48%;"></div>
+                </div>
+              </div>
+              <div class="vu-channel">
+                <span class="vu-label">R</span>
+                <div class="vu-bar-track">
+                  <div class="vu-bar-fill" id="vuBarR" style="width: 52%;"></div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted);">
+              <span>Głośność: <b>85%</b></span>
+              <span>ACX Standard: <b>-19.5 LUFS ✅</b></span>
+            </div>
+          </div>
+        </div>
+        <div class="tile-resize-handle"></div>
+      </section>
+
+      <!-- TILE 4: CAPCUT MULTI-TRACK TIMELINE -->
+      <section class="tile" id="tile-timeline" style="grid-column: 1 / 13; grid-row: 6 / 9;">
+        <div class="tile-header">
+          <div class="tile-title">
+            <span class="tile-icon">🎞️</span>
+            <span>Wielościeżkowa Oś Czasu (CapCut)</span>
+          </div>
+          <div class="tile-actions">
+            <div class="timecode-display" id="timecodeDisplay">00:00:04.250 / 00:00:14.800</div>
+            <button class="tile-btn" title="Zwiń" onclick="minimizeTile('tile-timeline')">━</button>
+            <button class="tile-btn" title="Maksymalizuj" onclick="maximizeTile('tile-timeline')">⤢</button>
+          </div>
+        </div>
+        <div class="tile-body" style="padding:0.5rem;">
+          <div class="timeline-container">
+            <!-- Scrubber Playhead -->
+            <div class="playhead-scrubber" id="timelinePlayhead"></div>
+
+            <div class="tracks-wrapper">
+              <!-- Time Ruler -->
+              <div class="time-ruler">
+                <span>00:00</span>
+                <span style="position:absolute; left:200px;">00:04s</span>
+                <span style="position:absolute; left:400px;">00:08s</span>
+                <span style="position:absolute; left:600px;">00:12s</span>
+                <span style="position:absolute; left:750px;">00:15s</span>
+              </div>
+
+              <!-- Track 1: Voice / Lektor -->
+              <div class="track-row">
+                <div class="track-label">
+                  <span>🎙️ Lektor</span>
+                </div>
+                <div class="track-lane">
+                  <div class="audio-clip clip-dialogue" style="left: 10px; width: 190px;" onclick="selectBlock(1)">
+                    <span>👨 Narrator (Nowy Świat)</span>
+                  </div>
+                  <div class="audio-clip clip-dialogue" style="left: 210px; width: 230px;" onclick="selectBlock(2)">
+                    <span>👩 Anna (Nie ruszaj się!)</span>
+                  </div>
+                  <div class="audio-clip clip-dialogue" style="left: 450px; width: 200px;" onclick="selectBlock(3)">
+                    <span>🧔 Jan (Za późno!)</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Track 2: SFX / Foley -->
+              <div class="track-row">
+                <div class="track-label">
+                  <span>🔊 SFX Foley</span>
+                </div>
+                <div class="track-lane">
+                  <div class="audio-clip clip-sfx" style="left: 180px; width: 60px;">
+                    <span>📞 Ring</span>
+                  </div>
+                  <div class="audio-clip clip-sfx" style="left: 480px; width: 90px;">
+                    <span>🚪 Drzwi Slam</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Track 3: Ambience -->
+              <div class="track-row">
+                <div class="track-label">
+                  <span>🌊 Tło Ambient</span>
+                </div>
+                <div class="track-lane">
+                  <div class="audio-clip clip-ambient" style="left: 10px; width: 730px;">
+                    <span>🌧️ Deszcz & Nocne Miasto (Loop -18dB)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tile-resize-handle"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- MODAL: WALLET & VOUCHERS -->
+  <div class="modal-overlay" id="walletModal" onclick="if(event.target===this) closeWalletModal()">
+    <div class="modal-card">
+      <div class="modal-title">
+        <span>🪙 Portfel AudioCoin$ & Licencje</span>
+        <button class="btn-icon-xs" onclick="closeWalletModal()">✕</button>
+      </div>
+      <div>
+        <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.5rem;">Twoje saldo:</div>
+        <div style="font-size:2rem; font-weight:800; color:var(--accent);">1,250 ACX$</div>
+        <div style="font-size:0.75rem; color:var(--text-dim); margin-top:0.25rem;">Starcza na ok. 250 minut generowania ElevenLabs HD</div>
+      </div>
+      <div style="background:var(--track-bg); padding:0.85rem; border-radius:8px; border:1px solid var(--border);">
+        <div class="inspector-label">Zrealizuj kupon rabatowy / doładowanie</div>
+        <div style="display:flex; gap:0.5rem; margin-top:0.4rem;">
+          <input type="text" class="inspector-input" id="voucherInput" placeholder="ACX-2026-XXXX">
+          <button class="btn btn-primary" onclick="redeemVoucher()">Aktywuj</button>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end;">
+        <button class="btn" onclick="closeWalletModal()">Zamknij</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    // Theme Switcher
+    function changeTheme(themeName) {
+      document.documentElement.setAttribute('data-theme', themeName);
+      localStorage.setItem('audioticon_theme', themeName);
+    }
+
+    // Load saved theme
+    const savedTheme = localStorage.getItem('audioticon_theme') || 'ice-cyber';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    document.getElementById('themePicker').value = savedTheme;
+
+    // Layout Presets
+    function applyPreset(preset) {
+      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+
+      const editor = document.getElementById('tile-editor');
+      const inspector = document.getElementById('tile-inspector');
+      const transport = document.getElementById('tile-transport');
+      const timeline = document.getElementById('tile-timeline');
+
+      if (preset === 'director') {
+        // Reżyser: 12x8 standard
+        editor.style.gridColumn = "1 / 8"; editor.style.gridRow = "1 / 6";
+        inspector.style.gridColumn = "8 / 13"; inspector.style.gridRow = "1 / 4";
+        transport.style.gridColumn = "8 / 13"; transport.style.gridRow = "4 / 6";
+        timeline.style.gridColumn = "1 / 13"; timeline.style.gridRow = "6 / 9";
+      } else if (preset === 'writer') {
+        // Pisarz Zen: full editor + compact transport
+        editor.style.gridColumn = "1 / 10"; editor.style.gridRow = "1 / 9";
+        inspector.style.gridColumn = "10 / 13"; inspector.style.gridRow = "1 / 5";
+        transport.style.gridColumn = "10 / 13"; transport.style.gridRow = "5 / 9";
+        timeline.style.gridColumn = "1 / 13"; timeline.style.gridRow = "8 / 9";
+      } else if (preset === 'daw') {
+        // DAW: large timeline
+        editor.style.gridColumn = "1 / 6"; editor.style.gridRow = "1 / 5";
+        inspector.style.gridColumn = "6 / 9"; inspector.style.gridRow = "1 / 5";
+        transport.style.gridColumn = "9 / 13"; transport.style.gridRow = "1 / 5";
+        timeline.style.gridColumn = "1 / 13"; timeline.style.gridRow = "5 / 9";
+      }
+    }
+
+    // Block editor helpers
+    let blockCount = 3;
+    function addNewBlock() {
+      blockCount++;
+      const container = document.getElementById('blocksContainer');
+      const div = document.createElement('div');
+      div.className = 'script-block';
+      div.setAttribute('data-id', blockCount);
+      div.innerHTML = `
+        <div class="block-header">
+          <div class="actor-tag-selector" onclick="switchBlockActor(${blockCount})">
+            <span>👨</span> <span>Narrator</span> ▾
+          </div>
+          <div class="block-meta">#${blockCount} · 0 słów</div>
+        </div>
+        <textarea class="block-content" placeholder="Wpisz treść akapitu lub dialogu..." oninput="onBlockInput(${blockCount})"></textarea>
+        <div class="block-footer">
+          <span>DSP: Brak · Głos: Bzipek (Piper)</span>
+          <div class="block-actions">
+            <button class="btn-icon-xs" title="Odtwórz" onclick="previewBlock(${blockCount})">▶</button>
+            <button class="btn-icon-xs" title="Usuń" onclick="deleteBlock(${blockCount})">🗑️</button>
+          </div>
+        </div>
+      `;
+      container.appendChild(div);
+      recalcWordCount();
+    }
+
+    function deleteBlock(id) {
+      const el = document.querySelector(`.script-block[data-id="${id}"]`);
+      if (el) el.remove();
+      recalcWordCount();
+    }
+
+    function insertEmojiIntoActive(emoji) {
+      const activeTextarea = document.activeElement && document.activeElement.classList.contains('block-content')
+        ? document.activeElement
+        : document.querySelector('.script-block.selected .block-content');
+      if (activeTextarea) {
+        const start = activeTextarea.selectionStart;
+        const end = activeTextarea.selectionEnd;
+        const val = activeTextarea.value;
+        activeTextarea.value = val.substring(0, start) + ' ' + emoji + ' ' + val.substring(end);
+        activeTextarea.focus();
+        activeTextarea.selectionStart = activeTextarea.selectionEnd = start + emoji.length + 2;
+      }
+    }
+
+    function recalcWordCount() {
+      let totalWords = 0;
+      document.querySelectorAll('.block-content').forEach(ta => {
+        const words = ta.value.trim().split(/\s+/).filter(w => w.length > 0).length;
+        totalWords += words;
+      });
+      document.getElementById('wordCount').innerText = totalWords;
+      const seconds = Math.round(totalWords / 2.5);
+      document.getElementById('estDuration').innerText = `0:${seconds < 10 ? '0' : ''}${seconds}s`;
+    }
+
+    function onBlockInput(id) {
+      recalcWordCount();
+    }
+
+    function selectBlock(id) {
+      document.querySelectorAll('.script-block').forEach(b => b.classList.remove('selected'));
+      const b = document.querySelector(`.script-block[data-id="${id}"]`);
+      if (b) {
+        b.classList.add('selected');
+        b.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    // Master Transport & VU Meter animation
+    let isPlaying = false;
+    let animId = null;
+    let playheadX = 220;
+
+    function toggleMasterPlay() {
+      isPlaying = !isPlaying;
+      const btn = document.getElementById('playMasterBtn');
+      if (isPlaying) {
+        btn.innerText = '⏸';
+        btn.style.background = 'var(--danger)';
+        runVuAnimation();
+      } else {
+        btn.innerText = '▶';
+        btn.style.background = 'var(--accent)';
+        cancelAnimationFrame(animId);
+        document.getElementById('vuBarL').style.width = '10%';
+        document.getElementById('vuBarR').style.width = '10%';
+      }
+    }
+
+    function runVuAnimation() {
+      if (!isPlaying) return;
+      const vuL = 30 + Math.random() * 55;
+      const vuR = 30 + Math.random() * 55;
+      document.getElementById('vuBarL').style.width = vuL + '%';
+      document.getElementById('vuBarR').style.width = vuR + '%';
+
+      playheadX += 1.2;
+      if (playheadX > 750) playheadX = 120;
+      document.getElementById('timelinePlayhead').style.left = playheadX + 'px';
+
+      animId = requestAnimationFrame(runVuAnimation);
+    }
+
+    function seekOffset(seconds) {
+      playheadX = Math.max(120, Math.min(750, playheadX + seconds * 25));
+      document.getElementById('timelinePlayhead').style.left = playheadX + 'px';
+    }
+
+    // Modals
+    function openWalletModal() {
+      document.getElementById('walletModal').style.display = 'flex';
+    }
+    function closeWalletModal() {
+      document.getElementById('walletModal').style.display = 'none';
+    }
+    function redeemVoucher() {
+      const val = document.getElementById('voucherInput').value.trim();
+      if (!val) return;
+      alert(`✅ Kupon ${val} został pomyślnie zweryfikowany (HMAC-SHA256)! Dodano +500 AudioCoin$`);
+      document.getElementById('walletBalance').innerText = '1,750 ACX$';
+      closeWalletModal();
+    }
+
+    function renderAllAudio() {
+      alert("⚡ Rozpoczęto renderowanie całego projektu! Silnik: Piper + ElevenLabs v3, Crossfade: 45ms, Mastering: ACX -19.5 LUFS.");
+    }
+  </script>
+</body>
+</html>
