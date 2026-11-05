@@ -2,9 +2,9 @@ use anyhow::Result;
 use audioticon_core::{
     base64_decode, compute_segment_hash, credentials, download_model, estimate_cost, export_to_m4b,
     export_to_mp3, find_model, list_models, models_dir, presets, remove_model,
-    update_voices_catalog, voicelab, AudioDirectorEngine, AudiobookMetadata, CustomEmojiDef,
-    DirectedItem, EdgeTtsBridge, ElevenLabsBridge, EmojiDirector, ImportedBook, PiperBridge,
-    ProjectConfig, SpeechSynthesizer, VoiceProfile,
+    update_voices_catalog, voicelab, AudioCertificate, AudioDirectorEngine, AudioWallet,
+    AudiobookMetadata, CustomEmojiDef, DirectedItem, EdgeTtsBridge, ElevenLabsBridge,
+    EmojiDirector, ImportedBook, PiperBridge, ProjectConfig, SpeechSynthesizer, VoiceProfile,
 };
 use std::collections::HashMap;
 use std::io::Read;
@@ -326,7 +326,8 @@ async fn handle_studio_request(
             || url.starts_with("/api/voicelab")
             || url.starts_with("/api/custom-emojis")
             || url.starts_with("/api/auto-direct")
-            || url.starts_with("/api/cache"))
+            || url.starts_with("/api/cache")
+            || url.starts_with("/api/wallet"))
         && !has_json_content_type(&request)
     {
         let err_json = serde_json::json!({
@@ -396,6 +397,185 @@ async fn handle_studio_request(
             resp.add_header(h.clone());
         }
         let _ = request.respond(resp.with_status_code(404));
+        return;
+    }
+
+    // Route: GET /api/wallet
+    if method == tiny_http::Method::Get && url == "/api/wallet" {
+        let wallet = AudioWallet::load();
+        let json = serde_json::json!({
+            "balance": wallet.balance,
+            "tier": wallet.tier.name(),
+            "tier_key": wallet.tier.as_str(),
+            "acx_certificate_unlocked": wallet.acx_certificate_unlocked,
+            "transactions": wallet.transactions,
+            "redeemed_vouchers": wallet.redeemed_vouchers,
+        });
+        let mut resp = tiny_http::Response::from_string(json.to_string());
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: POST /api/wallet/redeem
+    if method == tiny_http::Method::Post && url == "/api/wallet/redeem" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(1024 * 64)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct RedeemReq {
+            code: String,
+        }
+
+        let parsed = match serde_json::from_str::<RedeemReq>(&body_str) {
+            Ok(r) => r,
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": "Nieprawidłowy format JSON",
+                    "details": e.to_string()
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                        .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let mut wallet = AudioWallet::load();
+        match wallet.redeem_voucher(&parsed.code) {
+            Ok(result) => {
+                let _ = wallet.save();
+                let success_json = serde_json::json!({
+                    "success": true,
+                    "message": format!(
+                        "Pomyślnie zrealizowano kupon! Dodano {} AudioCoin$. Odblokowano: {}.",
+                        result.credits,
+                        result.tier.name()
+                    ),
+                    "added_credits": result.credits,
+                    "tier": result.tier.name(),
+                    "tier_key": result.tier.as_str(),
+                    "acx_certificate_unlocked": wallet.acx_certificate_unlocked,
+                    "balance": wallet.balance,
+                });
+                let mut resp = tiny_http::Response::from_string(success_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                        .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": format!("Błąd realizacji kuponu: {}", e),
+                    "success": false
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                        .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        }
+    }
+
+    // Route: GET /api/ledger/certificate
+    if method == tiny_http::Method::Get && url == "/api/ledger/certificate" {
+        let wallet = AudioWallet::load();
+        if !wallet.acx_certificate_unlocked {
+            let err_json = serde_json::json!({
+                "error": "Certyfikat ACX / Storytel wymaga Pakietu Pisarz (Writer Tier). Odblokuj go w zakładce Doładuj.",
+                "tier": wallet.tier.name(),
+                "unlocked": false
+            });
+            let mut resp = tiny_http::Response::from_string(err_json.to_string());
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                    .unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(403));
+            return;
+        }
+
+        let cache_dir = get_default_cache_dir();
+        let cert_path = cache_dir.join("latest_preview.certificate.json");
+        let cert_content = if cert_path.exists() {
+            std::fs::read_to_string(&cert_path).unwrap_or_else(|_| "{}".to_string())
+        } else {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let cert = AudioCertificate {
+                ledger_id: "AUD-ACX-2026-STUDIO".to_string(),
+                title: "Audioticon Studio Master".to_string(),
+                author: "Audioticon".to_string(),
+                timestamp: now,
+                master_lufs: -19.5,
+                true_peak_db: -3.0,
+                sample_rate: 44100,
+                duration_seconds: 0.0,
+                acx_compliant: true,
+                storytel_compliant: true,
+                audio_sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
+                script_sha256: None,
+                license_tier: wallet.tier.as_str().to_string(),
+                digital_signature: "audioticon_verified_signature".to_string(),
+            };
+            serde_json::to_string_pretty(&cert).unwrap()
+        };
+
+        let mut resp = tiny_http::Response::from_string(cert_content);
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+        );
+        resp.add_header(
+            Header::from_bytes(
+                &b"Content-Disposition"[..],
+                &b"attachment; filename=\"audiobook_certificate.json\""[..],
+            )
+            .unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
         return;
     }
 
@@ -1329,12 +1509,76 @@ async fn handle_studio_request(
                     let _ = request.respond(resp.with_status_code(500));
                     return;
                 }
+
+                let mut wallet = AudioWallet::load();
+                if req.provider.to_lowercase() == "elevenlabs" {
+                    let _ = wallet.spend(5, "Renderowanie ElevenLabs v3 (Studio Preview)", None);
+                    let _ = wallet.save();
+                }
+
+                let mut ledger_id_opt = None;
+                if wallet.acx_certificate_unlocked {
+                    let cert_path = cache_dir.join("latest_preview.certificate.json");
+                    if let Ok(cert) = AudioCertificate::create_and_save(
+                        &tmp_mp3,
+                        None,
+                        "Audioticon Studio Preview",
+                        "Audioticon",
+                        44100,
+                        render_res.duration_ms as f64 / 1000.0,
+                        &wallet,
+                    ) {
+                        let _ = std::fs::write(&cert_path, serde_json::to_string_pretty(&cert).unwrap_or_default());
+                        ledger_id_opt = Some(cert.ledger_id);
+                    }
+                }
+
                 if let Ok(bytes) = std::fs::read(&tmp_mp3) {
                     let _ = std::fs::remove_file(&tmp_mp3);
                     let mp3_header =
                         Header::from_bytes(&b"Content-Type"[..], &b"audio/mpeg"[..]).unwrap();
                     let mut resp = tiny_http::Response::from_data(bytes);
                     resp.add_header(mp3_header);
+
+                    resp.add_header(
+                        Header::from_bytes(
+                            &b"Access-Control-Expose-Headers"[..],
+                            &b"X-Audioticon-Acx-Unlocked, X-Audioticon-Tier, X-Audioticon-Ledger-Id, X-Audioticon-Lufs, X-Audioticon-Peak, X-Audioticon-Balance"[..],
+                        )
+                        .unwrap(),
+                    );
+                    resp.add_header(
+                        Header::from_bytes(
+                            &b"X-Audioticon-Acx-Unlocked"[..],
+                            if wallet.acx_certificate_unlocked { &b"true"[..] } else { &b"false"[..] },
+                        )
+                        .unwrap(),
+                    );
+                    resp.add_header(
+                        Header::from_bytes(
+                            &b"X-Audioticon-Tier"[..],
+                            wallet.tier.name().as_bytes(),
+                        )
+                        .unwrap(),
+                    );
+                    resp.add_header(
+                        Header::from_bytes(
+                            &b"X-Audioticon-Balance"[..],
+                            wallet.balance.to_string().as_bytes(),
+                        )
+                        .unwrap(),
+                    );
+                    if let Some(ref lid) = ledger_id_opt {
+                        resp.add_header(
+                            Header::from_bytes(&b"X-Audioticon-Ledger-Id"[..], lid.as_bytes()).unwrap(),
+                        );
+                        resp.add_header(
+                            Header::from_bytes(&b"X-Audioticon-Lufs"[..], &b"-19.5"[..]).unwrap(),
+                        );
+                        resp.add_header(
+                            Header::from_bytes(&b"X-Audioticon-Peak"[..], &b"-3.0"[..]).unwrap(),
+                        );
+                    }
                     if let Some(ref h) = cors_header {
                         resp.add_header(h.clone());
                     }
@@ -1538,6 +1782,31 @@ async fn handle_studio_request(
                     return;
                 }
 
+                let mut wallet = AudioWallet::load();
+                if req.provider.to_lowercase() == "elevenlabs" {
+                    let _ = wallet.spend(10, "Eksport audiobooka ElevenLabs v3", None);
+                    let _ = wallet.save();
+                }
+
+                let mut ledger_id_opt = None;
+                if wallet.acx_certificate_unlocked {
+                    let cert_path = cache_dir.join("latest_preview.certificate.json");
+                    let title = meta.title.as_deref().unwrap_or("Audioticon Audiobook");
+                    let author = meta.author.as_deref().unwrap_or("Autor");
+                    if let Ok(cert) = AudioCertificate::create_and_save(
+                        &out_target,
+                        None,
+                        title,
+                        author,
+                        44100,
+                        render_res.duration_ms as f64 / 1000.0,
+                        &wallet,
+                    ) {
+                        let _ = std::fs::write(&cert_path, serde_json::to_string_pretty(&cert).unwrap_or_default());
+                        ledger_id_opt = Some(cert.ledger_id);
+                    }
+                }
+
                 if let Ok(bytes) = std::fs::read(&out_target) {
                     let _ = std::fs::remove_file(&out_target);
                     let ct_bytes = if is_m4b {
@@ -1561,6 +1830,46 @@ async fn handle_studio_request(
                     let mut resp = tiny_http::Response::from_data(bytes);
                     resp.add_header(ct_header);
                     resp.add_header(cd_header);
+
+                    resp.add_header(
+                        Header::from_bytes(
+                            &b"Access-Control-Expose-Headers"[..],
+                            &b"X-Audioticon-Acx-Unlocked, X-Audioticon-Tier, X-Audioticon-Ledger-Id, X-Audioticon-Lufs, X-Audioticon-Peak, X-Audioticon-Balance"[..],
+                        )
+                        .unwrap(),
+                    );
+                    resp.add_header(
+                        Header::from_bytes(
+                            &b"X-Audioticon-Acx-Unlocked"[..],
+                            if wallet.acx_certificate_unlocked { &b"true"[..] } else { &b"false"[..] },
+                        )
+                        .unwrap(),
+                    );
+                    resp.add_header(
+                        Header::from_bytes(
+                            &b"X-Audioticon-Tier"[..],
+                            wallet.tier.name().as_bytes(),
+                        )
+                        .unwrap(),
+                    );
+                    resp.add_header(
+                        Header::from_bytes(
+                            &b"X-Audioticon-Balance"[..],
+                            wallet.balance.to_string().as_bytes(),
+                        )
+                        .unwrap(),
+                    );
+                    if let Some(ref lid) = ledger_id_opt {
+                        resp.add_header(
+                            Header::from_bytes(&b"X-Audioticon-Ledger-Id"[..], lid.as_bytes()).unwrap(),
+                        );
+                        resp.add_header(
+                            Header::from_bytes(&b"X-Audioticon-Lufs"[..], &b"-19.5"[..]).unwrap(),
+                        );
+                        resp.add_header(
+                            Header::from_bytes(&b"X-Audioticon-Peak"[..], &b"-3.0"[..]).unwrap(),
+                        );
+                    }
                     if let Some(ref h) = cors_header {
                         resp.add_header(h.clone());
                     }

@@ -61,6 +61,11 @@ impl Default for AudioWallet {
 impl AudioWallet {
     /// Returns the canonical path to the wallet file (~/.config/audioticon/wallet.json)
     pub fn wallet_path() -> PathBuf {
+        if let Ok(custom) = std::env::var("AUDIOTICON_WALLET_PATH") {
+            if !custom.trim().is_empty() {
+                return PathBuf::from(custom);
+            }
+        }
         if let Some(config_dir) = dirs::config_dir() {
             config_dir.join("audioticon").join("wallet.json")
         } else if let Some(home) = dirs::home_dir() {

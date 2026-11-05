@@ -176,8 +176,15 @@ fn http_roundtrip(
 #[test]
 fn test_api_server_endpoints_e2e() {
     let port = get_free_port();
+    let test_wallet = std::env::temp_dir().join(format!(
+        "isolated_api_wallet_{}_{}.json",
+        std::process::id(),
+        port
+    ));
+    let _ = std::fs::remove_file(&test_wallet);
     let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
         .args(["serve", "--port", &port.to_string(), "--no-browser"])
+        .env("AUDIOTICON_WALLET_PATH", &test_wallet)
         .spawn()
         .expect("spawn server");
 
@@ -258,6 +265,48 @@ fn test_api_server_endpoints_e2e() {
             "Cached count must be greater than 0"
         );
     }
+
+    // 7. GET /api/wallet: verify wallet balance, tier, and transaction audit
+    let (w_status, w_headers, w_body) = http_roundtrip(port, "GET", "/api/wallet", None);
+    assert_eq!(w_status, 200);
+    assert!(w_headers.contains("application/json"));
+    let w_str = String::from_utf8_lossy(&w_body);
+    assert!(w_str.contains("\"balance\""));
+    assert!(w_str.contains("\"tier\""));
+    assert!(w_str.contains("\"transactions\""));
+
+    // 8. POST /api/wallet/redeem: invalid voucher should fail with 400
+    let (r_status, _, r_body) = http_roundtrip(
+        port,
+        "POST",
+        "/api/wallet/redeem",
+        Some("{\"code\": \"AUD-INVALID-CODE\"}"),
+    );
+    assert_eq!(r_status, 400);
+    let r_str = String::from_utf8_lossy(&r_body);
+    assert!(r_str.contains("Błąd"));
+
+    // 9. POST /api/wallet/redeem: valid cryptographic voucher should unlock Writer Tier
+    let valid_voucher =
+        audioticon_core::generate_voucher_code(audioticon_core::WalletTier::Writer, 25000, "VIP2026");
+    let redeem_payload = format!("{{\"code\": \"{}\"}}", valid_voucher);
+    let (v_status, _, v_body) =
+        http_roundtrip(port, "POST", "/api/wallet/redeem", Some(&redeem_payload));
+    assert_eq!(v_status, 200);
+    let v_str = String::from_utf8_lossy(&v_body);
+    assert!(v_str.contains("\"success\":true"));
+    assert!(v_str.contains("\"tier\":\"Pisarz\""));
+    assert!(v_str.contains("\"acx_certificate_unlocked\":true"));
+
+    // 10. GET /api/ledger/certificate: with Writer tier unlocked, certificate must be returned
+    let (cert_status, cert_headers, cert_body) =
+        http_roundtrip(port, "GET", "/api/ledger/certificate", None);
+    assert_eq!(cert_status, 200);
+    assert!(cert_headers.contains("application/json"));
+    let cert_str = String::from_utf8_lossy(&cert_body);
+    assert!(cert_str.contains("ledger_id"));
+    assert!(cert_str.contains("master_lufs"));
+    assert!(cert_str.contains("acx_compliant"));
 
     let _ = child.kill();
     let _ = child.wait();
@@ -1010,10 +1059,16 @@ fn test_cli_sfx_list_and_catalog() {
 #[test]
 fn test_cli_wallet_balance_topup_and_redeem() {
     let exe = env!("CARGO_BIN_EXE_audioticon");
+    let test_wallet = std::env::temp_dir().join(format!(
+        "cli_test_wallet_{}.json",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_file(&test_wallet);
 
     // 1. Balance check
     let out_balance = Command::new(exe)
         .args(["wallet", "balance"])
+        .env("AUDIOTICON_WALLET_PATH", &test_wallet)
         .output()
         .expect("Run audioticon wallet balance");
     assert!(out_balance.status.success());
@@ -1024,6 +1079,7 @@ fn test_cli_wallet_balance_topup_and_redeem() {
     // 2. Top-up pricing list check
     let out_topup = Command::new(exe)
         .args(["wallet", "topup"])
+        .env("AUDIOTICON_WALLET_PATH", &test_wallet)
         .output()
         .expect("Run audioticon wallet topup");
     assert!(out_topup.status.success());
@@ -1034,8 +1090,25 @@ fn test_cli_wallet_balance_topup_and_redeem() {
     // 3. Redeem invalid voucher error handling
     let out_invalid = Command::new(exe)
         .args(["wallet", "redeem", "INVALID-CODE-999"])
+        .env("AUDIOTICON_WALLET_PATH", &test_wallet)
         .output()
         .expect("Run audioticon wallet redeem with invalid code");
     let stderr_invalid = String::from_utf8_lossy(&out_invalid.stderr);
     assert!(stderr_invalid.contains("Błąd realizacji vouchera"));
+
+    // 4. Redeem valid Writer voucher
+    let valid_code = audioticon_core::generate_voucher_code(
+        audioticon_core::WalletTier::Writer,
+        25000,
+        "VIP2026",
+    );
+    let out_valid = Command::new(exe)
+        .args(["wallet", "redeem", &valid_code])
+        .env("AUDIOTICON_WALLET_PATH", &test_wallet)
+        .output()
+        .expect("Run audioticon wallet redeem with valid code");
+    assert!(out_valid.status.success());
+    let stdout_valid = String::from_utf8_lossy(&out_valid.stdout);
+    assert!(stdout_valid.contains("Zrealizowano voucher VIP"));
+    assert!(stdout_valid.contains("Pisarz"));
 }

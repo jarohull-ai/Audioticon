@@ -24,6 +24,10 @@ impl WalletTier {
         }
     }
 
+    pub fn name(&self) -> &'static str {
+        self.as_str()
+    }
+
     pub fn has_acx_certificate(&self) -> bool {
         matches!(self, Self::Writer | Self::Publisher)
     }
