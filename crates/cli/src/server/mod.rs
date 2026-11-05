@@ -349,11 +349,13 @@ async fn handle_studio_request(
         return;
     }
 
-    // Route: GET / or GET /index.html
-    if method == tiny_http::Method::Get && (url == "/" || url == "/index.html") {
+    // Route: GET / or GET /index.html or GET /studio or GET /studio.html (Modular Tiling Studio Workbench)
+    if method == tiny_http::Method::Get
+        && (url == "/" || url == "/index.html" || url == "/studio" || url == "/studio.html")
+    {
         let html_header =
             Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap();
-        let mut resp = tiny_http::Response::from_string(STUDIO_HTML);
+        let mut resp = tiny_http::Response::from_string(MODULAR_STUDIO_HTML);
         resp.add_header(html_header);
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -362,11 +364,11 @@ async fn handle_studio_request(
         return;
     }
 
-    // Route: GET /studio or GET /studio.html (Modular Tiling Studio)
-    if method == tiny_http::Method::Get && (url == "/studio" || url == "/studio.html") {
+    // Route: GET /classic or GET /classic.html (Legacy Monolithic Studio)
+    if method == tiny_http::Method::Get && (url == "/classic" || url == "/classic.html") {
         let html_header =
             Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..]).unwrap();
-        let mut resp = tiny_http::Response::from_string(MODULAR_STUDIO_HTML);
+        let mut resp = tiny_http::Response::from_string(STUDIO_HTML);
         resp.add_header(html_header);
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -2964,12 +2966,13 @@ pub async fn run_studio_server(
     let server = Arc::new(srv_raw);
 
     println!("============================================================");
-    println!("🚀 AUDIOTICON STUDIO (WORKBENCH) URUCHOMIONE!");
+    println!("🚀 AUDIOTICON STUDIO (MODULAR WORKBENCH) URUCHOMIONE!");
     println!("============================================================");
     println!("🌐 Adres w przeglądarce: http://{}", addr);
+    println!("🎛️  Interfejs:          Modularny Studio Workbench (Cosmic + CapCut + Notion)");
     println!("⚙️  Domyślny silnik:     {:?}", default_provider);
     println!("🗣️  Domyślny język:      {}", default_lang);
-    println!("💡 Wpisz tekst z emotikonami lub aliasami [pauza] i odsłuchaj na żywo.");
+    println!("💡 Klasyczny widok dostępny pod: http://{}/classic", addr);
     println!("Naciśnij Ctrl+C, aby zatrzymać serwer.");
     println!("============================================================");
 
