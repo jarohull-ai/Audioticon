@@ -263,6 +263,8 @@ pub struct RenderResult {
     pub total_segments: usize,
     pub duration_ms: u64,
     pub chapters: Vec<ChapterMark>,
+    #[serde(default)]
+    pub subtitles: Option<crate::subtitles::SubtitleTrack>,
 }
 
 /// Complete directed script composed of sequential items.

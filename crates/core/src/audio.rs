@@ -1883,6 +1883,7 @@ impl AudioDirectorEngine {
         let mut active_chapter: Option<(String, u64)> = None;
         let mut current_ms: u64 = 0;
         let mut item_start_ms: Vec<u64> = Vec::new();
+        let mut item_durations_ms: Vec<u64> = Vec::new();
 
         for (wav_opt, chapter_opt) in &scheduled_items {
             item_start_ms.push(current_ms);
@@ -1900,6 +1901,9 @@ impl AudioDirectorEngine {
                 if let Ok(reader) = WavReader::open(wav_path) {
                     let dur = (reader.duration() as u64 * 1000) / reader.spec().sample_rate as u64;
                     current_ms += dur;
+                    item_durations_ms.push(dur);
+                } else {
+                    item_durations_ms.push(0);
                 }
             }
         }
@@ -1980,10 +1984,12 @@ impl AudioDirectorEngine {
             cache_hits,
             chunk_paths.len() - cache_hits
         );
+        let subtitles = crate::subtitles::build_subtitles_from_script_and_durations(script, &item_durations_ms);
         Ok(RenderResult {
             total_segments: chunk_paths.len(),
             duration_ms: current_ms,
             chapters,
+            subtitles: Some(subtitles),
         })
     }
 }

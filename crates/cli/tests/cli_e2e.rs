@@ -1300,3 +1300,68 @@ fn test_cli_render_with_kokoro_provider() {
 
     let _ = std::fs::remove_dir_all(&tmp_dir);
 }
+
+#[test]
+fn test_api_subtitles_export_e2e() {
+    let port = get_free_port();
+    let tmp_dir = std::env::temp_dir().join(format!(
+        "test_subtitles_e2e_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = std::fs::create_dir_all(&tmp_dir);
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .args(["serve", "--port", &port.to_string(), "--no-browser"])
+        .env("AUDIOTICON_CACHE_DIR", tmp_dir.to_str().unwrap())
+        .spawn()
+        .expect("Start studio server");
+
+    let mut connected = false;
+    for _ in 0..30 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        if std::net::TcpStream::connect(format!("127.0.0.1:{}", port)).is_ok() {
+            connected = true;
+            break;
+        }
+    }
+    assert!(connected, "Server failed to start on port {}", port);
+
+    // 1. Query /api/subtitles/export with sample script and durations
+    let req_body = serde_json::json!({
+        "script": "Cisza przed burzą. [pauza: 500ms] Wtem rozległ się potężny grzmot!",
+        "format": "srt",
+        "item_durations_ms": [1500, 500, 2200]
+    }).to_string();
+
+    let (status, _hdrs, body) = http_roundtrip(port, "POST", "/api/subtitles/export", Some(&req_body));
+    assert_eq!(status, 200, "Export subtitles must return 200 OK");
+    let json_resp: serde_json::Value = serde_json::from_slice(&body).expect("Parse JSON response");
+    assert_eq!(json_resp["status"], "ok");
+    let srt_text = json_resp["content"].as_str().unwrap_or("");
+    assert!(srt_text.contains("-->"), "SRT must contain timestamp arrow");
+    assert!(srt_text.contains("Cisza") || srt_text.contains("burzą") || srt_text.contains("grzmot"));
+
+    // 2. Query /api/subtitles/export with format=karaoke (vtt)
+    let req_karaoke = serde_json::json!({
+        "script": "Witaj świecie audiobooków.",
+        "format": "karaoke",
+        "item_durations_ms": [1800]
+    }).to_string();
+
+    let (s_kar, _, b_kar) = http_roundtrip(port, "POST", "/api/subtitles/export", Some(&req_karaoke));
+    assert_eq!(s_kar, 200);
+    let json_kar: serde_json::Value = serde_json::from_slice(&b_kar).expect("Parse karaoke response");
+    assert_eq!(json_kar["status"], "ok");
+    let vtt_text = json_kar["content"].as_str().unwrap_or("");
+    assert!(vtt_text.starts_with("WEBVTT"), "Karaoke export must start with WEBVTT");
+    assert!(vtt_text.contains("<00:"), "Karaoke must contain inline word timestamps");
+
+    // Clean up
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+}

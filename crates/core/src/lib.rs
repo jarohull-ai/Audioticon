@@ -17,6 +17,7 @@ pub mod room_tone;
 pub mod sfx;
 pub mod studio_leveler;
 pub mod style_transfer;
+pub mod subtitles;
 pub mod types;
 pub mod verbalizer;
 pub mod voice_design;
@@ -86,6 +87,10 @@ pub use style_transfer::{
     apply_disentangled_style, apply_disentangled_style_to_wav, diagnose_styled_audio,
     estimate_median_f0, extract_disentangled_style_matrix, DisentangledStyleMatrix, StyleCategory,
     StyleDiagnosticReport,
+};
+pub use subtitles::{
+    align_segment_words, build_subtitles_from_script_and_durations, format_timestamp_srt,
+    format_timestamp_vtt, generate_subtitles_from_cache, SubtitleCue, SubtitleTrack, WordCue,
 };
 pub use types::{
     ActorTag, AudiobookMetadata, AudioticonProject, BreathIntensity, ChapterMark, DirectedItem,

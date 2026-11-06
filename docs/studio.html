@@ -977,6 +977,11 @@
           <span>🎬</span> Reżyser AI (Bielik)
         </button>
 
+        <!-- Subtitles & TikTok Karaoke Button -->
+        <button class="btn" onclick="openSubtitlesModal()" style="border-color:#38bdf8; color:#38bdf8; font-weight:700;" title="Eksportuj napisy i znaczniki czasowe (.SRT, .VTT, TikTok Karaoke)">
+          <span>💬</span> Napisy (.SRT)
+        </button>
+
         <!-- Tile Toggle Menu -->
         <button class="btn" onclick="toggleTilePalette()">
           <span>🪟</span> Kafelki
@@ -1189,6 +1194,11 @@
             <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted);">
               <span>Głośność: <b>85%</b></span>
               <span>ACX Standard: <b>-19.5 LUFS ✅</b></span>
+            </div>
+
+            <!-- Live Word-Level Karaoke Prompter -->
+            <div id="karaokePromptBox" style="margin-top:0.4rem; padding:0.45rem 0.65rem; border-radius:6px; background:var(--surface-elev); border:1px solid var(--border); font-size:0.74rem; text-align:center; min-height:2.2rem; display:flex; align-items:center; justify-content:center; color:var(--text-main); line-height:1.4;">
+              <span id="karaokeCurrentText">💬 <i>Napisy i słowa pojawią się podczas odtwarzania...</i></span>
             </div>
           </div>
         </div>
@@ -1708,6 +1718,59 @@
     </div>
   </div>
 
+  <!-- MODAL: SUBTITLES & TIKTOK KARAOKE EXPORTER (.SRT, .VTT, .JSON) -->
+  <div class="modal-backdrop" id="subtitlesModal">
+    <div class="modal-card" style="width:880px; max-width:96vw; max-height:92vh; overflow-y:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <div>
+          <div style="font-size:1.15rem; font-weight:800;">💬 Eksport Napisów &amp; Znaczników Słowo-w-Słowo</div>
+          <div style="font-size:0.75rem; color:var(--text-dim);">
+            Precyzyjne napisy ze znacznikami czasowymi (.srt, .vtt) oraz karaoke per-słowo dla rolek na TikTok, YouTube Shorts, Reels i odtwarzaczy wideo.
+          </div>
+        </div>
+        <button class="tile-btn" onclick="closeSubtitlesModal()">✕</button>
+      </div>
+
+      <!-- Zakładki formatów -->
+      <div style="display:flex; gap:0.5rem; border-bottom:1px solid var(--border); padding-bottom:0.5rem; margin-bottom:0.75rem; flex-wrap:wrap;">
+        <button class="btn active" id="tabSubSrt" onclick="switchSubtitleFormat('srt')">📑 Standardowe SubRip (.SRT)</button>
+        <button class="btn" id="tabSubVtt" onclick="switchSubtitleFormat('vtt')">🌐 WebVTT (.VTT)</button>
+        <button class="btn" id="tabSubKaraoke" onclick="switchSubtitleFormat('karaoke')" style="border-color:#38bdf8; color:#38bdf8;">🎵 TikTok / Reels Karaoke (<timestamp>)</button>
+        <button class="btn" id="tabSubJson" onclick="switchSubtitleFormat('json')">📊 Oś Czasu JSON</button>
+      </div>
+
+      <!-- Pasek informacyjny -->
+      <div style="display:flex; justify-content:space-between; align-items:center; background:var(--surface-elev); padding:0.55rem 0.8rem; border-radius:6px; border:1px solid var(--border); margin-bottom:0.75rem; font-size:0.75rem;">
+        <div>
+          Kwestii/linii: <b id="subCuesCount" style="color:var(--accent);">0</b> &nbsp;|&nbsp;
+          Łączny czas: <b id="subDuration">00:00</b> &nbsp;|&nbsp;
+          Standard: <span style="color:#34d399; font-weight:700;">Netflix/BBC Max 42 znaki</span>
+        </div>
+        <div style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-dim);" id="subStatusInfo">
+          Gotowe do pobrania
+        </div>
+      </div>
+
+      <!-- Podgląd treści napisów -->
+      <textarea id="subtitlesContentArea" class="inspector-input" style="width:100%; height:320px; font-family:'Fira Code', monospace; font-size:0.75rem; line-height:1.45; white-space:pre; padding:0.75rem; background:var(--bg-base); border-radius:8px; margin-bottom:1rem; resize:vertical;"></textarea>
+
+      <!-- Przyciski akcji -->
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+        <button class="btn" onclick="refreshSubtitlesFromCurrentScript()">
+          ⚡ Odśwież / Przelicz z Edytora
+        </button>
+        <div style="display:flex; gap:0.5rem;">
+          <button class="btn" onclick="copySubtitlesToClipboard()">
+            📋 Kopiuj do schowka
+          </button>
+          <button class="btn btn-primary" onclick="downloadActiveSubtitlesFile()">
+            💾 Pobierz plik (<span id="btnDownloadSubExt">.srt</span>)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- HIDDEN AUDIO PLAYER ELEMENT -->
   <audio id="audioPlayer" style="display:none;"></audio>
 
@@ -2094,6 +2157,11 @@
       document.getElementById('timelinePlayhead').style.left = playheadX + 'px';
       updateTimecode();
 
+      const curMs = (audioPlayer && !audioPlayer.paused)
+        ? (audioPlayer.currentTime * 1000)
+        : ((playheadX / 50) * 1000);
+      updateKaraokeFollower(curMs);
+
       animId = requestAnimationFrame(runVuAnimation);
     }
 
@@ -2185,6 +2253,7 @@
           audioPlayer.src = url;
           audioPlayer.play();
           startMasterPlay();
+          fetchLatestSubtitlesTrack();
         } else {
           previewBlock(1);
         }
@@ -3332,6 +3401,215 @@
         openDirectorModal();
         runDirectorPropose();
       }
+    }
+
+    // =====================================================================
+    // SUBTITLES & TIKTOK KARAOKE EXPORTER (.SRT, .VTT, .JSON)
+    // =====================================================================
+    let activeSubtitleTrack = null;
+    let currentSubtitleFormat = 'srt';
+
+    function openSubtitlesModal() {
+      document.getElementById('subtitlesModal').classList.add('open');
+      if (!activeSubtitleTrack) {
+        refreshSubtitlesFromCurrentScript();
+      } else {
+        renderSubtitlesInModal();
+      }
+    }
+
+    function closeSubtitlesModal() {
+      document.getElementById('subtitlesModal').classList.remove('open');
+    }
+
+    async function fetchLatestSubtitlesTrack() {
+      try {
+        const res = await fetch('/api/subtitles/latest?format=json');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.cues) {
+            activeSubtitleTrack = data;
+          }
+        }
+      } catch (e) {
+        console.warn("Could not fetch latest subtitles:", e);
+      }
+    }
+
+    async function refreshSubtitlesFromCurrentScript() {
+      const infoEl = document.getElementById('subStatusInfo');
+      if (infoEl) infoEl.innerText = '⏳ Przeliczanie czasów...';
+
+      let fullScript = "";
+      document.querySelectorAll('.script-block').forEach(b => {
+        const actor = b.querySelector('.actor-name')?.innerText || 'Narrator';
+        const text = b.querySelector('.block-content')?.value.trim() || '';
+        if (text) fullScript += `[${actor}] ${text}\n`;
+      });
+
+      try {
+        const res = await fetch('/api/subtitles/export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: fullScript,
+            lang: 'pl',
+            voice: 'pl-PL-MarekNeural',
+            format: currentSubtitleFormat
+          })
+        });
+        const data = await res.json();
+        if (data && data.status === 'ok') {
+          activeSubtitleTrack = data.subtitles;
+          renderSubtitlesInModal(data.content);
+          if (infoEl) infoEl.innerText = '✅ Zsynchronizowano pomyślnie';
+        } else {
+          if (infoEl) infoEl.innerText = '⚠️ Użyto czasów estymowanych';
+        }
+      } catch (e) {
+        if (infoEl) infoEl.innerText = 'Błąd: ' + e.message;
+      }
+    }
+
+    function switchSubtitleFormat(fmt) {
+      currentSubtitleFormat = fmt;
+      document.querySelectorAll('#subtitlesModal .btn').forEach(b => {
+        if (b.id && b.id.startsWith('tabSub')) b.classList.remove('active');
+      });
+      const activeBtn = document.getElementById(
+        fmt === 'srt' ? 'tabSubSrt' :
+        fmt === 'vtt' ? 'tabSubVtt' :
+        fmt === 'karaoke' ? 'tabSubKaraoke' : 'tabSubJson'
+      );
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const extSpan = document.getElementById('btnDownloadSubExt');
+      if (extSpan) extSpan.innerText = fmt === 'json' ? '.json' : (fmt === 'srt' ? '.srt' : '.vtt');
+
+      renderSubtitlesInModal();
+    }
+
+    function renderSubtitlesInModal(directContent) {
+      if (!activeSubtitleTrack && !directContent) return;
+      const area = document.getElementById('subtitlesContentArea');
+
+      let content = directContent;
+      if (!content && activeSubtitleTrack) {
+        if (currentSubtitleFormat === 'srt') {
+          content = formatTrackToSrt(activeSubtitleTrack);
+        } else if (currentSubtitleFormat === 'vtt') {
+          content = formatTrackToVtt(activeSubtitleTrack, false);
+        } else if (currentSubtitleFormat === 'karaoke') {
+          content = formatTrackToVtt(activeSubtitleTrack, true);
+        } else {
+          content = JSON.stringify(activeSubtitleTrack, null, 2);
+        }
+      }
+
+      area.value = content || '';
+      const cueCount = activeSubtitleTrack?.cues?.length || 0;
+      document.getElementById('subCuesCount').innerText = String(cueCount);
+      const totalSec = Math.round((activeSubtitleTrack?.total_duration_ms || 0) / 1000);
+      const mins = Math.floor(totalSec / 60);
+      const secs = totalSec % 60;
+      document.getElementById('subDuration').innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    function formatTrackToSrt(track) {
+      if (!track || !track.cues) return '';
+      return track.cues.map(c => {
+        const spk = (c.speaker && c.speaker !== 'Narrator') ? `[${c.speaker}]: ` : '';
+        return `${c.index}\n${formatMsToSrtTime(c.start_ms)} --> ${formatMsToSrtTime(c.end_ms)}\n${spk}${c.text}`;
+      }).join('\n\n');
+    }
+
+    function formatTrackToVtt(track, isKaraoke) {
+      if (!track || !track.cues) return '';
+      let out = `WEBVTT - Audioticon Studio ${isKaraoke ? 'Karaoke' : 'Subtitles'}\n\n`;
+      out += track.cues.map(c => {
+        let textBody = '';
+        if (isKaraoke && c.words && c.words.length > 0) {
+          const spkTag = c.speaker ? `<v ${c.speaker}>` : '';
+          const wordsStr = c.words.map(w => `<${formatMsToVttTime(w.start_ms)}>${w.word}`).join(' ');
+          textBody = `${spkTag}${wordsStr}${c.speaker ? '</v>' : ''}`;
+        } else {
+          textBody = c.speaker ? `<v ${c.speaker}>${c.text}</v>` : c.text;
+        }
+        return `${c.index}\n${formatMsToVttTime(c.start_ms)} --> ${formatMsToVttTime(c.end_ms)}\n${textBody}`;
+      }).join('\n\n');
+      return out;
+    }
+
+    function formatMsToSrtTime(ms) {
+      const h = Math.floor(ms / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      const milli = Math.floor(ms % 1000);
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')},${String(milli).padStart(3,'0')}`;
+    }
+
+    function formatMsToVttTime(ms) {
+      const h = Math.floor(ms / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      const milli = Math.floor(ms % 1000);
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(milli).padStart(3,'0')}`;
+    }
+
+    function downloadActiveSubtitlesFile() {
+      const content = document.getElementById('subtitlesContentArea').value;
+      if (!content.trim()) {
+        alert("Brak treści napisów do pobrania!");
+        return;
+      }
+      const ext = currentSubtitleFormat === 'json' ? 'json' : (currentSubtitleFormat === 'srt' ? 'srt' : 'vtt');
+      const mime = ext === 'json' ? 'application/json' : (ext === 'srt' ? 'text/plain' : 'text/vtt');
+      const blob = new Blob([content], { type: mime + ';charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `audiobook_napisy_${currentSubtitleFormat}.${ext}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function copySubtitlesToClipboard() {
+      const content = document.getElementById('subtitlesContentArea').value;
+      navigator.clipboard.writeText(content).then(() => {
+        alert("✅ Skopiowano napisy do schowka!");
+      }).catch(e => alert("Błąd kopiowania: " + e.message));
+    }
+
+    function updateKaraokeFollower(curMs) {
+      const box = document.getElementById('karaokeCurrentText');
+      if (!box) return;
+
+      if (!activeSubtitleTrack || !activeSubtitleTrack.cues || activeSubtitleTrack.cues.length === 0) {
+        return;
+      }
+
+      const activeCue = activeSubtitleTrack.cues.find(c => curMs >= c.start_ms && curMs <= c.end_ms);
+      if (!activeCue) {
+        box.innerHTML = '⏳ <i>Pauza oddechowa lektora...</i>';
+        return;
+      }
+
+      const spkLabel = activeCue.speaker ? `<b style="color:var(--accent); font-weight:800;">[${activeCue.speaker}]:</b> ` : '';
+      if (!activeCue.words || activeCue.words.length === 0) {
+        box.innerHTML = `${spkLabel}${activeCue.text}`;
+        return;
+      }
+
+      const wordsHtml = activeCue.words.map(w => {
+        const isActive = curMs >= w.start_ms && curMs <= w.end_ms;
+        if (isActive) {
+          return `<span style="color:#38bdf8; font-weight:800; background:rgba(56,189,248,0.25); padding:1px 4px; border-radius:4px;">${w.word}</span>`;
+        } else {
+          return `<span>${w.word}</span>`;
+        }
+      }).join(' ');
+
+      box.innerHTML = `${spkLabel}${wordsHtml}`;
     }
 
     // Init

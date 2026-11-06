@@ -1816,6 +1816,13 @@ async fn handle_studio_request(
                     }
                 }
 
+                if let Some(ref subs) = render_res.subtitles {
+                    let _ = std::fs::write(cache_dir.join("latest_subtitles.json"), subs.to_json());
+                    let _ = std::fs::write(cache_dir.join("latest_subtitles.srt"), subs.to_srt());
+                    let _ = std::fs::write(cache_dir.join("latest_subtitles.vtt"), subs.to_vtt());
+                    let _ = std::fs::write(cache_dir.join("latest_subtitles_karaoke.vtt"), subs.to_karaoke_vtt());
+                }
+
                 if let Ok(bytes) = std::fs::read(&tmp_mp3) {
                     let _ = std::fs::remove_file(&tmp_mp3);
                     let mp3_header =
@@ -1826,7 +1833,14 @@ async fn handle_studio_request(
                     resp.add_header(
                         Header::from_bytes(
                             &b"Access-Control-Expose-Headers"[..],
-                            &b"X-Audioticon-Acx-Unlocked, X-Audioticon-Tier, X-Audioticon-Ledger-Id, X-Audioticon-Lufs, X-Audioticon-Peak, X-Audioticon-Balance"[..],
+                            &b"X-Audioticon-Acx-Unlocked, X-Audioticon-Tier, X-Audioticon-Ledger-Id, X-Audioticon-Lufs, X-Audioticon-Peak, X-Audioticon-Balance, X-Audioticon-Subtitles-Available"[..],
+                        )
+                        .unwrap(),
+                    );
+                    resp.add_header(
+                        Header::from_bytes(
+                            &b"X-Audioticon-Subtitles-Available"[..],
+                            &b"true"[..],
                         )
                         .unwrap(),
                     );
@@ -2077,6 +2091,45 @@ async fn handle_studio_request(
                     return;
                 }
 
+                if let Some(ref subs) = render_res.subtitles {
+                    let _ = std::fs::write(cache_dir.join("latest_subtitles.json"), subs.to_json());
+                    let _ = std::fs::write(cache_dir.join("latest_subtitles.srt"), subs.to_srt());
+                    let _ = std::fs::write(cache_dir.join("latest_subtitles.vtt"), subs.to_vtt());
+                    let _ = std::fs::write(cache_dir.join("latest_subtitles_karaoke.vtt"), subs.to_karaoke_vtt());
+                }
+
+                let safe_title = meta
+                    .title
+                    .as_deref()
+                    .unwrap_or("audiobook")
+                    .replace(|c: char| !c.is_alphanumeric() && c != '_' && c != '-', "_");
+
+                if req.format.to_lowercase() == "srt" {
+                    let content = render_res.subtitles.as_ref().map(|s| s.to_srt()).unwrap_or_default();
+                    let cd_str = format!("attachment; filename=\"{}.srt\"", safe_title);
+                    let mut resp = tiny_http::Response::from_string(content);
+                    resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"text/plain; charset=utf-8"[..]).unwrap());
+                    resp.add_header(Header::from_bytes(&b"Content-Disposition"[..], cd_str.as_bytes()).unwrap());
+                    if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+                    let _ = request.respond(resp);
+                    return;
+                }
+
+                if req.format.to_lowercase() == "vtt" || req.format.to_lowercase() == "karaoke" {
+                    let content = if req.format.to_lowercase() == "karaoke" {
+                        render_res.subtitles.as_ref().map(|s| s.to_karaoke_vtt()).unwrap_or_default()
+                    } else {
+                        render_res.subtitles.as_ref().map(|s| s.to_vtt()).unwrap_or_default()
+                    };
+                    let cd_str = format!("attachment; filename=\"{}.vtt\"", safe_title);
+                    let mut resp = tiny_http::Response::from_string(content);
+                    resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"text/vtt; charset=utf-8"[..]).unwrap());
+                    resp.add_header(Header::from_bytes(&b"Content-Disposition"[..], cd_str.as_bytes()).unwrap());
+                    if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+                    let _ = request.respond(resp);
+                    return;
+                }
+
                 let mut wallet = AudioWallet::load();
                 if req.provider.to_lowercase() == "elevenlabs" {
                     let _ = wallet.spend(10, "Eksport audiobooka ElevenLabs v3", None);
@@ -2191,6 +2244,154 @@ async fn handle_studio_request(
                 return;
             }
         }
+    }
+
+    // Route: GET /api/subtitles/latest
+    if method == tiny_http::Method::Get
+        && (url == "/api/subtitles/latest" || url.starts_with("/api/subtitles/latest?"))
+    {
+        let fmt = if url.contains("format=srt") {
+            "srt"
+        } else if url.contains("format=vtt") {
+            "vtt"
+        } else if url.contains("format=karaoke") {
+            "karaoke"
+        } else {
+            "json"
+        };
+        let cache_dir = get_default_cache_dir();
+        let target_file = match fmt {
+            "srt" => cache_dir.join("latest_subtitles.srt"),
+            "vtt" => cache_dir.join("latest_subtitles.vtt"),
+            "karaoke" => cache_dir.join("latest_subtitles_karaoke.vtt"),
+            _ => cache_dir.join("latest_subtitles.json"),
+        };
+        if target_file.exists() {
+            if let Ok(content) = std::fs::read_to_string(&target_file) {
+                let ct = if fmt == "json" {
+                    "application/json; charset=utf-8"
+                } else if fmt == "vtt" || fmt == "karaoke" {
+                    "text/vtt; charset=utf-8"
+                } else {
+                    "text/plain; charset=utf-8"
+                };
+                let mut resp = tiny_http::Response::from_string(content);
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], ct.as_bytes()).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+        }
+        let mut resp = tiny_http::Response::from_string(
+            "{\"error\": \"Brak wygenerowanych napisów. Wyrenderuj najpierw audio w Studio.\", \"status\": \"not_found\"}",
+        );
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                .unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp.with_status_code(404));
+        return;
+    }
+
+    // Route: POST /api/subtitles/export
+    if method == tiny_http::Method::Post && url == "/api/subtitles/export" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(5 * 1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Błąd odczytu zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct SubReq {
+            #[serde(alias = "script")]
+            text: String,
+            #[serde(default = "default_lang_str")]
+            lang: String,
+            #[serde(default = "default_voice_str")]
+            voice: String,
+            #[serde(default)]
+            style: Option<String>,
+            #[serde(default = "default_sub_format")]
+            format: String,
+        }
+        fn default_sub_format() -> String {
+            "srt".to_string()
+        }
+
+        let s_req: SubReq = match serde_json::from_str(&body_str) {
+            Ok(r) => r,
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": "Błąd JSON", "details": e.to_string() });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let clean_lang = s_req.lang.to_lowercase();
+        let cache_dir = get_default_cache_dir();
+        let director = EmojiDirector::with_registry(presets::get_active_registry())
+            .with_lang(&clean_lang)
+            .with_style(parse_production_style(s_req.style.as_deref()));
+        let script = director.parse(&s_req.text);
+        let track =
+            audioticon_core::generate_subtitles_from_cache(&script, &cache_dir, &s_req.voice);
+
+        let fmt_clean = s_req.format.to_lowercase();
+        let (content, filename) = match fmt_clean.as_str() {
+            "vtt" => (track.to_vtt(), "audiobook_subtitles.vtt"),
+            "karaoke" => (track.to_karaoke_vtt(), "audiobook_karaoke.vtt"),
+            "json" => (track.to_json(), "audiobook_timeline.json"),
+            _ => (track.to_srt(), "audiobook_subtitles.srt"),
+        };
+
+        let res_json = serde_json::json!({
+            "status": "ok",
+            "format": fmt_clean,
+            "filename": filename,
+            "content": content,
+            "total_cues": track.cues.len(),
+            "total_duration_ms": track.total_duration_ms,
+            "subtitles": track,
+        });
+
+        let mut resp = tiny_http::Response::from_string(res_json.to_string());
+        resp.add_header(
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
     }
 
     // Route: GET /api/voicelab/profiles
