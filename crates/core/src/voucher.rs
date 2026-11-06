@@ -2,11 +2,23 @@ use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-/// Salt / secret seed used for cryptographic HMAC-SHA256 voucher verification
-pub const VOUCHER_HMAC_SECRET: &[u8] = b"AUDIOTICON_STUDIO_OFFLINE_SECRET_KEY_2026_SEED";
+/// Domain-separated fallback verification key when `AUDIOTICON_LICENSE_SECRET` is not set by a vendor build
+pub const VOUCHER_HMAC_SECRET: &[u8] = b"AUDIOTICON_STUDIO_LICENSE_KEY_V2_DERIVATION_SALT";
 
-/// Tier of unlocked wallet features
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+/// Returns the active license verification key.
+/// Production vendor builds or license servers can inject a private secret via `AUDIOTICON_LICENSE_SECRET`.
+pub fn active_license_secret() -> Vec<u8> {
+    if let Ok(env_secret) = std::env::var("AUDIOTICON_LICENSE_SECRET") {
+        let trimmed = env_secret.trim();
+        if !trimmed.is_empty() {
+            return trimmed.as_bytes().to_vec();
+        }
+    }
+    VOUCHER_HMAC_SECRET.to_vec()
+}
+
+/// Tier of unlocked wallet / Studio workstation features
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum WalletTier {
     Free,
     Debut,
@@ -33,7 +45,7 @@ impl WalletTier {
     }
 }
 
-/// Information returned after successfully validating a voucher code
+/// Information returned after successfully validating a voucher / license code
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VoucherPayload {
     pub code: String,
@@ -76,8 +88,22 @@ pub fn compute_hmac_sha256(key: &[u8], message: &[u8]) -> [u8; 32] {
     out
 }
 
-/// Generates a valid cryptographic voucher code (e.g. for store integration or promo campaigns)
-/// Format: AUD-<TIER>-<CREDITS>-<SIGNATURE_12_CHARS>
+fn sanitize_serial(nonce: &str) -> String {
+    let cleaned: String = nonce
+        .trim()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_uppercase();
+    if cleaned.is_empty() {
+        "S2026".to_string()
+    } else {
+        cleaned
+    }
+}
+
+/// Generates a signed cryptographic license / voucher code with an explicit serial ID embedded in the code.
+/// Format: `AUD-<TIER>-<CREDITS>-<SERIAL>-<SIGNATURE_12_CHARS>`
 pub fn generate_voucher_code(tier: WalletTier, credits: u64, nonce: &str) -> String {
     let tier_tag = match tier {
         WalletTier::Free => "FREE",
@@ -86,33 +112,41 @@ pub fn generate_voucher_code(tier: WalletTier, credits: u64, nonce: &str) -> Str
         WalletTier::Publisher => "PUB",
     };
 
-    let payload = format!("{}:{}:{}", tier_tag, credits, nonce.trim());
-    let sig = compute_hmac_sha256(VOUCHER_HMAC_SECRET, payload.as_bytes());
+    let serial = sanitize_serial(nonce);
+    let secret = active_license_secret();
+    let payload = format!("AUDIOTICON_V2:{}:{}:{}", tier_tag, credits, serial);
+    let sig = compute_hmac_sha256(&secret, payload.as_bytes());
     let sig_hex = hex::encode(&sig[..6]).to_uppercase(); // 12-char hex signature
 
-    format!("AUD-{}-{}-{}", tier_tag, credits, sig_hex)
+    format!("AUD-{}-{}-{}-{}", tier_tag, credits, serial, sig_hex)
 }
 
-/// Verifies and decodes a cryptographic voucher code
+/// Verifies and decodes a cryptographic license / voucher code.
+/// Rejects any code whose embedded serial and signature do not match `active_license_secret()`.
 pub fn verify_voucher_code(code: &str) -> Result<VoucherPayload> {
     let clean = code.trim().to_uppercase();
     let parts: Vec<&str> = clean.split('-').collect();
 
-    if parts.len() != 4 || parts[0] != "AUD" {
+    if parts.len() != 5 || parts[0] != "AUD" {
         bail!(
-            "Nieprawidłowy format vouchera. Prawidłowy format to np. AUD-WRITER-20000-XXXXXXXXXXXX"
+            "Nieprawidłowy format vouchera. Prawidłowy format to AUD-<PAKIET>-<MONETY>-<SERIA>-<PODPIS>"
         );
     }
 
     let tier_str = parts[1];
     let credits_str = parts[2];
-    let given_sig = parts[3];
+    let serial_str = parts[3];
+    let given_sig = parts[4];
 
-    let tier = match tier_str {
-        "FREE" => WalletTier::Free,
-        "DEBUT" => WalletTier::Debut,
-        "WRITER" => WalletTier::Writer,
-        "PUB" | "PUBLISHER" => WalletTier::Publisher,
+    if serial_str.is_empty() || !serial_str.chars().all(|c| c.is_ascii_alphanumeric()) {
+        bail!("Nieprawidłowy identyfikator serii w kodzie vouchera.");
+    }
+
+    let (tier, canonical_tier_tag) = match tier_str {
+        "FREE" => (WalletTier::Free, "FREE"),
+        "DEBUT" => (WalletTier::Debut, "DEBUT"),
+        "WRITER" => (WalletTier::Writer, "WRITER"),
+        "PUB" | "PUBLISHER" => (WalletTier::Publisher, "PUB"),
         _ => bail!("Nieznana kategoria vouchera: {}", tier_str),
     };
 
@@ -120,23 +154,16 @@ pub fn verify_voucher_code(code: &str) -> Result<VoucherPayload> {
         .parse()
         .map_err(|_| anyhow::anyhow!("Nieprawidłowa liczba kredytów w voucherze: {}", credits_str))?;
 
-    // In offline verification, signature is verified against canonical payload
-    // We check either against general distribution salt or known promo seeds
-    let mut valid = false;
+    let secret = active_license_secret();
+    let payload = format!(
+        "AUDIOTICON_V2:{}:{}:{}",
+        canonical_tier_tag, credits, serial_str
+    );
+    let expected_sig = compute_hmac_sha256(&secret, payload.as_bytes());
+    let expected_hex = hex::encode(&expected_sig[..6]).to_uppercase();
 
-    // Check with canonical empty/default nonce and standard seeds
-    for nonce in &["", "VIP2026", "PROMO", "BESTSELLER", "AUDIOTICON"] {
-        let payload = format!("{}:{}:{}", tier_str, credits, nonce);
-        let expected_sig = compute_hmac_sha256(VOUCHER_HMAC_SECRET, payload.as_bytes());
-        let expected_hex = hex::encode(&expected_sig[..6]).to_uppercase();
-        if given_sig == expected_hex {
-            valid = true;
-            break;
-        }
-    }
-
-    if !valid {
-        bail!("Voucher ma nieprawidłowy podpis kryptograficzny lub wygasł.");
+    if given_sig != expected_hex {
+        bail!("Voucher ma nieprawidłowy podpis kryptograficzny lub został zmodyfikowany.");
     }
 
     Ok(VoucherPayload {
@@ -153,8 +180,8 @@ mod tests {
 
     #[test]
     fn test_generate_and_verify_voucher() {
-        let code = generate_voucher_code(WalletTier::Writer, 20000, "VIP2026");
-        assert!(code.starts_with("AUD-WRITER-20000-"));
+        let code = generate_voucher_code(WalletTier::Writer, 20000, "ORDER901");
+        assert!(code.starts_with("AUD-WRITER-20000-ORDER901-"));
 
         let payload = verify_voucher_code(&code).expect("Verification should succeed");
         assert_eq!(payload.tier, WalletTier::Writer);
@@ -164,10 +191,14 @@ mod tests {
 
     #[test]
     fn test_tampered_voucher_rejected() {
-        let valid_code = generate_voucher_code(WalletTier::Debut, 5000, "");
+        let valid_code = generate_voucher_code(WalletTier::Debut, 5000, "S100");
         // Tamper with credits: change 5000 to 99999
-        let tampered = valid_code.replace("5000", "99999");
-        assert!(verify_voucher_code(&tampered).is_err());
+        let tampered_credits = valid_code.replace("5000", "99999");
+        assert!(verify_voucher_code(&tampered_credits).is_err());
+
+        // Tamper with serial: change S100 to S101
+        let tampered_serial = valid_code.replace("S100", "S101");
+        assert!(verify_voucher_code(&tampered_serial).is_err());
     }
 
     #[test]

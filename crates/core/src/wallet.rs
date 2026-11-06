@@ -4,7 +4,9 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::voucher::{verify_voucher_code, VoucherPayload, WalletTier};
+use crate::voucher::{
+    active_license_secret, compute_hmac_sha256, verify_voucher_code, VoucherPayload, WalletTier,
+};
 
 /// Cost in AudioCoin$ per minute of neural TTS audio
 pub const COST_PER_MIN_ELEVENLABS_V3: u64 = 5;
@@ -35,11 +37,13 @@ pub struct AudioWallet {
     pub transactions: Vec<Transaction>,
     #[serde(default)]
     pub redeemed_vouchers: Vec<String>,
+    #[serde(default)]
+    pub integrity_signature: String,
 }
 
 impl Default for AudioWallet {
     fn default() -> Self {
-        Self {
+        let mut wallet = Self {
             balance: STARTING_CREDITS,
             tier: WalletTier::Free,
             acx_certificate_unlocked: false,
@@ -54,11 +58,81 @@ impl Default for AudioWallet {
                 render_id: None,
             }],
             redeemed_vouchers: Vec::new(),
-        }
+            integrity_signature: String::new(),
+        };
+        wallet.integrity_signature = wallet.compute_integrity_signature();
+        wallet
     }
 }
 
 impl AudioWallet {
+    /// Computes an HMAC-SHA256 integrity signature covering balance, tier, ACX status, redeemed vouchers, and ledger transactions.
+    pub fn compute_integrity_signature(&self) -> String {
+        let tx_digest: String = self
+            .transactions
+            .iter()
+            .map(|t| format!("{}:{}:{}", t.timestamp, t.amount, t.balance_after))
+            .collect::<Vec<_>>()
+            .join("|");
+        let vouchers_digest = self.redeemed_vouchers.join(",");
+        let payload = format!(
+            "AUDIOTICON_WALLET_V2|bal={}|tier={}|acx={}|vouchers=[{}]|tx=[{}]",
+            self.balance,
+            self.tier.as_str(),
+            self.acx_certificate_unlocked,
+            vouchers_digest,
+            tx_digest
+        );
+        let sig = compute_hmac_sha256(&active_license_secret(), payload.as_bytes());
+        hex::encode(sig)
+    }
+
+    /// Verifies that the wallet state has not been manually tampered with in a text editor:
+    /// 1. Validates the HMAC-SHA256 `integrity_signature`.
+    /// 2. Re-verifies every cryptographic voucher in `redeemed_vouchers` and ensures no duplicate codes exist.
+    /// 3. Ensures `tier` and `acx_certificate_unlocked` are backed by valid redeemed vouchers in `redeemed_vouchers`.
+    pub fn verify_integrity(&self) -> bool {
+        if self.integrity_signature.is_empty()
+            || self.integrity_signature != self.compute_integrity_signature()
+        {
+            return false;
+        }
+
+        let mut seen_codes = std::collections::HashSet::new();
+        let mut max_verified_tier = WalletTier::Free;
+        let mut verified_acx = false;
+
+        for code in &self.redeemed_vouchers {
+            let Ok(payload) = verify_voucher_code(code) else {
+                return false;
+            };
+            if !seen_codes.insert(payload.code) {
+                return false;
+            }
+            if payload.tier > max_verified_tier {
+                max_verified_tier = payload.tier;
+            }
+            if payload.acx_certificate_unlocked {
+                verified_acx = true;
+            }
+        }
+
+        if self.tier > max_verified_tier {
+            return false;
+        }
+        if self.acx_certificate_unlocked && !verified_acx {
+            return false;
+        }
+
+        if let Some(last_tx) = self.transactions.last() {
+            if last_tx.balance_after != self.balance {
+                return false;
+            }
+        }
+
+        true
+    }
+
     /// Returns the canonical path to the wallet file (~/.config/audioticon/wallet.json)
     pub fn wallet_path() -> PathBuf {
         if let Ok(custom) = std::env::var("AUDIOTICON_WALLET_PATH") {
@@ -75,30 +149,35 @@ impl AudioWallet {
         }
     }
 
-    /// Loads the wallet from disk, or initializes a new one with starting credits
+    /// Loads the wallet from disk and verifies its cryptographic integrity,
+    /// or resets to a clean default wallet if missing or manually tampered with.
     pub fn load() -> Self {
         let path = Self::wallet_path();
         if path.exists() {
             if let Ok(content) = fs::read_to_string(&path) {
                 if let Ok(wallet) = serde_json::from_str::<AudioWallet>(&content) {
-                    return wallet;
+                    if wallet.verify_integrity() {
+                        return wallet;
+                    }
                 }
             }
         }
-        // Fresh install: persist default wallet
+        // Fresh install or tampered file detected: reset and persist clean default wallet
         let wallet = Self::default();
         let _ = wallet.save();
         wallet
     }
 
-    /// Saves the wallet to disk securely (0600 permissions on Unix)
+    /// Saves the wallet to disk securely (0600 permissions on Unix) with an updated HMAC signature
     pub fn save(&self) -> Result<()> {
         let path = Self::wallet_path();
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)
                 .with_context(|| format!("Nie można utworzyć katalogu: {:?}", parent))?;
         }
-        let json = serde_json::to_string_pretty(self)
+        let mut signed = self.clone();
+        signed.integrity_signature = signed.compute_integrity_signature();
+        let json = serde_json::to_string_pretty(&signed)
             .context("Błąd serializacji portfela AudioCoin")?;
 
         #[cfg(unix)]
@@ -136,6 +215,7 @@ impl AudioWallet {
             description: description.to_string(),
             render_id,
         });
+        self.integrity_signature = self.compute_integrity_signature();
         let _ = self.save();
         true
     }
@@ -153,6 +233,7 @@ impl AudioWallet {
             description: description.to_string(),
             render_id: None,
         });
+        self.integrity_signature = self.compute_integrity_signature();
         let _ = self.save();
     }
 
@@ -169,10 +250,7 @@ impl AudioWallet {
         self.redeemed_vouchers.push(payload.code.clone());
 
         // Upgrade tier if voucher has higher tier
-        if self.tier == WalletTier::Free
-            || (self.tier == WalletTier::Debut && payload.tier != WalletTier::Free)
-            || payload.tier == WalletTier::Publisher
-        {
+        if payload.tier > self.tier {
             self.tier = payload.tier;
         }
 
@@ -190,6 +268,7 @@ impl AudioWallet {
             description: format!("Voucher VIP: {} (+{} AudioCoin$)", payload.tier.as_str(), payload.credits),
             render_id: None,
         });
+        self.integrity_signature = self.compute_integrity_signature();
 
         let _ = self.save();
         Ok(payload)
@@ -244,5 +323,33 @@ mod tests {
         // Attempting to redeem the same code twice must fail
         let duplicate_res = wallet.redeem_voucher(&voucher);
         assert!(duplicate_res.is_err());
+    }
+
+    #[test]
+    fn test_wallet_json_notepad_tampering_rejected() {
+        let mut wallet = AudioWallet::default();
+        assert!(wallet.verify_integrity());
+
+        // 1. Simulate editing balance in Notepad from 1000 to 999999999
+        let mut tampered_balance = wallet.clone();
+        tampered_balance.balance = 999_999_999;
+        assert!(
+            !tampered_balance.verify_integrity(),
+            "Manual balance modification in JSON must fail integrity verification"
+        );
+
+        // 2. Simulate editing acx_certificate_unlocked to true in Notepad without a redeemed voucher
+        let mut tampered_acx = wallet.clone();
+        tampered_acx.acx_certificate_unlocked = true;
+        tampered_acx.integrity_signature = tampered_acx.compute_integrity_signature();
+        assert!(
+            !tampered_acx.verify_integrity(),
+            "ACX certificate unlock without a verified Writer/Publisher voucher must fail integrity verification"
+        );
+
+        // 3. Legitimate voucher redemption passes integrity verification
+        let voucher = crate::voucher::generate_voucher_code(WalletTier::Writer, 20000, "S2026A");
+        wallet.redeem_voucher(&voucher).expect("Redeem valid voucher");
+        assert!(wallet.verify_integrity());
     }
 }
