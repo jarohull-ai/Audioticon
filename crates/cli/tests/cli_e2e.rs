@@ -1547,3 +1547,76 @@ fn test_api_qc_latest_and_audit_e2e() {
     let _ = child.wait();
     let _ = std::fs::remove_dir_all(&tmp_dir);
 }
+
+#[test]
+fn test_api_custom_emojis_sound_design_e2e() {
+    let port = get_free_port();
+    let tmp_dir = std::env::temp_dir().join(format!(
+        "test_audioticon_emojis_{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = std::fs::create_dir_all(&tmp_dir);
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .args(["serve", "--port", &port.to_string(), "--no-browser"])
+        .env("AUDIOTICON_CACHE_DIR", tmp_dir.to_str().unwrap())
+        .current_dir(&tmp_dir)
+        .spawn()
+        .expect("Start studio server");
+
+    let mut connected = false;
+    for _ in 0..30 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        if std::net::TcpStream::connect(format!("127.0.0.1:{}", port)).is_ok() {
+            connected = true;
+            break;
+        }
+    }
+    assert!(connected, "Server failed to start on port {}", port);
+
+    // 1. GET /api/custom-emojis returns factory emojis and available filters
+    let (s_get, _, b_get) = http_roundtrip(port, "GET", "/api/custom-emojis", None);
+    assert_eq!(s_get, 200);
+    let get_json: serde_json::Value = serde_json::from_slice(&b_get).expect("Parse custom-emojis");
+    assert!(get_json["factory_emojis"].as_array().is_some());
+    assert!(get_json["available_filters"].as_array().is_some());
+
+    // 2. POST /api/custom-emojis/add
+    let add_req = serde_json::json!({
+        "emoji": "🧙‍♂️",
+        "name": "Czarodziej",
+        "alias": "czarodziej",
+        "action_type": "filter",
+        "filter": "cathedral",
+        "pitch": -4,
+        "rate": 0,
+        "volume": 1.0
+    }).to_string();
+    let (s_add, _, b_add) = http_roundtrip(port, "POST", "/api/custom-emojis/add", Some(&add_req));
+    assert_eq!(s_add, 200);
+    let add_json: serde_json::Value = serde_json::from_slice(&b_add).expect("Parse add response");
+    assert!(add_json["emojis"]["🧙‍♂️"].is_object());
+
+    // 3. Verify in GET
+    let (s_get2, _, b_get2) = http_roundtrip(port, "GET", "/api/custom-emojis", None);
+    assert_eq!(s_get2, 200);
+    let get2_json: serde_json::Value = serde_json::from_slice(&b_get2).expect("Parse get2");
+    assert_eq!(get2_json["emojis"]["🧙‍♂️"]["name"], "Czarodziej");
+
+    // 4. POST /api/custom-emojis/remove
+    let rem_req = serde_json::json!({
+        "emoji": "🧙‍♂️"
+    }).to_string();
+    let (s_rem, _, b_rem) = http_roundtrip(port, "POST", "/api/custom-emojis/remove", Some(&rem_req));
+    assert_eq!(s_rem, 200);
+    let rem_json: serde_json::Value = serde_json::from_slice(&b_rem).expect("Parse rem");
+    assert!(rem_json["emojis"]["🧙‍♂️"].is_null());
+
+    // Clean up
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+}

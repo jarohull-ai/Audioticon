@@ -3628,8 +3628,60 @@ async fn handle_studio_request(
     // Route: GET /api/custom-emojis
     if method == tiny_http::Method::Get && url == "/api/custom-emojis" {
         let cfg = ProjectConfig::discover(None);
+        let factory_emojis = serde_json::json!([
+            { "emoji": "📱", "name": "Telefon retro", "alias": "telefon", "type": "filter", "filter": "phone", "desc": "Pasmo telefoniczne 400Hz-2.8kHz + lekki crunch" },
+            { "emoji": "📻", "name": "Vintage Radio", "alias": "radio", "type": "filter", "filter": "radio", "desc": "Krótkofalówka / radio z przesterem i szumem" },
+            { "emoji": "🏛️", "name": "Katedra", "alias": "katedra", "type": "filter", "filter": "cathedral", "desc": "Duża przestrzeń sakralna, długi pogłos (reverb 3.2s)" },
+            { "emoji": "🏰", "name": "Lochy / Jaskinia", "alias": "lochy", "type": "filter", "filter": "dungeon", "desc": "Ciemne kamienne sklepienie z gęstym echem" },
+            { "emoji": "📢", "name": "Megafon", "alias": "megafon", "type": "filter", "filter": "megaphone", "desc": "Wąskie pasmo tuby megafonu, podbity środek 1.8kHz" },
+            { "emoji": "🤖", "name": "Robot bojowy", "alias": "robot", "type": "filter", "filter": "robot", "desc": "Modulacja pierścieniowa (ring mod) i tremolo 55Hz" },
+            { "emoji": "💭", "name": "Myśli bohatera", "alias": "mysli", "type": "filter", "filter": "thought", "desc": "Głos wewnętrzny, stłumione wysokie tony i bliski dół" },
+            { "emoji": "🤫", "name": "Szept narracyjny", "alias": "szept", "type": "filter", "filter": "whisper", "desc": "Cichy szept ze zwiększonym szumem powietrza" },
+            { "emoji": "🪖", "name": "Szept taktyczny", "alias": "szept_akcja", "type": "filter", "filter": "whisper:akcja", "desc": "Szybki szept komandosa pod ostrzałem" },
+            { "emoji": "💋", "name": "Szept intymny", "alias": "szept_bliski", "type": "filter", "filter": "whisper:romantyczny", "desc": "Ciepły, zmysłowy szept prosto do ucha" },
+            { "emoji": "💥", "name": "Krzyk / Rozkaz", "alias": "rozkaz", "type": "filter", "filter": "rozkaz", "desc": "Maksymalna energia głosu, rozkaz wojskowy" },
+            { "emoji": "📢", "name": "Wołanie w dal", "alias": "wolanie", "type": "filter", "filter": "wolanie", "desc": "Przenikliwe wołanie na otwartej przestrzeni" },
+            { "emoji": "🎵", "name": "Śpiew / Melodia", "alias": "spiew", "type": "filter", "filter": "spiew", "desc": "Melodyjna deklamacja, podwyższona wibracja krtani" },
+            { "emoji": "🔔", "name": "Dzwon", "alias": "dzwon", "type": "sfx", "filter": "bell", "desc": "Czysty dźwięk dzwonka lub dzwonu zegarowego" },
+            { "emoji": "🚪", "name": "Drzwi", "alias": "drzwi", "type": "sfx", "filter": "door", "desc": "Skrzypnięcie i zatrzaśnięcie starych drzwi" },
+            { "emoji": "👣", "name": "Kroki", "alias": "kroki", "type": "sfx", "filter": "footsteps", "desc": "Powolne kroki po podłodze" },
+            { "emoji": "📄", "name": "Papier", "alias": "papier", "type": "sfx", "filter": "paper", "desc": "Szelest przewracanej kartki papieru" },
+            { "emoji": "⚡", "name": "Piorun", "alias": "piorun", "type": "sfx", "filter": "thunder", "desc": "Potężny grzmot pioruna" },
+            { "emoji": "❄️", "name": "Wiatr", "alias": "wiatr", "type": "ambient", "filter": "wind", "desc": "Mroźny powiew wiatru w tle" },
+            { "emoji": "🌧️", "name": "Deszcz", "alias": "deszcz", "type": "ambient", "filter": "rain", "desc": "Ulewny deszcz bębniący o szyby" }
+        ]);
         let json_resp = serde_json::json!({
-            "emojis": cfg.emojis
+            "emojis": cfg.emojis,
+            "factory_emojis": factory_emojis,
+            "available_filters": [
+                { "id": "cathedral", "name": "🏛️ Katedra / Duży Reverb", "desc": "Pogłos wielkiej świątyni" },
+                { "id": "dungeon", "name": "🏰 Mroczne lochy / Jaskinia", "desc": "Gęste echo w kamiennych korytarzach" },
+                { "id": "phone", "name": "📱 Telefon retro", "desc": "Pasmo telefoniczne 400Hz-2.8kHz" },
+                { "id": "radio", "name": "📻 Vintage Radio / Krótkofalówka", "desc": "Zniekształcenia lo-fi i trzaski" },
+                { "id": "megaphone", "name": "📢 Megafon / Tuba", "desc": "Ostry dźwięk szczekaczki" },
+                { "id": "robot", "name": "🤖 Robot bojowy / Vocoder", "desc": "Metaliczny ring modulation 55Hz" },
+                { "id": "whisper", "name": "🤫 Szept narracyjny", "desc": "Przepływ powietrza i wyciszenie" },
+                { "id": "thought", "name": "💭 Myśli wewnętrzne", "desc": "Głos w głowie bohatera" },
+                { "id": "studio", "name": "🎙️ Broadcast Studio", "desc": "De-esser, ciepły dół i klarowna góra" },
+                { "id": "warm", "name": "☕ Ciepły analog", "desc": "Podbity dół 200Hz i łagodne pasmo" },
+                { "id": "bright", "name": "✨ Krystaliczny emisyjny", "desc": "Prezencja 3.6kHz dla lektora" }
+            ],
+            "available_sfx": [
+                { "id": "bell", "name": "🔔 Dzwon / Dzwonek" },
+                { "id": "door", "name": "🚪 Drzwi skrzypiące" },
+                { "id": "footsteps", "name": "👣 Kroki" },
+                { "id": "paper", "name": "📄 Szelest papieru" },
+                { "id": "car", "name": "🚗 Samochód" },
+                { "id": "thunder", "name": "⚡ Piorun / Grzmot" },
+                { "id": "shot", "name": "💥 Wystrzał" },
+                { "id": "heart", "name": "💓 Bicie serca" },
+                { "id": "water", "name": "💧 Kropla wody" }
+            ],
+            "available_ambient": [
+                { "id": "wind", "name": "❄️ Mroźny wiatr" },
+                { "id": "rain", "name": "🌧️ Deszcz o szyby" },
+                { "id": "city", "name": "🏙️ Miasto nocą" }
+            ]
         });
         let mut resp = tiny_http::Response::from_string(json_resp.to_string());
         resp.add_header(

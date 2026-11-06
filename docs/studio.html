@@ -1035,6 +1035,11 @@
           <span>📊</span> ACX Normy & Certyfikat
         </button>
 
+        <!-- Emoji Sound Designer Button -->
+        <button class="btn" onclick="openEmojiDesignerModal()" style="border-color:#ec4899; color:#ec4899; font-weight:700;" title="Projektuj własne dźwięki, filtry DSP, efekty SFX i głosy pod ikony i emotikony">
+          <span>🎨</span> Dźwięki pod Ikony
+        </button>
+
         <!-- Tile Toggle Menu -->
         <button class="btn" onclick="toggleTilePalette()">
           <span>🪟</span> Kafelki
@@ -1084,6 +1089,8 @@
               <span class="emoji-pill" onclick="insertEmojiIntoActive('🛑')">🛑 Pauza 0.8s</span>
               <span class="emoji-pill" onclick="insertEmojiIntoActive('🌧️')">🌧️ Deszcz</span>
               <span class="emoji-pill" onclick="openStyleLabModal()" style="border-color:var(--accent); color:var(--accent); font-weight:700;">+ 🧬 Własny Wzorzec</span>
+              <span id="customEmojiPillsSlot" style="display:contents;"></span>
+              <span class="emoji-pill" onclick="openEmojiDesignerModal()" style="border-color:#ec4899; color:#ec4899; font-weight:700;" title="Zaprojektuj nowy dźwięk pod ikonę lub emotikonę">+ 🎨 Projektuj Dźwięk Ikony</span>
             </div>
             <div style="font-size:0.75rem; color:var(--text-muted);">
               Słowa: <b id="wordCount">38</b> | Czas: <b id="estDuration">0:14s</b>
@@ -2110,6 +2117,251 @@
           </button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL: PROJEKTANT DŹWIĘKÓW POD IKONY (CUSTOM EMOJI SOUND STUDIO) -->
+  <div class="modal-backdrop" id="emojiDesignerModal">
+    <div class="modal-card" style="width:880px; max-width:96vw; max-height:92vh; overflow-y:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid var(--border); padding-bottom:0.75rem;">
+        <div>
+          <div style="font-size:1.15rem; font-weight:800; display:flex; align-items:center; gap:0.5rem;">
+            <span>🎨</span> Projektant Dźwięków pod Ikony &amp; Emotikony
+          </div>
+          <div style="font-size:0.75rem; color:var(--text-dim); margin-top:0.2rem;">
+            Przypisz dowolny symbol emoji do filtrów akustycznych DSP, efektów dźwiękowych (SFX), atmosfer tła lub obsady aktorskiej. Konfiguracja zapisuje się trwale w <code>audioticon.toml</code>.
+          </div>
+        </div>
+        <button class="tile-btn" onclick="closeEmojiDesignerModal()">✕</button>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div style="display:flex; gap:0.5rem; border-bottom:1px solid var(--border); padding-bottom:0.5rem; margin-bottom:1rem; flex-wrap:wrap;">
+        <button class="btn active" id="tabEmojiDesignBtn" onclick="switchEmojiDesignerTab('design')">
+          ✨ Projektuj Dźwięk pod Ikonę
+        </button>
+        <button class="btn" id="tabEmojiProjectBtn" onclick="switchEmojiDesignerTab('project')">
+          📚 Ikony w Projekcie <span id="customEmojiCountBadge" style="background:rgba(236,72,153,0.25); color:#f472b6; padding:1px 6px; border-radius:10px; font-size:0.7rem; margin-left:0.25rem;">0</span>
+        </button>
+        <button class="btn" id="tabEmojiCatalogBtn" onclick="switchEmojiDesignerTab('catalog')">
+          🏛️ Słownik Akustyczny Silnika
+        </button>
+      </div>
+
+      <!-- TAB 1: FORMULARZ PROJEKTOWANIA -->
+      <div id="emojiTabDesignBody">
+        <!-- Quick Palette -->
+        <div style="background:var(--track-bg); padding:0.75rem 1rem; border-radius:8px; border:1px solid var(--border); margin-bottom:1rem;">
+          <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:0.4rem; font-weight:600;">
+            Szybki wybór symbolu z palety (lub wpisz własny symbol poniżej):
+          </div>
+          <div style="display:flex; gap:0.4rem; flex-wrap:wrap;" id="emojiQuickPalette">
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('🧙‍♂️')">🧙‍♂️</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('👽')">👽</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('🦇')">🦇</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('👻')">👻</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('👑')">👑</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('🐉')">🐉</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('🧝‍♀️')">🧝‍♀️</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('⚔️')">⚔️</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('🛡️')">🛡️</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('🌙')">🌙</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('🌲')">🌲</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('🔮')">🔮</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('🗡️')">🗡️</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('🐺')">🐺</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('🦁')">🦁</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('🧟')">🧟</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('💀')">💀</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('🔔')">🔔</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('🚪')">🚪</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('👣')">👣</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('📄')">📄</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('🚗')">🚗</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('⚡')">⚡</button>
+            <button type="button" class="btn-icon-xs" style="font-size:1.2rem; width:34px; height:34px;" onclick="selectPaletteEmoji('❄️')">❄️</button>
+          </div>
+        </div>
+
+        <!-- Symbol / Name / Alias Grid -->
+        <div style="display:grid; grid-template-columns:90px 1fr 1fr; gap:0.85rem; margin-bottom:1rem;">
+          <div>
+            <label style="font-size:0.75rem; font-weight:700; color:#ec4899; display:block; margin-bottom:0.25rem;">Symbol:</label>
+            <input type="text" id="emojiInputSymbol" value="🧙‍♂️" style="width:100%; text-align:center; font-size:1.6rem; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:0.3rem; color:var(--text);">
+          </div>
+          <div>
+            <label style="font-size:0.75rem; font-weight:700; color:#ec4899; display:block; margin-bottom:0.25rem;">Nazwa dźwięku/postaci:</label>
+            <input type="text" id="emojiInputName" class="inspector-input" placeholder="np. Czarodziej" value="Czarodziej">
+          </div>
+          <div>
+            <label style="font-size:0.75rem; font-weight:700; color:#ec4899; display:block; margin-bottom:0.25rem;">Alias w tekście <code>[opcja]</code>:</label>
+            <input type="text" id="emojiInputAlias" class="inspector-input" placeholder="np. czarodziej" value="czarodziej">
+          </div>
+        </div>
+
+        <!-- Action Category Selector -->
+        <div style="background:var(--surface-elev); border:1px solid var(--border); border-radius:8px; padding:0.85rem; margin-bottom:1rem;">
+          <label style="font-size:0.8rem; font-weight:700; color:var(--accent); display:block; margin-bottom:0.5rem;">
+            Typ brzmienia / rola ikony w silniku:
+          </label>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:0.5rem;">
+            <label style="cursor:pointer; display:flex; align-items:center; gap:0.4rem; padding:0.5rem; background:var(--track-bg); border-radius:6px; border:1px solid var(--border); font-size:0.78rem;">
+              <input type="radio" name="emojiCategoryRadio" value="filter" checked onchange="switchEmojiDesignerCategory('filter')">
+              <span>🎛️ Filtr Akustyczny DSP</span>
+            </label>
+            <label style="cursor:pointer; display:flex; align-items:center; gap:0.4rem; padding:0.5rem; background:var(--track-bg); border-radius:6px; border:1px solid var(--border); font-size:0.78rem;">
+              <input type="radio" name="emojiCategoryRadio" value="sfx" onchange="switchEmojiDesignerCategory('sfx')">
+              <span>🔊 Efekt Foley / SFX</span>
+            </label>
+            <label style="cursor:pointer; display:flex; align-items:center; gap:0.4rem; padding:0.5rem; background:var(--track-bg); border-radius:6px; border:1px solid var(--border); font-size:0.78rem;">
+              <input type="radio" name="emojiCategoryRadio" value="ambient" onchange="switchEmojiDesignerCategory('ambient')">
+              <span>🌧️ Tło / Atmosfera</span>
+            </label>
+            <label style="cursor:pointer; display:flex; align-items:center; gap:0.4rem; padding:0.5rem; background:var(--track-bg); border-radius:6px; border:1px solid var(--border); font-size:0.78rem;">
+              <input type="radio" name="emojiCategoryRadio" value="voice" onchange="switchEmojiDesignerCategory('voice')">
+              <span>🗣️ Obsada Aktorska</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- CATEGORY SPECIFIC OPTIONS -->
+        <!-- 1. DSP FILTER OPTIONS -->
+        <div id="emojiOptsFilter" style="display:block; background:var(--track-bg); border:1px solid var(--border); border-radius:8px; padding:0.85rem; margin-bottom:1rem;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.85rem; margin-bottom:0.75rem;">
+            <div>
+              <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:0.25rem;">Preset akustyczny:</label>
+              <select id="emojiBaseFilterSelect" class="inspector-select">
+                <option value="cathedral">🏛️ Katedra / Przestrzeń sakralna (Reverb 3.2s)</option>
+                <option value="dungeon">🏰 Mroczne lochy / Jaskinia (Ciemne echo)</option>
+                <option value="phone">📱 Telefon retro (Bandpass 400Hz-2.8kHz)</option>
+                <option value="radio">📻 Vintage Radio / Krótkofalówka (Distortion)</option>
+                <option value="megaphone">📢 Megafon / Szczekaczka (1.8kHz boost)</option>
+                <option value="robot">🤖 Robot bojowy (Ring Modulator 55Hz)</option>
+                <option value="whisper">🤫 Szept narracyjny (Air flow)</option>
+                <option value="thought">💭 Myśli bohatera (Głos wewnętrzny)</option>
+                <option value="studio">🎙️ Broadcast Studio (De-esser + ciepły dół)</option>
+                <option value="warm">☕ Ciepły analog (+2dB 200Hz)</option>
+                <option value="bright">✨ Krystaliczny emisyjny (+2.2dB 3.6kHz)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:0.25rem;">
+                Modyfikator tonu (Pitch): <b id="emojiPitchDisplayVal" style="color:#38bdf8;">-4 Hz</b>
+              </label>
+              <input type="range" min="-12" max="12" step="1" value="-4" class="slider-input" id="emojiPitchSlider" oninput="document.getElementById('emojiPitchDisplayVal').innerText = (this.value >= 0 ? '+' : '') + this.value + ' Hz'">
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.85rem;">
+            <div>
+              <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:0.25rem;">
+                Tempo mowy (Rate): <b id="emojiRateDisplayVal" style="color:#10b981;">0%</b>
+              </label>
+              <input type="range" min="-30" max="30" step="5" value="0" class="slider-input" id="emojiRateSlider" oninput="document.getElementById('emojiRateDisplayVal').innerText = (this.value >= 0 ? '+' : '') + this.value + '%'">
+            </div>
+            <div>
+              <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:0.25rem;">
+                Głośność (Volume): <b id="emojiVolDisplayVal" style="color:#f59e0b;">1.00x</b>
+              </label>
+              <input type="range" min="0.5" max="2.0" step="0.05" value="1.0" class="slider-input" id="emojiVolSlider" oninput="document.getElementById('emojiVolDisplayVal').innerText = parseFloat(this.value).toFixed(2) + 'x'">
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. SFX OPTIONS -->
+        <div id="emojiOptsSfx" style="display:none; background:var(--track-bg); border:1px solid var(--border); border-radius:8px; padding:0.85rem; margin-bottom:1rem;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.85rem;">
+            <div>
+              <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:0.25rem;">Wybierz efekt Foley/SFX:</label>
+              <select id="emojiSfxSelect" class="inspector-select" onchange="if(this.value!=='custom') document.getElementById('emojiCustomSfxInput').value=this.value;">
+                <option value="bell">🔔 Dzwon / Dzwonek</option>
+                <option value="door">🚪 Drzwi skrzypiące</option>
+                <option value="footsteps">👣 Kroki po deskach</option>
+                <option value="paper">📄 Szelest papieru / pergaminu</option>
+                <option value="car">🚗 Samochód / Silnik</option>
+                <option value="thunder">⚡ Piorun / Grzmot</option>
+                <option value="shot">💥 Wystrzał</option>
+                <option value="heart">💓 Bicie serca</option>
+                <option value="water">💧 Kropla wody</option>
+                <option value="custom">📁 Własny plik z biblioteki ./sfx...</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:0.25rem;">Identyfikator pliku SFX:</label>
+              <input type="text" id="emojiCustomSfxInput" class="inspector-input" value="bell" placeholder="np. bell, footsteps, miecz">
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. AMBIENT OPTIONS -->
+        <div id="emojiOptsAmbient" style="display:none; background:var(--track-bg); border:1px solid var(--border); border-radius:8px; padding:0.85rem; margin-bottom:1rem;">
+          <div>
+            <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:0.25rem;">Wybierz tło dźwiękowe (Ambient):</label>
+            <select id="emojiAmbientSelect" class="inspector-select">
+              <option value="wind">❄️ Mroźny wiatr / Zamieć śnieżna</option>
+              <option value="rain">🌧️ Ulewny deszcz bębniący o szyby</option>
+              <option value="city">🏙️ Ulica wielkiego miasta nocą</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 4. VOICE OPTIONS -->
+        <div id="emojiOptsVoice" style="display:none; background:var(--track-bg); border:1px solid var(--border); border-radius:8px; padding:0.85rem; margin-bottom:1rem;">
+          <div>
+            <label style="font-size:0.75rem; color:var(--text-dim); display:block; margin-bottom:0.25rem;">Przypisz do konkretnego lektora / aktora:</label>
+            <select id="emojiVoiceSelect" class="inspector-select">
+              <option value="bzipek">Bzipek (Piper PL Męski - Domyślny)</option>
+              <option value="pl_PL-darkman-medium">Darkman (Piper PL Głęboki Narrator)</option>
+              <option value="pl_PL-gosia-medium">Gosia (Piper PL Kobieta)</option>
+              <option value="pl-PL-MarekNeural">Marek (Edge PL Radiowy)</option>
+              <option value="pl-PL-ZofiaNeural">Zofia (Edge PL Ciepły Kobiecy)</option>
+              <option value="adam">Adam (ElevenLabs Lektor HD)</option>
+              <option value="rachel">Rachel (ElevenLabs Kobieta HD)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Status / Feedback Box -->
+        <div id="emojiDesignerStatusBox" style="display:none; padding:0.6rem 0.8rem; border-radius:6px; font-size:0.78rem; margin-bottom:1rem;"></div>
+
+        <!-- Action Buttons -->
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; border-top:1px solid var(--border); padding-top:0.75rem;">
+          <button type="button" class="btn" id="btnPreviewEmojiSound" onclick="testEmojiSoundPreview()">
+            <span>▶</span> Przetestuj brzmienie ikony na żywo
+          </button>
+          <div style="display:flex; gap:0.5rem;">
+            <button type="button" class="btn" onclick="closeEmojiDesignerModal()">Anuluj</button>
+            <button type="button" class="btn btn-primary" onclick="submitSaveCustomEmoji()" style="background:linear-gradient(135deg, #ec4899, #db2777); border-color:#ec4899;">
+              💾 Zapisz dźwięk ikony w projekcie
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: ZDEFINIOWANE IKONY PROJEKTU -->
+      <div id="emojiTabProjectBody" style="display:none;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+          <div style="font-size:0.8rem; color:var(--text-dim);">
+            Ikony zdefiniowane dla bieżącego projektu (zapisane w <code>audioticon.toml</code>):
+          </div>
+          <button class="btn btn-sm" onclick="switchEmojiDesignerTab('design')" style="font-size:0.75rem; color:#ec4899;">
+            ➕ Zaprojektuj nową ikonę
+          </button>
+        </div>
+        <div id="customEmojisGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:0.75rem; max-height:480px; overflow-y:auto;">
+          <!-- Loaded dynamically -->
+        </div>
+      </div>
+
+      <!-- TAB 3: FABRYCZNY SŁOWNIK AKUSTYCZNY -->
+      <div id="emojiTabCatalogBody" style="display:none;">
+        <div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:0.75rem;">
+          Wbudowane emotikony i efekty akustyczne silnika Audioticon (dostępne w każdym projekcie od ręki):
+        </div>
+        <div id="factoryEmojisGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:0.75rem; max-height:480px; overflow-y:auto;">
+          <!-- Loaded dynamically -->
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -4575,6 +4827,372 @@
       URL.revokeObjectURL(url);
     }
 
+    // =====================================================================
+    // EMOJI SOUND DESIGNER & CUSTOM SOUND EFFECTS (CUSTOM EMOJI STUDIO)
+    // =====================================================================
+    let currentProjectEmojis = {};
+    let currentFactoryEmojis = [];
+
+    function openEmojiDesignerModal() {
+      document.getElementById('emojiDesignerModal').classList.add('open');
+      fetchCustomEmojis();
+    }
+
+    function closeEmojiDesignerModal() {
+      document.getElementById('emojiDesignerModal').classList.remove('open');
+    }
+
+    function switchEmojiDesignerTab(tab) {
+      document.getElementById('tabEmojiDesignBtn').classList.toggle('active', tab === 'design');
+      document.getElementById('tabEmojiProjectBtn').classList.toggle('active', tab === 'project');
+      document.getElementById('tabEmojiCatalogBtn').classList.toggle('active', tab === 'catalog');
+
+      document.getElementById('emojiTabDesignBody').style.display = tab === 'design' ? 'block' : 'none';
+      document.getElementById('emojiTabProjectBody').style.display = tab === 'project' ? 'block' : 'none';
+      document.getElementById('emojiTabCatalogBody').style.display = tab === 'catalog' ? 'block' : 'none';
+    }
+
+    function selectPaletteEmoji(sym) {
+      const inp = document.getElementById('emojiInputSymbol');
+      if (inp) inp.value = sym;
+    }
+
+    function switchEmojiDesignerCategory(cat) {
+      document.getElementById('emojiOptsFilter').style.display = cat === 'filter' ? 'block' : 'none';
+      document.getElementById('emojiOptsSfx').style.display = cat === 'sfx' ? 'block' : 'none';
+      document.getElementById('emojiOptsAmbient').style.display = cat === 'ambient' ? 'block' : 'none';
+      document.getElementById('emojiOptsVoice').style.display = cat === 'voice' ? 'block' : 'none';
+    }
+
+    async function fetchCustomEmojis() {
+      try {
+        const res = await fetch('/api/custom-emojis');
+        if (res.ok) {
+          const data = await res.json();
+          currentProjectEmojis = data.emojis || {};
+          currentFactoryEmojis = data.factory_emojis || [];
+          renderCustomEmojiPills();
+          renderCustomEmojisGrid();
+          renderFactoryEmojisGrid();
+
+          const count = Object.keys(currentProjectEmojis).length;
+          const badge = document.getElementById('customEmojiCountBadge');
+          if (badge) badge.innerText = String(count);
+        }
+      } catch (e) {
+        console.warn('Błąd pobierania emotikonek:', e);
+      }
+    }
+
+    function renderCustomEmojiPills() {
+      const slot = document.getElementById('customEmojiPillsSlot');
+      if (!slot) return;
+      slot.innerHTML = '';
+
+      Object.entries(currentProjectEmojis).forEach(([sym, def]) => {
+        const pill = document.createElement('span');
+        pill.className = 'emoji-pill';
+        pill.style.borderColor = '#ec4899';
+        pill.style.color = '#f472b6';
+        pill.innerHTML = `${sym} ${def.name || sym}`;
+        pill.title = `${def.name} (${def.action_type}) [${def.alias || ''}]`;
+        pill.onclick = () => insertEmojiIntoActive(sym);
+        slot.appendChild(pill);
+      });
+    }
+
+    function renderCustomEmojisGrid() {
+      const grid = document.getElementById('customEmojisGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      const keys = Object.keys(currentProjectEmojis);
+      if (keys.length === 0) {
+        grid.innerHTML = `
+          <div style="grid-column: 1 / -1; text-align:center; padding:2rem; color:var(--text-dim); background:var(--surface-elev); border-radius:8px; border:1px dashed var(--border);">
+            Brak zdefiniowanych własnych ikon w projekcie.<br>
+            <button class="btn btn-primary" onclick="switchEmojiDesignerTab('design')" style="margin-top:0.75rem; background:linear-gradient(135deg, #ec4899, #db2777);">
+              ➕ Zaprojektuj pierwszy dźwięk pod ikonę
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      keys.forEach(sym => {
+        const def = currentProjectEmojis[sym];
+        const card = document.createElement('div');
+        card.style.background = 'var(--surface-elev)';
+        card.style.border = '1px solid var(--border)';
+        card.style.borderRadius = '8px';
+        card.style.padding = '0.85rem';
+        card.style.display = 'flex';
+        card.style.flexDirection = 'column';
+        card.style.justifyContent = 'space-between';
+
+        const aliasTag = def.alias ? `<code style="font-size:0.7rem; color:var(--accent);">[${def.alias}]</code>` : '';
+        const typeBadge = `<span style="font-size:0.68rem; font-weight:700; color:#ec4899; background:rgba(236,72,153,0.15); padding:1px 6px; border-radius:4px;">${def.action_type.toUpperCase()}</span>`;
+
+        let details = '';
+        if (def.action_type === 'filter') {
+          details = `Preset: <b>${def.filter || 'cathedral'}</b> | Pitch: <b>${def.pitch || 0}Hz</b>`;
+        } else if (def.action_type === 'sfx') {
+          details = `SFX: <b>${def.filter || 'bell'}</b>`;
+        } else if (def.action_type === 'ambient') {
+          details = `Tło: <b>${def.filter || 'wind'}</b>`;
+        } else if (def.action_type === 'voice') {
+          details = `Głos: <b>${def.voice || 'narrator'}</b>`;
+        }
+
+        card.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.5rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+              <span style="font-size:1.8rem;">${sym}</span>
+              <div>
+                <div style="font-weight:700; font-size:0.9rem;">${def.name || sym}</div>
+                <div>${aliasTag} ${typeBadge}</div>
+              </div>
+            </div>
+          </div>
+          <div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:0.75rem; line-height:1.4;">
+            ${details}
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px dashed var(--border); padding-top:0.5rem;">
+            <button class="btn btn-sm" onclick="playSingleEmojiSound('${sym}', '${def.action_type}', '${def.filter || ''}', ${def.pitch || 0}, '${def.voice || ''}')" style="font-size:0.7rem; padding:0.25rem 0.5rem;">
+              ▶ Testuj
+            </button>
+            <div style="display:flex; gap:0.3rem;">
+              <button class="btn btn-sm" onclick="insertEmojiIntoActive('${sym}'); closeEmojiDesignerModal();" style="font-size:0.7rem; padding:0.25rem 0.5rem; color:#34d399;">
+                📝 Wstaw
+              </button>
+              <button class="btn btn-sm" onclick="deleteCustomEmoji('${sym}')" style="font-size:0.7rem; padding:0.25rem 0.5rem; color:#ef4444;">
+                🗑️
+              </button>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function renderFactoryEmojisGrid() {
+      const grid = document.getElementById('factoryEmojisGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      if (currentFactoryEmojis.length === 0) {
+        grid.innerHTML = '<div style="color:var(--text-dim);">Ładowanie słownika...</div>';
+        return;
+      }
+
+      currentFactoryEmojis.forEach(item => {
+        const card = document.createElement('div');
+        card.style.background = 'var(--surface-elev)';
+        card.style.border = '1px solid var(--border)';
+        card.style.borderRadius = '8px';
+        card.style.padding = '0.75rem';
+        card.style.display = 'flex';
+        card.style.flexDirection = 'column';
+        card.style.justifyContent = 'space-between';
+
+        card.innerHTML = `
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+              <div style="display:flex; align-items:center; gap:0.4rem;">
+                <span style="font-size:1.4rem;">${item.emoji}</span>
+                <b style="font-size:0.85rem;">${item.name}</b>
+              </div>
+              <code style="font-size:0.7rem; color:var(--accent);">[${item.alias}]</code>
+            </div>
+            <div style="font-size:0.72rem; color:var(--text-muted); line-height:1.35; margin-bottom:0.6rem;">
+              ${item.desc}
+            </div>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px dashed var(--border); padding-top:0.4rem;">
+            <button class="btn btn-sm" onclick="playSingleEmojiSound('${item.emoji}', '${item.type}', '${item.filter}', 0, '')" style="font-size:0.7rem; padding:0.2rem 0.5rem;">
+              ▶ Testuj
+            </button>
+            <button class="btn btn-sm" onclick="insertEmojiIntoActive('${item.emoji}'); closeEmojiDesignerModal();" style="font-size:0.7rem; padding:0.2rem 0.5rem; color:#34d399;">
+              📝 Wstaw
+            </button>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    async function submitSaveCustomEmoji() {
+      const sym = document.getElementById('emojiInputSymbol')?.value.trim();
+      const name = document.getElementById('emojiInputName')?.value.trim();
+      const alias = document.getElementById('emojiInputAlias')?.value.trim() || undefined;
+      const cat = document.querySelector('input[name="emojiCategoryRadio"]:checked')?.value || 'filter';
+      const statusBox = document.getElementById('emojiDesignerStatusBox');
+
+      if (!sym || !name) {
+        if (statusBox) {
+          statusBox.style.display = 'block';
+          statusBox.style.background = 'rgba(239,68,68,0.15)';
+          statusBox.style.color = '#ef4444';
+          statusBox.innerText = 'Wymagany jest symbol ikony oraz czytelna nazwa.';
+        }
+        return;
+      }
+
+      let filter = undefined;
+      let pitch = undefined;
+      let rate = undefined;
+      let volume = undefined;
+      let voice = undefined;
+
+      if (cat === 'filter') {
+        filter = document.getElementById('emojiBaseFilterSelect')?.value || 'cathedral';
+        pitch = parseInt(document.getElementById('emojiPitchSlider')?.value || '0', 10);
+        rate = parseInt(document.getElementById('emojiRateSlider')?.value || '0', 10);
+        volume = parseFloat(document.getElementById('emojiVolSlider')?.value || '1.0');
+      } else if (cat === 'sfx') {
+        const sel = document.getElementById('emojiSfxSelect')?.value;
+        filter = sel === 'custom' ? (document.getElementById('emojiCustomSfxInput')?.value.trim() || 'bell') : sel;
+      } else if (cat === 'ambient') {
+        filter = document.getElementById('emojiAmbientSelect')?.value || 'wind';
+      } else if (cat === 'voice') {
+        voice = document.getElementById('emojiVoiceSelect')?.value || 'bzipek';
+      }
+
+      const payload = {
+        emoji: sym,
+        name: name,
+        alias: alias,
+        action_type: cat,
+        filter: filter,
+        voice: voice,
+        pitch: pitch,
+        rate: rate,
+        volume: volume,
+        description: `Dźwięk ikony: ${name} (${cat})`
+      };
+
+      try {
+        const res = await fetch('/api/custom-emojis/add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          if (statusBox) {
+            statusBox.style.display = 'block';
+            statusBox.style.background = 'rgba(16,185,129,0.15)';
+            statusBox.style.color = '#10b981';
+            statusBox.innerText = `✅ Pomyślnie zapisano dźwięk ikony ${sym} (${name}) w audioticon.toml!`;
+          }
+          await fetchCustomEmojis();
+          setTimeout(() => {
+            switchEmojiDesignerTab('project');
+          }, 800);
+        } else {
+          throw new Error(`HTTP ${res.status}`);
+        }
+      } catch (err) {
+        if (statusBox) {
+          statusBox.style.display = 'block';
+          statusBox.style.background = 'rgba(239,68,68,0.15)';
+          statusBox.style.color = '#ef4444';
+          statusBox.innerText = `Błąd zapisu: ${err.message}`;
+        }
+      }
+    }
+
+    async function deleteCustomEmoji(sym) {
+      if (!confirm(`Czy na pewno chcesz usunąć ikonę ${sym} z projektu?`)) return;
+      try {
+        const res = await fetch('/api/custom-emojis/remove', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emoji: sym })
+        });
+        if (res.ok) {
+          await fetchCustomEmojis();
+        }
+      } catch (e) {
+        console.warn('Błąd usuwania emotki:', e);
+      }
+    }
+
+    async function testEmojiSoundPreview() {
+      const sym = document.getElementById('emojiInputSymbol')?.value.trim() || '🧙‍♂️';
+      const cat = document.querySelector('input[name="emojiCategoryRadio"]:checked')?.value || 'filter';
+      const btn = document.getElementById('btnPreviewEmojiSound');
+      const oldHtml = btn.innerHTML;
+      btn.innerHTML = '<span>⏳</span> Generowanie podglądu...';
+      btn.disabled = true;
+
+      try {
+        if (cat === 'filter') {
+          const filter = document.getElementById('emojiBaseFilterSelect')?.value || 'cathedral';
+          const pitch = parseInt(document.getElementById('emojiPitchSlider')?.value || '0', 10);
+          await playSingleEmojiSound(sym, 'filter', filter, pitch, '');
+        } else if (cat === 'sfx') {
+          const sel = document.getElementById('emojiSfxSelect')?.value;
+          const sfx = sel === 'custom' ? (document.getElementById('emojiCustomSfxInput')?.value.trim() || 'bell') : sel;
+          await playSingleEmojiSound(sym, 'sfx', sfx, 0, '');
+        } else if (cat === 'ambient') {
+          const amb = document.getElementById('emojiAmbientSelect')?.value || 'wind';
+          await playSingleEmojiSound(sym, 'ambient', amb, 0, '');
+        } else if (cat === 'voice') {
+          const voice = document.getElementById('emojiVoiceSelect')?.value || 'bzipek';
+          await playSingleEmojiSound(sym, 'voice', '', 0, voice);
+        }
+      } catch (e) {
+        console.warn('Preview error:', e);
+      } finally {
+        btn.innerHTML = oldHtml;
+        btn.disabled = false;
+      }
+    }
+
+    async function playSingleEmojiSound(sym, actionType, filterName, pitchHz, voiceName) {
+      try {
+        let testScript = "";
+        let voice = voiceName || 'bzipek';
+
+        if (actionType === 'filter') {
+          testScript = `[${filterName}] To jest demonstracja brzmienia ikony ${sym}.`;
+        } else if (actionType === 'sfx') {
+          testScript = `[sfx:${filterName}]`;
+        } else if (actionType === 'ambient') {
+          testScript = `[ambient:${filterName}] W tle słychać wybraną atmosferę dźwiękową.`;
+        } else if (actionType === 'voice') {
+          testScript = `Dzień dobry, oto brzmienie głosu przypisanego do ikony ${sym}.`;
+        }
+
+        const res = await fetch('/api/render', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: testScript,
+            provider: 'piper',
+            lang: 'pl',
+            voice: voice
+          })
+        });
+
+        if (res.ok) {
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = new Audio(url);
+          a.play();
+        } else {
+          if ('speechSynthesis' in window) {
+            const ut = new SpeechSynthesisUtterance(`Demonstracja brzmienia ikony ${sym}`);
+            ut.lang = 'pl-PL';
+            if (pitchHz !== 0) ut.pitch = Math.max(0.5, Math.min(1.8, 1.0 + (pitchHz / 20.0)));
+            window.speechSynthesis.speak(ut);
+          }
+        }
+      } catch (e) {
+        console.warn('Audio play fallback:', e);
+      }
+    }
+
     // Init
     window.addEventListener('DOMContentLoaded', () => {
       loadSavedLayout();
@@ -4582,6 +5200,7 @@
       syncTimelineClips();
       fetchLatestWaveformData();
       fetchLatestQcReport();
+      fetchCustomEmojis();
     });
 
     window.addEventListener('resize', () => {
