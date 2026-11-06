@@ -23,11 +23,11 @@ pub fn run_wallet(action: Option<WalletAction>) -> Result<()> {
                 }
             );
             println!(
-                "  Szacunkowy czas ElevenLabs: ~{} minut",
+                "  Limit produkcyjny BYOK (ElevenLabs): ~{} minut",
                 wallet.elevenlabs_minutes()
             );
             println!(
-                "  Silniki offline (Piper / Edge): 100% BEZPŁATNE (0 monet)"
+                "  Silniki lokalne (Piper / Kokoro-82M / Edge): 100% BEZPŁATNE (0 monet)"
             );
             println!(
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -76,29 +76,31 @@ pub fn run_wallet(action: Option<WalletAction>) -> Result<()> {
             }
         }
         WalletAction::Topup => {
-            println!("🛒 PAKIETY DOŁADOWAŃ AUDIOCOIN$ (IN-APP)");
+            println!("🛒 PAKIETY LICENCJI AUDIOTICON STUDIO & AUDIOCOIN$");
             println!(
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             );
             println!("1. 🥉 PAKIET DEBIUTANT — 39 zł");
-            println!("   • 5 000 AudioCoin$ (~16h lektora ElevenLabs v3)");
-            println!("   • Dostęp do darmowych bibliotek SFX");
-            println!("   • Podstawowy mastering");
+            println!("   • 5 000 AudioCoin$ (limity produkcyjne BYOK / reżyseria AI)");
+            println!("   • Dostęp do studyjnych bibliotek SFX & Ambient");
+            println!("   • Eksport M4B z rozdziałami i masteringiem EBU R128");
             println!();
             println!("2. 🥈 PAKIET PISARZ (NAJPOPULARNIEJSZY) — 119 zł");
-            println!("   • 20 000 AudioCoin$ (~66h lektora ElevenLabs v3)");
+            println!("   • 20 000 AudioCoin$ (pełna produkcja wielogłosowa & integracja BYOK ElevenLabs)");
             println!("   • 🌟 OFICJALNY CERTYFIKAT ZGODNOŚCI ACX / STORYTEL (Audio Ledger)");
-            println!("   • Gwarancja akceptacji technicznej dystrybutorów");
+            println!("   • Rzeczywisty pomiar LUFS / True Peak i eksport bezstratny 24-bit FLAC");
             println!("   • Pełna kadencja oddechowa i foley");
             println!();
             println!("3. 🥇 PAKIET WYDAWCA / STUDIO — 249 zł");
-            println!("   • 50 000 AudioCoin$ (Klonowanie głosu VoiceLab + Multi-Voice)");
-            println!("   • Nielimitowane certyfikaty ACX / Storytel");
-            println!("   • Prawa do komercyjnej odsprzedaży słuchowisk (B2B)");
+            println!("   • 50 000 AudioCoin$ (VoiceLab + eksport paczek LJSpeech/XTTS + Multi-Voice)");
+            println!("   • Nielimitowane certyfikaty ACX / Storytel z podpisem kryptograficznym");
+            println!("   • Prawa do komercyjnej produkcji słuchowisk (B2B)");
             println!(
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             );
-            println!("💳 Kup voucher online przez BLIK / Kartę / Apple Pay na stronie:");
+            println!("ℹ️  Uwaga: Silniki lokalne (Piper PL, Kokoro-82M) oraz Edge TTS działają w 100% za darmo.");
+            println!("   Integracja z chmurą ElevenLabs działa w modelu BYOK (własny klucz API użytkownika).");
+            println!("💳 Kup licencję / voucher online przez BLIK / Kartę / Apple Pay:");
             println!("   https://audioticon.io/pricing  (lub wpisz kod: audioticon wallet redeem <KOD>)");
         }
     }

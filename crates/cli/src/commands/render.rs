@@ -172,13 +172,13 @@ pub async fn run_render(
         }
         TtsProvider::Kokoro => {
             let m_path = if let Some(ref custom_m) = model {
-                if custom_m.exists() {
+                if custom_m.exists() || custom_m.is_absolute() {
                     custom_m.clone()
                 } else {
                     models_dir().join(custom_m)
                 }
             } else {
-                models_dir().join("kokoro-v1.0.onnx")
+                KokoroBridge::default_model_path()
             };
 
             let kokoro_voice = if voice != "default" && voice != "pl-PL-MarekNeural" {

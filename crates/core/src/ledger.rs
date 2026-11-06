@@ -61,7 +61,7 @@ impl AudioCertificate {
         (-22.5..=-18.0).contains(&lufs) && peak <= -1.0 && (sample_rate == 44100 || sample_rate == 48000)
     }
 
-    /// Generates and signs an Audio Certificate for the rendered book
+    /// Generates and signs an Audio Certificate for the rendered book using genuine EBU R128 / True-Peak measurements
     pub fn create_and_save(
         audio_path: &Path,
         script_path: Option<&Path>,
@@ -82,9 +82,8 @@ impl AudioCertificate {
             .unwrap_or_default()
             .as_secs();
 
-        // High-precision mastering measurements (standard target -19.5 LUFS, -3.0 dB True Peak)
-        let master_lufs = -19.5;
-        let true_peak_db = -3.0;
+        // Physically measure Integrated Loudness (LUFS) and True Peak (dBFS) of the rendered audio file
+        let (master_lufs, true_peak_db) = measure_audio_loudness(audio_path)?;
 
         let acx_compliant = Self::is_acx_compliant(master_lufs, true_peak_db, sample_rate);
         let storytel_compliant = Self::is_storytel_compliant(master_lufs, true_peak_db, sample_rate);
@@ -128,6 +127,93 @@ impl AudioCertificate {
     }
 }
 
+/// Measures actual Integrated Loudness (LUFS) and True Peak (dBFS) of an audio file.
+/// First uses FFmpeg's EBU R128 `loudnorm=print_format=json` analyzer (supporting WAV, MP3, M4B, FLAC).
+/// Falls back to direct 16-bit PCM sample RMS/Peak integration if FFmpeg loudnorm returns `-inf` on very short buffers (< 400ms).
+pub fn measure_audio_loudness(audio_path: &Path) -> Result<(f32, f32)> {
+    if !audio_path.exists() {
+        anyhow::bail!(
+            "Nie można zmierzyć głośności: plik audio nie istnieje: {:?}",
+            audio_path
+        );
+    }
+
+    // 1. Primary EBU R128 measurement via FFmpeg loudnorm filter
+    if let Ok(output) = std::process::Command::new("ffmpeg")
+        .args([
+            "-hide_banner",
+            "-nostats",
+            "-i",
+            audio_path.to_str().unwrap_or_default(),
+            "-af",
+            "loudnorm=print_format=json",
+            "-f",
+            "null",
+            "-",
+        ])
+        .output()
+    {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if let Some((lufs, tp)) = parse_ffmpeg_loudnorm_json(&stderr) {
+            if lufs.is_finite() && tp.is_finite() && lufs > -90.0 {
+                return Ok(((lufs * 10.0).round() / 10.0, (tp * 10.0).round() / 10.0));
+            }
+        }
+    }
+
+    // 2. Direct PCM WAV sample fallback (essential for short clips < 400ms where EBU R128 gating returns -inf)
+    if let Ok(mut reader) = hound::WavReader::open(audio_path) {
+        let mut sum_sq: f64 = 0.0;
+        let mut active_count: usize = 0;
+        let mut peak_abs: f64 = 0.0;
+
+        for s in reader.samples::<i16>().flatten() {
+            let norm = (s as f64) / 32768.0;
+            let abs_val = norm.abs();
+            if abs_val > peak_abs {
+                peak_abs = abs_val;
+            }
+            // Gate silence below -70 dBFS (~0.000316 linear) per EBU R128 absolute threshold
+            if abs_val > 0.000316 {
+                sum_sq += norm * norm;
+                active_count += 1;
+            }
+        }
+
+        let peak_db = if peak_abs > 1e-7 {
+            (20.0 * peak_abs.log10()) as f32
+        } else {
+            -99.0
+        };
+
+        let lufs = if active_count > 0 {
+            let mean_sq = sum_sq / (active_count as f64);
+            // ITU-R BS.1770 K-weighted LKFS offset (-0.691 dB)
+            (-0.691 + 10.0 * mean_sq.log10()) as f32
+        } else {
+            -99.0
+        };
+
+        return Ok(((lufs * 10.0).round() / 10.0, (peak_db * 10.0).round() / 10.0));
+    }
+
+    anyhow::bail!(
+        "Nie udało się zmierzyć parametrów akustycznych LUFS/True-Peak pliku: {:?}",
+        audio_path
+    )
+}
+
+fn parse_ffmpeg_loudnorm_json(stderr: &str) -> Option<(f32, f32)> {
+    let start = stderr.rfind('{')?;
+    let end = stderr[start..].find('}')? + start;
+    let json_block = &stderr[start..=end];
+
+    let val: serde_json::Value = serde_json::from_str(json_block).ok()?;
+    let input_i = val.get("input_i")?.as_str()?.parse::<f32>().ok()?;
+    let input_tp = val.get("input_tp")?.as_str()?.parse::<f32>().ok()?;
+    Some((input_i, input_tp))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,5 +235,63 @@ mod tests {
     fn test_storytel_compliance_criteria() {
         assert!(AudioCertificate::is_storytel_compliant(-19.5, -1.5, 44100));
         assert!(AudioCertificate::is_storytel_compliant(-20.0, -1.0, 48000));
+    }
+
+    #[test]
+    fn test_real_audio_loudness_measurement() {
+        let tmp_dir = std::env::temp_dir().join(format!("test_ledger_lufs_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp_dir);
+
+        // 1. Create a 2-second 44.1kHz WAV with a -18 dBFS peak sine wave (0.12589 amplitude -> ~ -21.0 LUFS)
+        let compliant_wav = tmp_dir.join("compliant.wav");
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 44100,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        {
+            let mut writer = hound::WavWriter::create(&compliant_wav, spec).unwrap();
+            let amp = 10.0f32.powf(-18.0 / 20.0); // -18 dBFS peak
+            for i in 0..(44100 * 2) {
+                let t = i as f32 / 44100.0;
+                let s = ((2.0 * std::f32::consts::PI * 1000.0 * t).sin() * amp * 32767.0) as i16;
+                writer.write_sample(s).unwrap();
+            }
+            writer.finalize().unwrap();
+        }
+
+        let (lufs, peak) = measure_audio_loudness(&compliant_wav).expect("Measure compliant WAV");
+        assert!(
+            (-23.5..=-18.5).contains(&lufs),
+            "Expected LUFS around -21.0, got {}",
+            lufs
+        );
+        assert!(
+            (-19.0..=-17.0).contains(&peak),
+            "Expected peak around -18.0 dBFS, got {}",
+            peak
+        );
+        assert!(AudioCertificate::is_acx_compliant(lufs, peak, 44100));
+
+        // 2. Create a clipped / overly loud WAV (-0.2 dBFS peak) and verify it fails ACX compliance
+        let loud_wav = tmp_dir.join("too_loud.wav");
+        {
+            let mut writer = hound::WavWriter::create(&loud_wav, spec).unwrap();
+            let amp = 0.98; // ~ -0.17 dBFS peak
+            for i in 0..(44100 * 2) {
+                let t = i as f32 / 44100.0;
+                let s = ((2.0 * std::f32::consts::PI * 1000.0 * t).sin() * amp * 32767.0) as i16;
+                writer.write_sample(s).unwrap();
+            }
+            writer.finalize().unwrap();
+        }
+
+        let (loud_lufs, loud_peak) = measure_audio_loudness(&loud_wav).expect("Measure loud WAV");
+        assert!(loud_lufs > -6.0, "Expected loud LUFS > -6.0, got {}", loud_lufs);
+        assert!(loud_peak > -1.0, "Expected loud peak > -1.0, got {}", loud_peak);
+        assert!(!AudioCertificate::is_acx_compliant(loud_lufs, loud_peak, 44100));
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
     }
 }

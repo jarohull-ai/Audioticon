@@ -436,15 +436,64 @@ fn download_file(url: &str, target_path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Pobiera wybrany model (.onnx oraz .onnx.json) z oficjalnego repozytorium HuggingFace
+/// Pobiera wybrany model (.onnx oraz .onnx.json lub pliki z Model Hub) z oficjalnego repozytorium
 pub fn download_model(name_or_id: &str, force: bool) -> Result<PathBuf> {
     if name_or_id.contains("..") || name_or_id.contains('/') || name_or_id.contains('\\') {
         bail!("Nieprawidłowy identyfikator modelu: zabronione znaki ścieżki");
     }
 
+    let dir = models_dir();
+    std::fs::create_dir_all(&dir)
+        .with_context(|| format!("Nie udało się utworzyć folderu modeli: {:?}", dir))?;
+
+    // 1. Sprawdź, czy to model z katalogu Europe & Americas Neural Model Hub (np. kokoro-82m-int8)
+    let clean_id = name_or_id.trim().to_lowercase();
+    let hub_catalog = crate::model_hub::get_curated_hub_catalog();
+    let hub_match = hub_catalog.iter().find(|m| {
+        m.id.to_lowercase() == clean_id
+            || (clean_id == "kokoro" && m.id == "kokoro-82m-int8")
+    });
+
+    if let Some(hub_entry) = hub_match {
+        if hub_entry.download_urls.is_empty() {
+            bail!(
+                "Model '{}' w katalogu Hub nie posiada zdefiniowanych adresów URL pobierania",
+                hub_entry.id
+            );
+        }
+
+        let mut primary_target: Option<PathBuf> = None;
+        for url in &hub_entry.download_urls {
+            let filename = if hub_entry.id == "kokoro-82m-int8" && url.ends_with(".onnx") {
+                "kokoro-v1.0.int8.onnx".to_string()
+            } else if hub_entry.id == "kokoro-82m-int8" && url.ends_with(".bin") {
+                "voices-v1.0.bin".to_string()
+            } else {
+                url.rsplit('/')
+                    .next()
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or(&format!("{}.onnx", hub_entry.id))
+                    .to_string()
+            };
+
+            let target_path = dir.join(&filename);
+            if primary_target.is_none() {
+                primary_target = Some(target_path.clone());
+            }
+
+            if !target_path.exists() || force {
+                download_file(url, &target_path)
+                    .with_context(|| format!("Błąd pobierania pliku modelu Hub z: {}", url))?;
+            }
+        }
+
+        return Ok(primary_target.unwrap_or_else(|| dir.join(&hub_entry.id)));
+    }
+
+    // 2. Standardowy katalog modeli Piper TTS (voices.json)
     let item = find_model(name_or_id).ok_or_else(|| {
         anyhow::anyhow!(
-            "Nieznany model: '{}'. Dostępne: pl_PL-darkman-medium, pl_PL-gosia-medium, pl_PL-mc_speech-medium, en_US-lessac-medium, en_US-amy-medium",
+            "Nieznany model: '{}'. Dostępne modele Piper: pl_PL-darkman-medium, pl_PL-gosia-medium, pl_PL-mc_speech-medium, en_US-lessac-medium, en_US-amy-medium oraz modele Hub: kokoro-82m-int8",
             name_or_id
         )
     })?;
@@ -455,10 +504,6 @@ pub fn download_model(name_or_id: &str, force: bool) -> Result<PathBuf> {
             item.id
         );
     }
-
-    let dir = models_dir();
-    std::fs::create_dir_all(&dir)
-        .with_context(|| format!("Nie udało się utworzyć folderu modeli: {:?}", dir))?;
 
     let onnx_path = dir.join(format!("{}.onnx", item.id));
     let json_path = dir.join(format!("{}.onnx.json", item.id));

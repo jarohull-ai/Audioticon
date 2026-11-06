@@ -201,8 +201,8 @@ pub fn get_curated_hub_catalog() -> Vec<ModelHubEntry> {
         // 1. KOKORO-82M (Król modeli, 100% legalny komercyjnie)
         ModelHubEntry {
             id: "kokoro-82m-int8".to_string(),
-            name: "Kokoro 82M Multilingual (v1.1 int8 ONNX)".to_string(),
-            author: "Hexgrad / csukuangfj".to_string(),
+            name: "Kokoro 82M Multilingual (v1.0 int8 ONNX)".to_string(),
+            author: "Hexgrad / thewh1teagle".to_string(),
             category: ModelCategory::NeuralTts,
             license_spdx: "Apache-2.0".to_string(),
             license_type: LicenseType::CommercialSafe,
@@ -215,18 +215,15 @@ pub fn get_curated_hub_catalog() -> Vec<ModelHubEntry> {
                 "es".to_string(),
                 "fr".to_string(),
                 "it".to_string(),
-                "pt".to_string(),
-                "pl".to_string(),
+                "pt-br".to_string(),
             ],
-            size_mb: 82,
+            size_mb: 88,
             min_ram_mb: 180,
             download_urls: vec![
-                "https://huggingface.co/csukuangfj/kokoro-int8-multi-lang-v1_1/resolve/main/model.int8.onnx".to_string(),
-                "https://huggingface.co/csukuangfj/kokoro-int8-multi-lang-v1_1/resolve/main/voices.bin".to_string(),
+                "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.int8.onnx".to_string(),
+                "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin".to_string(),
             ],
-            sha256_checksums: vec![
-                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
-            ],
+            sha256_checksums: vec![],
         },
 
         // 2. WHISPER-TINY (Aligner do pozycjonowania słów i oddechów co do 1ms)
@@ -420,12 +417,15 @@ pub fn authorize_model_access<'a>(
 }
 
 /// Sprawdza, czy dostęp do modelu jest dozwolony według bazy Safe-Harbor EULA.
-/// Dla standardowych modeli spoza curated hub nie blokuje pobierania.
+/// Modele CommercialSafe (MIT, Apache-2.0, CC0) są autoryzowane domyślnie, natomiast
+/// modele NonCommercialOnly / OpenRail wymagają podpisania certyfikatu EULA.
 pub fn check_hub_authorization(model_id: &str) -> std::result::Result<(), ModelHubError> {
     let catalog = get_curated_hub_catalog();
-    if catalog.iter().any(|m| m.id == model_id) {
-        let store = ReceiptStore::load_or_default();
-        authorize_model_access(model_id, &catalog, &store)?;
+    if let Some(entry) = catalog.iter().find(|m| m.id == model_id) {
+        if entry.license_type != LicenseType::CommercialSafe {
+            let store = ReceiptStore::load_or_default();
+            authorize_model_access(model_id, &catalog, &store)?;
+        }
     }
     Ok(())
 }
@@ -440,8 +440,8 @@ mod tests {
         assert!(catalog.len() >= 8);
         let kokoro = catalog.iter().find(|m| m.id == "kokoro-82m-int8").unwrap();
         assert_eq!(kokoro.license_type, LicenseType::CommercialSafe);
-        assert!(kokoro.languages.contains(&"pl".to_string()));
         assert!(kokoro.languages.contains(&"en-us".to_string()));
+        assert!(!kokoro.languages.contains(&"pl".to_string()));
     }
 
     #[test]

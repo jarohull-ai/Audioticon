@@ -1,7 +1,5 @@
-pub mod aligner;
 pub mod audio;
 pub mod auto_director;
-pub mod batch_pipeline;
 pub mod cache;
 pub mod cadence;
 pub mod credentials;
@@ -12,19 +10,14 @@ pub mod ledger;
 pub mod model_hub;
 pub mod models;
 pub mod parser;
-pub mod pcm_stream;
 pub mod presets;
-pub mod room_tone;
 pub mod sfx;
-pub mod speaker_clone;
-pub mod studio_leveler;
 pub mod types;
 pub mod verbalizer;
 pub mod voice_design;
 pub mod voicelab;
 pub mod voucher;
 pub mod wallet;
-pub mod wsola;
 
 pub use audio::{
     create_ambient_track, create_breath_wav, create_breath_wav_with_gain, create_sfx_wav,
@@ -49,6 +42,12 @@ pub use estimator::{estimate_cost, CostEstimate};
 pub use importer::{
     base64_decode, decode_html_entities, strip_html_tags, ImportedBook, ImportedChapter,
 };
+pub use kokoro::{KokoroBridge, KokoroVoice, KOKORO_SAMPLE_RATE};
+pub use ledger::{measure_audio_loudness, AudioCertificate};
+pub use model_hub::{
+    authorize_model_access, check_hub_authorization, get_curated_hub_catalog, LicenseReceipt,
+    LicenseType, ModelCategory, ModelHubEntry, ReceiptStore,
+};
 pub use models::{
     download_model, find_model, list_models, models_dir, remove_model, update_voices_catalog,
     ModelCatalogItem,
@@ -65,38 +64,14 @@ pub use types::{
     ProjectSettings, RenderResult, TextSegment,
 };
 pub use verbalizer::normalize_polish_text;
+pub use voice_design::{
+    create_voice_design_previews, save_designed_voice, DesignedVoicePreview, VoiceDesignResponse,
+};
 pub use voicelab::{
     add_sample_to_profile, analyze_wav_samples, clone_to_elevenlabs, convert_to_standard_wav,
     delete_voice_profile, export_dataset_zip, export_dataset_zip_bytes, get_voice_profile,
     list_voice_profiles, profile_dir, punch_in_sentence, read_wav_samples, sanitize_slug,
     save_voice_profile, voices_dir, SampleQualityReport, VoiceProfile, VoiceSampleMeta,
 };
-pub use ledger::AudioCertificate;
-pub use model_hub::{
-    authorize_model_access, check_hub_authorization, get_curated_hub_catalog, LicenseReceipt,
-    LicenseType, ModelCategory, ModelHubEntry, ReceiptStore,
-};
-pub use voice_design::{
-    create_voice_design_previews, save_designed_voice, DesignedVoicePreview, VoiceDesignResponse,
-};
 pub use voucher::{generate_voucher_code, verify_voucher_code, VoucherPayload, WalletTier};
 pub use wallet::{AudioWallet, Transaction, STARTING_CREDITS};
-pub use room_tone::{
-    fill_gaps_with_room_tone, trim_speech_padding, AudioTrackItem, RoomToneProfile,
-    ACX_TARGET_ROOM_TONE_DB, DEFAULT_TONE_FADE_MS, PLOSIVE_PROTECTION_MARGIN_MS,
-};
-pub use studio_leveler::{level_speech, peak_limit, LevelerConfig};
-pub use wsola::wsola_time_stretch;
-pub use pcm_stream::PcmStreamFile;
-pub use aligner::{align_words_with_audio, export_to_webvtt, AlignedWord, SegmentTimeline};
-pub use kokoro::{KokoroBridge, KokoroVoice, KOKORO_SAMPLE_RATE};
-pub use speaker_clone::{
-    compute_embedding_similarity, compute_speaker_embedding, extract_ideal_reference_window,
-    CloneWindowConfig, ADJACENT_TURN_GUARD_S, IDEAL_SPEAKER_REF_DURATION_S,
-    MAX_SPEAKER_REF_DURATION_S, MIN_SPEAKER_REF_DURATION_S, SPEAKER_EMBEDDING_DIM,
-};
-pub use batch_pipeline::{
-    audit_acx_compliance, AcxComplianceReport, BatchStateJournal, SegmentJournalEntry, SegmentState,
-    ACX_MAX_INTEGRATED_LUFS, ACX_MAX_NOISE_FLOOR_DBFS, ACX_MAX_TRUE_PEAK_DBFS,
-    ACX_MIN_INTEGRATED_LUFS,
-};

@@ -1247,6 +1247,30 @@ fn test_cli_render_with_kokoro_provider() {
     let out_wav = tmp_dir.join("kokoro_demo.wav");
     let tmp_cache = tmp_dir.join("cache");
 
+    // 1. Cost & duration estimation for Kokoro works offline without requiring model weights
+    let est_out = Command::new(exe)
+        .args([
+            "render",
+            "--demo",
+            "--provider",
+            "kokoro",
+            "--voice",
+            "af_bella",
+            "--estimate",
+            "--cache-dir",
+            tmp_cache.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Run audioticon render --estimate with kokoro");
+    assert!(
+        est_out.status.success(),
+        "Kokoro estimate failed: {}",
+        String::from_utf8_lossy(&est_out.stderr)
+    );
+
+    // 2. When given an explicit non-existent model path, Kokoro must honestly report the missing ONNX model
+    // rather than generating a fake sine-wave buzzer into the user's cache.
+    let missing_model = tmp_dir.join("missing_kokoro.onnx");
     let out = Command::new(exe)
         .args([
             "render",
@@ -1255,18 +1279,24 @@ fn test_cli_render_with_kokoro_provider() {
             "kokoro",
             "--voice",
             "af_bella",
+            "--model",
+            missing_model.to_str().unwrap(),
             "--cache-dir",
             tmp_cache.to_str().unwrap(),
             "-o",
             out_wav.to_str().unwrap(),
         ])
         .output()
-        .expect("Run audioticon render with kokoro");
+        .expect("Run audioticon render with missing kokoro model");
 
-    assert!(out.status.success(), "Render failed: {}", String::from_utf8_lossy(&out.stderr));
-    assert!(out_wav.exists());
-    let meta = std::fs::metadata(&out_wav).expect("Metadata");
-    assert!(meta.len() > 1000);
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("Nie znaleziono modelu Kokoro ONNX")
+            || stderr.contains("audioticon models download kokoro-82m-int8"),
+        "Unexpected stderr: {}",
+        stderr
+    );
 
     let _ = std::fs::remove_dir_all(&tmp_dir);
 }

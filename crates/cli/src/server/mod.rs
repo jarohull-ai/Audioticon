@@ -140,13 +140,13 @@ async fn resolve_synthesizer(
     } else if provider == "kokoro" {
         let m_path = if let Some(custom_m) = model {
             let p = PathBuf::from(custom_m);
-            if p.exists() {
+            if p.exists() || p.is_absolute() {
                 p
             } else {
                 models_dir().join(custom_m)
             }
         } else {
-            models_dir().join("kokoro-v1.0.onnx")
+            audioticon_core::KokoroBridge::default_model_path()
         };
         let kokoro_voice = if voice != "default" && voice != "pl-PL-MarekNeural" && !voice.is_empty() {
             voice.parse::<audioticon_core::KokoroVoice>().unwrap_or(audioticon_core::KokoroVoice::AfBella)
@@ -582,31 +582,22 @@ async fn handle_studio_request(
 
         let cache_dir = get_default_cache_dir();
         let cert_path = cache_dir.join("latest_preview.certificate.json");
-        let cert_content = if cert_path.exists() {
-            std::fs::read_to_string(&cert_path).unwrap_or_else(|_| "{}".to_string())
-        } else {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            let cert = AudioCertificate {
-                ledger_id: "AUD-ACX-2026-STUDIO".to_string(),
-                title: "Audioticon Studio Master".to_string(),
-                author: "Audioticon".to_string(),
-                timestamp: now,
-                master_lufs: -19.5,
-                true_peak_db: -3.0,
-                sample_rate: 44100,
-                duration_seconds: 0.0,
-                acx_compliant: true,
-                storytel_compliant: true,
-                audio_sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
-                script_sha256: None,
-                license_tier: wallet.tier.as_str().to_string(),
-                digital_signature: "audioticon_verified_signature".to_string(),
-            };
-            serde_json::to_string_pretty(&cert).unwrap()
-        };
+        if !cert_path.exists() {
+            let err_json = serde_json::json!({
+                "error": "Brak wyrenderowanego nagrania do certyfikacji. Wyrenderuj najpierw podgląd lub audiobook, aby zmierzyć parametry LUFS i True Peak."
+            });
+            let mut resp = tiny_http::Response::from_string(err_json.to_string());
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                    .unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(404));
+            return;
+        }
+        let cert_content = std::fs::read_to_string(&cert_path).unwrap_or_else(|_| "{}".to_string());
 
         let mut resp = tiny_http::Response::from_string(cert_content);
         resp.add_header(
@@ -1735,7 +1726,7 @@ async fn handle_studio_request(
                     let _ = wallet.save();
                 }
 
-                let mut ledger_id_opt = None;
+                let mut cert_opt = None;
                 if wallet.acx_certificate_unlocked {
                     let cert_path = cache_dir.join("latest_preview.certificate.json");
                     if let Ok(cert) = AudioCertificate::create_and_save(
@@ -1748,7 +1739,7 @@ async fn handle_studio_request(
                         &wallet,
                     ) {
                         let _ = std::fs::write(&cert_path, serde_json::to_string_pretty(&cert).unwrap_or_default());
-                        ledger_id_opt = Some(cert.ledger_id);
+                        cert_opt = Some(cert);
                     }
                 }
 
@@ -1787,15 +1778,15 @@ async fn handle_studio_request(
                         )
                         .unwrap(),
                     );
-                    if let Some(ref lid) = ledger_id_opt {
+                    if let Some(ref cert) = cert_opt {
                         resp.add_header(
-                            Header::from_bytes(&b"X-Audioticon-Ledger-Id"[..], lid.as_bytes()).unwrap(),
+                            Header::from_bytes(&b"X-Audioticon-Ledger-Id"[..], cert.ledger_id.as_bytes()).unwrap(),
                         );
                         resp.add_header(
-                            Header::from_bytes(&b"X-Audioticon-Lufs"[..], &b"-19.5"[..]).unwrap(),
+                            Header::from_bytes(&b"X-Audioticon-Lufs"[..], format!("{:.1}", cert.master_lufs).as_bytes()).unwrap(),
                         );
                         resp.add_header(
-                            Header::from_bytes(&b"X-Audioticon-Peak"[..], &b"-3.0"[..]).unwrap(),
+                            Header::from_bytes(&b"X-Audioticon-Peak"[..], format!("{:.1}", cert.true_peak_db).as_bytes()).unwrap(),
                         );
                     }
                     if let Some(ref h) = cors_header {
@@ -2019,7 +2010,7 @@ async fn handle_studio_request(
                     let _ = wallet.save();
                 }
 
-                let mut ledger_id_opt = None;
+                let mut cert_opt = None;
                 if wallet.acx_certificate_unlocked {
                     let cert_path = cache_dir.join("latest_preview.certificate.json");
                     let title = meta.title.as_deref().unwrap_or("Audioticon Audiobook");
@@ -2034,7 +2025,7 @@ async fn handle_studio_request(
                         &wallet,
                     ) {
                         let _ = std::fs::write(&cert_path, serde_json::to_string_pretty(&cert).unwrap_or_default());
-                        ledger_id_opt = Some(cert.ledger_id);
+                        cert_opt = Some(cert);
                     }
                 }
 
@@ -2098,15 +2089,15 @@ async fn handle_studio_request(
                         )
                         .unwrap(),
                     );
-                    if let Some(ref lid) = ledger_id_opt {
+                    if let Some(ref cert) = cert_opt {
                         resp.add_header(
-                            Header::from_bytes(&b"X-Audioticon-Ledger-Id"[..], lid.as_bytes()).unwrap(),
+                            Header::from_bytes(&b"X-Audioticon-Ledger-Id"[..], cert.ledger_id.as_bytes()).unwrap(),
                         );
                         resp.add_header(
-                            Header::from_bytes(&b"X-Audioticon-Lufs"[..], &b"-19.5"[..]).unwrap(),
+                            Header::from_bytes(&b"X-Audioticon-Lufs"[..], format!("{:.1}", cert.master_lufs).as_bytes()).unwrap(),
                         );
                         resp.add_header(
-                            Header::from_bytes(&b"X-Audioticon-Peak"[..], &b"-3.0"[..]).unwrap(),
+                            Header::from_bytes(&b"X-Audioticon-Peak"[..], format!("{:.1}", cert.true_peak_db).as_bytes()).unwrap(),
                         );
                     }
                     if let Some(ref h) = cors_header {

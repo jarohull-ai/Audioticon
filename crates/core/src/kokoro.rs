@@ -1,23 +1,24 @@
-//! Kokoro-82M Neural Text-To-Speech Engine for Audioticon
+//! Kokoro-82M Neural Text-To-Speech Engine Bridge for Audioticon
 //!
-//! Provides clean-room native Rust support for Kokoro-82M (Apache-2.0):
-//! - 82M parameter lightweight transformer voice generator
-//! - 24,000 Hz broadcast quality output
-//! - 256-dimensional style embedding for zero-shot speaker cloning and emotion modulation
-//! - Integrated studio mastering pipeline (plosive protection, opto-leveler, and ACX limiter)
+//! Provides production offline support for Kokoro-82M (Apache-2.0):
+//! - Persistent Python ONNX Runtime worker (`kokoro_worker.py` via `kokoro-onnx`)
+//! - 24,000 Hz neural synthesis resampled and conditioned through FFmpeg DSP to 44,100 Hz
+//! - Honest model verification: fails with actionable download guidance when `.onnx` / `voices.bin` are missing
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
-use hound::{SampleFormat, WavSpec, WavWriter};
 use serde::{Deserialize, Serialize};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use tokio::sync::Mutex;
 
-use crate::audio::{DEFAULT_SAMPLE_RATE, SpeechSynthesizer};
-use crate::room_tone::trim_speech_padding;
-use crate::studio_leveler::{level_speech, peak_limit, LevelerConfig};
+use crate::audio::{build_ffmpeg_filter_chain, create_silence_wav, DEFAULT_SAMPLE_RATE, SpeechSynthesizer};
+use crate::models::models_dir;
 use crate::types::TextSegment;
 
 pub const KOKORO_SAMPLE_RATE: u32 = 24000;
+
+const KOKORO_WORKER_CODE: &str = include_str!("kokoro_worker.py");
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum KokoroVoice {
@@ -29,7 +30,7 @@ pub enum KokoroVoice {
     // British English
     BfEmma,
     BmGeorge,
-    // Custom / Cloned
+    // Custom / Other Kokoro voice ID (e.g. ef_dora, ff_siwis, if_sara)
     Custom(String),
 }
 
@@ -45,13 +46,30 @@ impl KokoroVoice {
             Self::Custom(name) => name.as_str(),
         }
     }
+
+    pub fn lang_code(&self) -> &str {
+        let v = self.as_str();
+        if v.starts_with("bf_") || v.starts_with("bm_") {
+            "en-gb"
+        } else if v.starts_with("ef_") || v.starts_with("em_") {
+            "es"
+        } else if v.starts_with("ff_") || v.starts_with("fm_") {
+            "fr-fr"
+        } else if v.starts_with("if_") || v.starts_with("im_") {
+            "it"
+        } else if v.starts_with("pf_") || v.starts_with("pm_") {
+            "pt-br"
+        } else {
+            "en-us"
+        }
+    }
 }
 
 impl std::str::FromStr for KokoroVoice {
     type Err = std::convert::Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s.to_lowercase().as_str() {
+        Ok(match s.trim().to_lowercase().as_str() {
             "af_bella" | "bella" => Self::AfBella,
             "af_sarah" | "sarah" => Self::AfSarah,
             "am_adam" | "adam" => Self::AmAdam,
@@ -63,72 +81,217 @@ impl std::str::FromStr for KokoroVoice {
     }
 }
 
+struct KokoroWorkerProcess {
+    process: std::process::Child,
+    stdin: std::process::ChildStdin,
+    reader: BufReader<std::process::ChildStdout>,
+}
+
+impl Drop for KokoroWorkerProcess {
+    fn drop(&mut self) {
+        let _ = self.process.kill();
+    }
+}
+
 pub struct KokoroBridge {
     pub model_path: PathBuf,
+    pub voices_path: PathBuf,
     pub default_voice: KokoroVoice,
     pub speed: f32,
-    pub custom_embedding: Option<Vec<f32>>,
+    pub python_bin: PathBuf,
+    pub worker_script: PathBuf,
+    workers: Mutex<Vec<KokoroWorkerProcess>>,
 }
 
 impl KokoroBridge {
     pub fn new(model_path: impl AsRef<Path>, default_voice: Option<KokoroVoice>) -> Self {
+        let m_path = model_path.as_ref().to_path_buf();
+        let v_path = Self::resolve_voices_bin_path(&m_path);
+        let py = Self::find_python();
+        let script = Self::ensure_worker_script();
+
         Self {
-            model_path: model_path.as_ref().to_path_buf(),
+            model_path: m_path,
+            voices_path: v_path,
             default_voice: default_voice.unwrap_or(KokoroVoice::AfBella),
             speed: 1.0,
-            custom_embedding: None,
+            python_bin: py,
+            worker_script: script,
+            workers: Mutex::new(Vec::new()),
         }
     }
 
-    pub fn with_speaker_embedding(mut self, embedding: Vec<f32>) -> Self {
-        self.custom_embedding = Some(embedding);
-        self
+    pub fn default_model_path() -> PathBuf {
+        let dir = models_dir();
+        let candidates = [
+            dir.join("kokoro-v1.0.int8.onnx"),
+            dir.join("kokoro-82m-int8.onnx"),
+            dir.join("kokoro-v1.0.onnx"),
+            dir.join("model.int8.onnx"),
+        ];
+        for c in &candidates {
+            if c.exists() {
+                return c.clone();
+            }
+        }
+        candidates[0].clone()
     }
 
-    /// Renders raw speech samples, applying the automatic Studio Acoustics post-processing:
-    /// 1. Trim edge silence while protecting plosives (50ms context margin)
-    /// 2. Vocal opto-leveler (holding gain over pauses without background noise pumping)
-    /// 3. True-peak limiter (preventing clipping on loud interjections)
-    pub fn post_process_studio_master(&self, raw_samples: &[f32], sample_rate: u32) -> Vec<f32> {
-        if raw_samples.is_empty() {
-            return Vec::new();
+    fn resolve_voices_bin_path(model_path: &Path) -> PathBuf {
+        let parent = model_path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(models_dir);
+        let candidates = [
+            parent.join("kokoro-82m-int8.voices.bin"),
+            parent.join("voices-v1.0.bin"),
+            parent.join("voices.bin"),
+        ];
+        for c in &candidates {
+            if c.exists() {
+                return c.clone();
+            }
         }
-
-        // 1. Plosive-safe edge trim
-        let (start, end) = trim_speech_padding(raw_samples, sample_rate, Some(50));
-        let trimmed = &raw_samples[start..end];
-
-        // 2. Vocal opto-leveler
-        let leveler_cfg = LevelerConfig::default();
-        let leveled = level_speech(trimmed, sample_rate, &leveler_cfg);
-
-        // 3. Peak limiter (-1.0 dBFS ceiling)
-        peak_limit(&leveled, sample_rate, -1.0, 5.0, 50.0)
+        candidates[0].clone()
     }
 
-    /// Writes float samples to an output WAV file (16-bit PCM, mono, 24kHz)
-    pub fn write_wav_file(samples: &[f32], out_path: &Path, sample_rate: u32) -> Result<()> {
-        if let Some(parent) = out_path.parent() {
-            std::fs::create_dir_all(parent)?;
+    fn ensure_worker_script() -> PathBuf {
+        let script_dir = dirs::data_dir()
+            .unwrap_or_else(std::env::temp_dir)
+            .join("audioticon");
+        let _ = std::fs::create_dir_all(&script_dir);
+        let script_path = script_dir.join("kokoro_worker.py");
+        if !script_path.exists()
+            || std::fs::read_to_string(&script_path)
+                .map(|s| s != KOKORO_WORKER_CODE)
+                .unwrap_or(true)
+        {
+            let _ = std::fs::write(&script_path, KOKORO_WORKER_CODE);
         }
+        script_path
+    }
 
-        let spec = WavSpec {
-            channels: 1,
-            sample_rate,
-            bits_per_sample: 16,
-            sample_format: SampleFormat::Int,
+    fn find_python() -> PathBuf {
+        if let Some(data_dir) = dirs::data_dir() {
+            let venv_py = data_dir.join("audioticon/venv/bin/python3");
+            if venv_py.exists() {
+                return venv_py;
+            }
+        }
+        if let Ok(venv) = std::env::var("VIRTUAL_ENV") {
+            let p = PathBuf::from(venv).join("bin/python3");
+            if p.exists() {
+                return p;
+            }
+        }
+        let candidates = [
+            Path::new("/usr/local/bin/python3"),
+            Path::new("/usr/bin/python3"),
+            Path::new("python3"),
+        ];
+        for c in candidates {
+            if c.exists() {
+                return c.to_path_buf();
+            }
+        }
+        PathBuf::from("python3")
+    }
+
+    async fn acquire_worker(&self) -> Result<KokoroWorkerProcess> {
+        let existing = {
+            let mut guard = self.workers.lock().await;
+            guard.pop()
         };
+        if let Some(w) = existing {
+            Ok(w)
+        } else {
+            self.spawn_worker()
+        }
+    }
 
-        let mut writer = WavWriter::create(out_path, spec)
-            .with_context(|| format!("Nie można utworzyć pliku wyjściowego WAV: {:?}", out_path))?;
+    async fn return_worker(&self, worker: KokoroWorkerProcess) {
+        let mut guard = self.workers.lock().await;
+        guard.push(worker);
+    }
 
-        for &s in samples {
-            let s16 = (s * 32767.0).clamp(-32768.0, 32767.0) as i16;
-            writer.write_sample(s16)?;
+    fn spawn_worker(&self) -> Result<KokoroWorkerProcess> {
+        if !self.model_path.exists() {
+            bail!(
+                "Nie znaleziono modelu Kokoro ONNX: {:?}.\nAby pobrać model (Apache-2.0, ~88 MB), użyj polecenia:\n   audioticon models download kokoro-82m-int8",
+                self.model_path
+            );
+        }
+        if !self.voices_path.exists() {
+            bail!(
+                "Nie znaleziono pliku wektorów głosów Kokoro: {:?}.\nAby pobrać pełny pakiet modelu Kokoro-82M, użyj polecenia:\n   audioticon models download kokoro-82m-int8 --force",
+                self.voices_path
+            );
         }
 
-        writer.finalize()?;
-        Ok(())
+        let mut child = std::process::Command::new(&self.python_bin)
+            .arg(&self.worker_script)
+            .arg(&self.model_path)
+            .arg(&self.voices_path)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()
+            .with_context(|| {
+                format!(
+                    "Błąd uruchomienia procesu pomocniczego Kokoro ONNX ({:?})",
+                    self.worker_script
+                )
+            })?;
+
+        let stdin = child.stdin.take().expect("Child stdin open");
+        let stdout = child.stdout.take().expect("Child stdout open");
+        let mut reader = BufReader::new(stdout);
+
+        let mut ready_line = String::new();
+        reader.read_line(&mut ready_line)?;
+
+        let val: serde_json::Value = serde_json::from_str(&ready_line).with_context(|| {
+            format!(
+                "Nieprawidłowa odpowiedź startowa procesu Kokoro: {}",
+                ready_line.trim()
+            )
+        })?;
+
+        if val.get("status").and_then(|s| s.as_str()) != Some("ready") {
+            let msg = val
+                .get("message")
+                .and_then(|s| s.as_str())
+                .unwrap_or("Nieznany błąd inicjalizacji silnika Kokoro ONNX");
+            bail!("Błąd inicjalizacji Kokoro-82M: {}", msg);
+        }
+
+        Ok(KokoroWorkerProcess {
+            process: child,
+            stdin,
+            reader,
+        })
+    }
+
+    pub fn resolve_kokoro_voice(&self, requested: Option<&str>) -> KokoroVoice {
+        match requested {
+            Some(v) if !v.trim().is_empty() && v != "default" => {
+                let clean = v
+                    .trim()
+                    .strip_prefix("kokoro:")
+                    .unwrap_or(v.trim())
+                    .to_lowercase();
+                if clean.contains("male") && !clean.contains("female") || clean.contains("mezczyzna") || clean.contains("mężczyzna") {
+                    KokoroVoice::AmAdam
+                } else if clean.contains("female") || clean.contains("kobieta") {
+                    KokoroVoice::AfBella
+                } else if clean.contains("guard") || clean.contains("straznik") || clean.contains("strażnik") {
+                    KokoroVoice::BmGeorge
+                } else {
+                    clean.parse::<KokoroVoice>().unwrap_or_else(|_| self.default_voice.clone())
+                }
+            }
+            _ => self.default_voice.clone(),
+        }
     }
 }
 
@@ -138,37 +301,128 @@ impl SpeechSynthesizer for KokoroBridge {
         self.default_voice.as_str()
     }
 
+    fn resolve_voice_label(&self, requested: Option<&str>) -> String {
+        let v = self.resolve_kokoro_voice(requested);
+        format!("kokoro-{}", v.as_str())
+    }
+
+    fn max_concurrency(&self) -> usize {
+        let cpus = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
+        cpus.clamp(1, 4)
+    }
+
     async fn synthesize(&self, segment: &TextSegment, out_path: &Path) -> Result<()> {
-        let text = segment.text.trim();
-        if text.is_empty() {
-            return crate::audio::create_silence_wav(out_path, 80, DEFAULT_SAMPLE_RATE);
+        let trimmed = segment.text.trim();
+        if !trimmed.chars().any(|c| c.is_alphanumeric()) {
+            return create_silence_wav(out_path, 80, DEFAULT_SAMPLE_RATE);
         }
 
-        // If a real Kokoro ONNX model exists, we can dispatch to the ONNX session
-        // If running offline or in mock test environment, generate clean high-fidelity synthesized speech
-        let duration_ms = (text.chars().count() * 65).max(300) as u32;
-        let total_samples = (KOKORO_SAMPLE_RATE as u64 * duration_ms as u64) / 1000;
+        if !self.model_path.exists() {
+            bail!(
+                "Nie znaleziono modelu Kokoro ONNX: {:?}.\nAby pobrać model (Apache-2.0, ~88 MB), użyj polecenia:\n   audioticon models download kokoro-82m-int8",
+                self.model_path
+            );
+        }
 
-        let mut raw_samples = Vec::with_capacity(total_samples as usize);
-        let base_freq = match self.default_voice {
-            KokoroVoice::AfBella | KokoroVoice::AfSarah | KokoroVoice::BfEmma => 220.0,
-            KokoroVoice::AmAdam | KokoroVoice::AmMichael | KokoroVoice::BmGeorge => 130.0,
-            KokoroVoice::Custom(_) => 165.0,
+        let pid = std::process::id();
+        let unique_id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let temp_raw_wav = out_path.with_extension(format!("{}_{}.kokoro_raw.wav", pid, unique_id));
+        let temp_wav = out_path.with_extension(format!("{}_{}.temp.wav", pid, unique_id));
+
+        let voice = self.resolve_kokoro_voice(segment.voice.as_deref());
+        let speed = (self.speed * (1.0 + (segment.rate_mod as f32 / 100.0))).clamp(0.5, 2.0);
+
+        let req_json = serde_json::json!({
+            "text": trimmed,
+            "out_path": temp_raw_wav.to_str().unwrap_or_default(),
+            "voice": voice.as_str(),
+            "speed": speed,
+            "lang": voice.lang_code()
+        });
+
+        let mut worker = self.acquire_worker().await?;
+
+        let synth_res: Result<()> = {
+            let mut line = req_json.to_string();
+            line.push('\n');
+
+            worker.stdin.write_all(line.as_bytes())?;
+            worker.stdin.flush()?;
+
+            let mut resp_line = String::new();
+            worker.reader.read_line(&mut resp_line)?;
+
+            let val: serde_json::Value = serde_json::from_str(&resp_line).with_context(|| {
+                format!(
+                    "Nieprawidłowa odpowiedź procesu Kokoro: {}",
+                    resp_line.trim()
+                )
+            })?;
+
+            if val.get("status").and_then(|s| s.as_str()) != Some("ok") {
+                let err_msg = val
+                    .get("message")
+                    .and_then(|s| s.as_str())
+                    .unwrap_or("Nieznany błąd syntezy Kokoro");
+                bail!("Kokoro worker error: {}", err_msg);
+            }
+            Ok(())
         };
 
-        for i in 0..total_samples {
-            let t = i as f32 / KOKORO_SAMPLE_RATE as f32;
-            // Harmonic vocal synthesis simulation
-            let s1 = (2.0 * std::f32::consts::PI * base_freq * t).sin() * 0.4;
-            let s2 = (2.0 * std::f32::consts::PI * base_freq * 2.0 * t).sin() * 0.15;
-            let s3 = (2.0 * std::f32::consts::PI * base_freq * 3.0 * t).sin() * 0.08;
-            raw_samples.push(s1 + s2 + s3);
+        if let Err(e) = synth_res {
+            let _ = tokio::fs::remove_file(&temp_raw_wav).await;
+            return Err(e);
         }
 
-        let mastered = self.post_process_studio_master(&raw_samples, KOKORO_SAMPLE_RATE);
-        // Resample from Kokoro's native 24 kHz to Audioticon standard 44.1 kHz
-        let resampled = resample_linear(&mastered, KOKORO_SAMPLE_RATE, DEFAULT_SAMPLE_RATE);
-        Self::write_wav_file(&resampled, out_path, DEFAULT_SAMPLE_RATE)?;
+        self.return_worker(worker).await;
+
+        let mut filter_chain = build_ffmpeg_filter_chain(segment.filter.as_deref());
+        if segment.pitch_mod != 0 {
+            let semitones = segment.pitch_mod as f32 / 3.0;
+            let factor = 2f32.powf(semitones / 12.0);
+            let pitch_filter = format!(
+                "asetrate={:.0}*{:.4},aresample={}:resampler=soxr,atempo={:.4}",
+                KOKORO_SAMPLE_RATE,
+                factor,
+                DEFAULT_SAMPLE_RATE,
+                1.0 / factor
+            );
+            filter_chain = format!("{},{}", filter_chain, pitch_filter);
+        }
+
+        let conv = tokio::process::Command::new("ffmpeg")
+            .arg("-y")
+            .arg("-i")
+            .arg(&temp_raw_wav)
+            .arg("-af")
+            .arg(&filter_chain)
+            .arg("-ar")
+            .arg(DEFAULT_SAMPLE_RATE.to_string())
+            .arg("-ac")
+            .arg("1")
+            .arg("-c:a")
+            .arg("pcm_s16le")
+            .arg(&temp_wav)
+            .output()
+            .await?;
+
+        let _ = tokio::fs::remove_file(&temp_raw_wav).await;
+
+        if !conv.status.success() {
+            let stderr = String::from_utf8_lossy(&conv.stderr);
+            let _ = tokio::fs::remove_file(&temp_wav).await;
+            bail!("Błąd przetwarzania FFmpeg dla Kokoro WAV: {}", stderr);
+        }
+
+        tokio::fs::rename(&temp_wav, out_path)
+            .await
+            .with_context(|| format!("Błąd zapisu wyjściowego pliku WAV: {:?}", out_path))?;
+
         Ok(())
     }
 }
@@ -188,7 +442,11 @@ pub fn resample_linear(samples: &[f32], in_rate: u32, out_rate: u32) -> Vec<f32>
         let frac = (pos - idx as f64) as f32;
 
         let s1 = if idx < samples.len() { samples[idx] } else { 0.0 };
-        let s2 = if idx + 1 < samples.len() { samples[idx + 1] } else { s1 };
+        let s2 = if idx + 1 < samples.len() {
+            samples[idx + 1]
+        } else {
+            s1
+        };
 
         out.push(s1 + frac * (s2 - s1));
     }
@@ -200,27 +458,38 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_kokoro_bridge_synthesis_and_mastering() {
-        let tmp_dir = std::env::temp_dir().join(format!("test_kokoro_{}", std::process::id()));
+    async fn test_kokoro_missing_model_returns_honest_error() {
+        let tmp_dir = std::env::temp_dir().join(format!("test_kokoro_err_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&tmp_dir);
         let out_wav = tmp_dir.join("kokoro_test.wav");
 
-        let bridge = KokoroBridge::new(tmp_dir.join("kokoro.onnx"), Some(KokoroVoice::AfBella));
+        let bridge = KokoroBridge::new(
+            tmp_dir.join("nonexistent_kokoro.onnx"),
+            Some(KokoroVoice::AfBella),
+        );
         let segment = TextSegment {
-            text: "Welcome to Audioticon Studio 20/10.".to_string(),
+            text: "Welcome to Audioticon Studio.".to_string(),
             ..Default::default()
         };
 
-        bridge
-            .synthesize(&segment, &out_wav)
-            .await
-            .expect("Kokoro synthesize");
-
-        assert!(out_wav.exists());
-        let reader = hound::WavReader::open(&out_wav).expect("Open WAV");
-        assert_eq!(reader.spec().sample_rate, 44100);
-        assert!(reader.duration() > 1000);
+        let res = bridge.synthesize(&segment, &out_wav).await;
+        assert!(res.is_err(), "Missing ONNX model must return an error, never a fake sine wave");
+        let err_msg = res.unwrap_err().to_string();
+        assert!(err_msg.contains("Nie znaleziono modelu Kokoro ONNX"));
+        assert!(err_msg.contains("audioticon models download kokoro-82m-int8"));
+        assert!(!out_wav.exists());
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+
+    #[test]
+    fn test_kokoro_voice_parsing_and_lang() {
+        let bella: KokoroVoice = "af_bella".parse().unwrap();
+        assert_eq!(bella, KokoroVoice::AfBella);
+        assert_eq!(bella.lang_code(), "en-us");
+
+        let george: KokoroVoice = "bm_george".parse().unwrap();
+        assert_eq!(george, KokoroVoice::BmGeorge);
+        assert_eq!(george.lang_code(), "en-gb");
     }
 }
