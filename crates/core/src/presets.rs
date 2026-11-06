@@ -490,9 +490,64 @@ impl PresetRegistry {
                 base: "whisper".to_string(),
                 volume: Some(0.65),
                 air: Some(0.7),
+                rate: Some(-8),
                 ..Default::default()
             },
         );
+        for alias in ["whisper:narracyjny", "whisper:rozmowa", "whisper:narrative"] {
+            self.presets.insert(
+                alias.to_string(),
+                EffectPreset {
+                    base: "whisper".to_string(),
+                    volume: Some(0.68),
+                    air: Some(0.7),
+                    rate: Some(-8),
+                    ..Default::default()
+                },
+            );
+        }
+        for alias in ["whisper:akcja", "whisper:zolnierz", "whisper:żołnierz", "whisper:action"] {
+            self.presets.insert(
+                alias.to_string(),
+                EffectPreset {
+                    base: "whisper".to_string(),
+                    volume: Some(0.82),
+                    air: Some(0.9),
+                    rate: Some(-5),
+                    ..Default::default()
+                },
+            );
+        }
+        for alias in [
+            "whisper:romantyczny",
+            "whisper:intymny",
+            "whisper:ucho",
+            "whisper:romantic",
+            "whisper:ear",
+        ] {
+            self.presets.insert(
+                alias.to_string(),
+                EffectPreset {
+                    base: "whisper".to_string(),
+                    volume: Some(0.60),
+                    air: Some(0.6),
+                    rate: Some(-16),
+                    ..Default::default()
+                },
+            );
+        }
+        for alias in ["whisper:mikrofon", "whisper:mic"] {
+            self.presets.insert(
+                alias.to_string(),
+                EffectPreset {
+                    base: "whisper".to_string(),
+                    volume: Some(0.65),
+                    air: Some(0.75),
+                    rate: Some(-10),
+                    ..Default::default()
+                },
+            );
+        }
         self.presets.insert(
             "studio".to_string(),
             EffectPreset {

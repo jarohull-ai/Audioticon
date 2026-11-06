@@ -965,7 +965,9 @@ impl SpeechSynthesizer for EdgeTtsBridge {
         }
 
         if is_whisper {
-            crate::whisper_dsp::apply_whisper_to_wav_file(&temp_wav)?;
+            let mode =
+                crate::whisper_dsp::WhisperMode::from_filter_tag(segment.filter.as_deref());
+            crate::whisper_dsp::apply_whisper_to_wav_file_with_mode(&temp_wav, mode)?;
         }
 
         tokio::fs::rename(&temp_wav, out_path)
@@ -1368,7 +1370,9 @@ impl SpeechSynthesizer for PiperBridge {
         }
 
         if is_whisper {
-            crate::whisper_dsp::apply_whisper_to_wav_file(&temp_wav)?;
+            let mode =
+                crate::whisper_dsp::WhisperMode::from_filter_tag(segment.filter.as_deref());
+            crate::whisper_dsp::apply_whisper_to_wav_file_with_mode(&temp_wav, mode)?;
         }
 
         tokio::fs::rename(&temp_wav, out_path)

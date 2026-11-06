@@ -115,6 +115,8 @@ impl Default for EmojiDirector {
         m.insert("🤫".to_string(), EmojiAction::VolumeMod(-25));
         m.insert("[szept]".to_string(), EmojiAction::VolumeMod(-25));
         m.insert("[whisper]".to_string(), EmojiAction::VolumeMod(-25));
+        m.insert("💋".to_string(), EmojiAction::VolumeMod(-25));
+        m.insert("🪖".to_string(), EmojiAction::VolumeMod(-25));
 
         // DSP Filters & Acoustic Environments
         m.insert("📱".to_string(), EmojiAction::Filter("phone".to_string()));
@@ -733,8 +735,15 @@ impl EmojiDirector {
                             pending_one_shot_volume = true;
                         } else if *vol == -25 {
                             // 🤫 whisper also slows down slightly, adds Whisper actor tag,
-                            // and activates the whisper DSP acoustic filter only in AudioDrama mode
-                            let (preset, warn) = self.registry.resolve(&full_tag);
+                            // and activates the whisper DSP acoustic filter
+                            let resolved_tag = if full_tag == "💋" {
+                                "🤫:romantyczny".to_string()
+                            } else if full_tag == "🪖" {
+                                "🤫:akcja".to_string()
+                            } else {
+                                full_tag.clone()
+                            };
+                            let (preset, warn) = self.registry.resolve(&resolved_tag);
                             if let Some(w) = warn {
                                 eprintln!("⚠️ {}", w);
                             }
@@ -746,8 +755,10 @@ impl EmojiDirector {
                                 current_segment.volume_mod = ((v - 1.0) * 100.0) as i32;
                             }
                             current_segment.actor_tags.push(ActorTag::Whisper);
-                            if self.style == ProductionStyle::AudioDrama {
-                                current_segment.filter = Some(full_tag);
+                            if self.style == ProductionStyle::AudioDrama
+                                || resolved_tag.contains(':')
+                            {
+                                current_segment.filter = Some(resolved_tag);
                             } else {
                                 current_segment.filter = None;
                             }

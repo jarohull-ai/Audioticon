@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-pub const CACHE_VERSION: u32 = 6;
+pub const CACHE_VERSION: u32 = 7;
 
 /// Default maximum cache size: 2 GB
 pub const DEFAULT_MAX_CACHE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
@@ -29,7 +29,10 @@ pub fn compute_segment_hash(segment: &TextSegment, voice: &str) -> String {
         hasher.update(format!("{:?}", tag).as_bytes());
     }
 
-    // Hash the exact FFmpeg filter chain rather than just the preset name
+    // Hash both the raw filter tag (e.g. "🤫:akcja" vs "🤫:romantyczny") and the FFmpeg filter chain
+    if let Some(ref f_tag) = segment.filter {
+        hasher.update(f_tag.as_bytes());
+    }
     let filter_chain = build_ffmpeg_filter_chain(segment.filter.as_deref());
     hasher.update(filter_chain.as_bytes());
 
