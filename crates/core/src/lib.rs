@@ -1,6 +1,7 @@
 pub mod aligner;
 pub mod audio;
 pub mod auto_director;
+pub mod batch_pipeline;
 pub mod cache;
 pub mod cadence;
 pub mod credentials;
@@ -93,4 +94,9 @@ pub use speaker_clone::{
     compute_embedding_similarity, compute_speaker_embedding, extract_ideal_reference_window,
     CloneWindowConfig, ADJACENT_TURN_GUARD_S, IDEAL_SPEAKER_REF_DURATION_S,
     MAX_SPEAKER_REF_DURATION_S, MIN_SPEAKER_REF_DURATION_S, SPEAKER_EMBEDDING_DIM,
+};
+pub use batch_pipeline::{
+    audit_acx_compliance, AcxComplianceReport, BatchStateJournal, SegmentJournalEntry, SegmentState,
+    ACX_MAX_INTEGRATED_LUFS, ACX_MAX_NOISE_FLOOR_DBFS, ACX_MAX_TRUE_PEAK_DBFS,
+    ACX_MIN_INTEGRATED_LUFS,
 };
