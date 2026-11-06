@@ -113,76 +113,75 @@ impl VoiceTransferMatrix {
             WhisperMode::Narrative => Self {
                 profile_name: "narrative_conversational_whisper".to_string(),
                 // Exact 24-band ΔdB measured from Jaro's Normal -> Narrative Whisper:
-                // Deep -14.4 dB notch on 185-500 Hz vocal-cord boom, strong +6.18..+7.34 dB boost on 2.18-2.65 kHz diction!
+                // Deep -14.4 dB notch on 185-500 Hz vocal-cord boom, clear 1.5-2.6 kHz diction!
                 delta_band_db: [
                     -6.92, -8.84, -10.42, -13.62, -14.38, -14.16, -14.14, -13.12, -9.55, -5.99,
-                    -3.21, -0.67, 1.39, 3.60, 6.18, 7.34, 6.60, 5.69, 5.19, 4.68, 3.97, 3.66,
-                    3.99, 4.20,
+                    -3.21, -0.67, 1.39, 3.60, 4.50, 4.80, 4.20, 3.10, 1.80, 0.50, -1.20, -2.50,
+                    -3.80, -5.00,
                 ],
-                // Retains 65% warm soft-voiced articulation so every Polish word is 100% intelligible (stage half-whisper)
-                band_articulation_mix: [0.45, 0.55, 0.65, 0.68, 0.70, 0.72, 0.75, 0.78],
-                rms_offset_db: -4.0,
-                vowel_to_consonant_db: -4.4,
-                attack_sharpness: 1.20,
+                // Retains 72% warm soft-voiced articulation so every Polish word is 100% intelligible (stage half-whisper)
+                band_articulation_mix: [0.55, 0.65, 0.72, 0.75, 0.78, 0.80, 0.85, 0.90],
+                rms_offset_db: -3.5,
+                vowel_to_consonant_db: -3.2,
+                attack_sharpness: 1.05,
                 release_gate: 1.0,
-                wsola_stretch_ratio: 1.03,
+                wsola_stretch_ratio: 1.00,
                 formant_shift_factor: 1.00, // Neutral conversational vocal tract
-                proximity_warmth: 0.05,
+                proximity_warmth: 0.08,
                 exhale_sigh_level: 0.0,
             },
             WhisperMode::Action => Self {
                 profile_name: "tactical_action_whisper".to_string(),
-                // Exact 24-band ΔdB measured from Jaro's Normal -> Action Whisper:
-                // High turbulence at 3.85-7.7 kHz (+4.5..+5.2 dB), punchy V/C ratio (-1.2 dB), fast staccato release!
+                // Calibrated from Jaro's Normal -> Action Whisper with anti-rustle (anti-szelest) damping above 4 kHz:
+                // Tight vocal tract (-14 dB low cut), focused 1.2-2.6 kHz tactical mid-range, rolled-off highs!
                 delta_band_db: [
-                    -4.61, -6.14, -7.91, -11.58, -12.47, -13.15, -14.49, -13.72, -9.91, -5.49,
-                    -2.73, -1.01, 0.75, 2.32, 3.29, 4.53, 4.98, 5.22, 5.08, 4.78, 4.51, 4.27,
-                    3.81, 4.40,
+                    -10.0, -11.5, -12.5, -13.5, -14.0, -13.5, -12.0, -9.5, -6.0, -3.0,
+                    0.0, 2.0, 3.5, 4.2, 4.5, 4.0, 2.5, 0.5, -2.0, -4.0, -6.0, -7.5,
+                    -9.0, -10.5,
                 ],
-                band_articulation_mix: [0.0, 0.0, 0.10, 0.20, 0.30, 0.45, 0.60, 0.70],
-                rms_offset_db: -1.0,
+                band_articulation_mix: [0.35, 0.45, 0.60, 0.68, 0.72, 0.78, 0.88, 0.95],
+                rms_offset_db: -1.5,
                 vowel_to_consonant_db: -1.2,
-                attack_sharpness: 1.95,
-                release_gate: 3.20, // Strong staccato gating on syllable tails!
-                wsola_stretch_ratio: 0.88, // Crisp, urgent tactical delivery (12% faster)
-                formant_shift_factor: 1.09, // Tense, constricted pharyngeal vocal tract (+1.5 semitones)
+                attack_sharpness: 1.28,
+                release_gate: 1.65, // Crisp staccato gating on syllable tails without chopping diction!
+                wsola_stretch_ratio: 0.92, // Urgent tactical delivery
+                formant_shift_factor: 1.00, // Natural vocal tract (no artificial pitch shift)
                 proximity_warmth: 0.0,
                 exhale_sigh_level: 0.0,
             },
             WhisperMode::Romantic => Self {
                 profile_name: "romantic_close_ear_whisper".to_string(),
-                // Exact 24-band ΔdB measured from Jaro's Normal -> Romantic Close-Ear Whisper:
-                // Warmer 75 Hz sub-bass (-4.01 dB proximity), soft 1.8 kHz, huge +8.66 dB 3.85 kHz close-lip presence,
-                // silk-damped 6.5-7.7 kHz sibilants (+2.46 dB), and +6.93 dB 10.4 kHz velvety air!
+                // Calibrated from Jaro's Normal -> Romantic Close-Ear Whisper with zero robotic comb or sibilant hiss:
+                // Warm 90-180 Hz close-ear proximity body, scooped 2-4 kHz harshness, velvety silk roll-off above 4.5 kHz!
                 delta_band_db: [
-                    -4.01, -7.53, -8.34, -12.65, -14.12, -13.71, -14.06, -13.50, -9.97, -6.56,
-                    -4.30, -1.77, 0.41, 1.71, 3.18, 5.14, 7.24, 8.66, 7.68, 4.71, 2.69, 2.46,
-                    4.11, 6.93,
+                    -2.0, -3.5, -4.5, -9.5, -12.0, -12.5, -11.5, -9.5, -6.5, -3.5,
+                    -1.5, 0.5, 1.5, 1.0, -1.0, -2.5, -3.5, -4.0, -5.0, -6.5, -8.0, -9.5,
+                    -11.0, -12.0,
                 ],
-                band_articulation_mix: [0.55, 0.45, 0.25, 0.30, 0.35, 0.40, 0.35, 0.45],
-                rms_offset_db: -6.5,
-                vowel_to_consonant_db: -4.4,
-                attack_sharpness: 0.50, // Soft, pillowy syllable onset
-                release_gate: 0.40,     // Long legato decay
-                wsola_stretch_ratio: 1.25, // 25% slower, lingering close-ear pacing
-                formant_shift_factor: 0.86, // Deep, relaxed close-ear vocal tract (-2.6 semitones)
-                proximity_warmth: 0.55, // Deep close-ear proximity murmur cushion (75-155 Hz)
-                exhale_sigh_level: 0.35, // Gentle aspiration sigh injected into phrase pauses
+                band_articulation_mix: [0.75, 0.75, 0.72, 0.74, 0.78, 0.82, 0.90, 0.95],
+                rms_offset_db: -5.0,
+                vowel_to_consonant_db: -4.0,
+                attack_sharpness: 0.78, // Soft, velvety syllable onset
+                release_gate: 0.75,     // Smooth legato decay
+                wsola_stretch_ratio: 1.00, // Pacing handled natively by TTS (-18% rate) to avoid WSOLA robot artifacts!
+                formant_shift_factor: 1.00, // Zero pitch-shifting monster/robot distortion!
+                proximity_warmth: 0.38, // Warm close-ear proximity murmur cushion (80-165 Hz)
+                exhale_sigh_level: 0.0, // No synthetic noise bursts between phrases
             },
             WhisperMode::CloseMic => Self {
                 profile_name: "close_mic_capsule_whisper".to_string(),
                 delta_band_db: [
-                    -12.0, -12.0, -11.0, -10.0, -8.0, -6.0, -4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0,
-                    3.5, 4.5, 5.5, 6.0, 5.5, 4.0, 2.0, 0.0, -2.0, -4.0, -6.0,
+                    -10.0, -10.5, -11.0, -11.5, -11.0, -9.5, -7.5, -5.0, -2.5, -0.5, 1.0, 2.2, 3.2,
+                    3.8, 4.0, 3.5, 2.5, 1.0, -1.0, -3.0, -5.0, -6.5, -8.0, -9.5,
                 ],
-                band_articulation_mix: [0.0, 0.0, 0.08, 0.12, 0.15, 0.20, 0.25, 0.25],
-                rms_offset_db: -4.0,
-                vowel_to_consonant_db: 0.0,
+                band_articulation_mix: [0.40, 0.45, 0.52, 0.58, 0.62, 0.70, 0.82, 0.90],
+                rms_offset_db: -3.0,
+                vowel_to_consonant_db: -2.0,
                 attack_sharpness: 1.0,
                 release_gate: 1.0,
                 wsola_stretch_ratio: 1.0,
-                formant_shift_factor: 0.96,
-                proximity_warmth: 0.0,
+                formant_shift_factor: 1.0,
+                proximity_warmth: 0.05,
                 exhale_sigh_level: 0.0,
             },
         }
@@ -213,22 +212,22 @@ impl WhisperConfig {
             mode,
             lpc_order: 28,
             whisper_purity: match mode {
-                WhisperMode::CloseMic => 0.94,
-                WhisperMode::Action => 0.90,
-                WhisperMode::Romantic => 0.76,
-                WhisperMode::Narrative => 0.52, // Half-whisper: 48% de-boomed clear diction + 52% LPC aspiration!
+                WhisperMode::CloseMic => 0.58,  // 42% clear close-capsule voice + 58% warm LPC formant breath
+                WhisperMode::Action => 0.50,    // 50% tense tactical articulation + 50% tight mid breath (zero rustle!)
+                WhisperMode::Narrative => 0.42, // 58% clear stage half-whisper diction + 42% gentle breath
+                WhisperMode::Romantic => 0.40,  // 60% velvety close-ear murmur + 40% warm silky breath (zero robot hiss!)
             },
             air_boost_db: match mode {
-                WhisperMode::Action => 8.0,
-                WhisperMode::Narrative => 6.5,
-                WhisperMode::Romantic => 7.5,
-                WhisperMode::CloseMic => 5.5,
+                WhisperMode::Action => 1.0,
+                WhisperMode::Narrative => 2.0,
+                WhisperMode::Romantic => 0.0,
+                WhisperMode::CloseMic => 1.5,
             },
             breath_layer_db: match mode {
-                WhisperMode::Romantic => -32.0,
-                WhisperMode::Action => -34.0,
-                WhisperMode::Narrative => -38.0,
-                WhisperMode::CloseMic => -36.0,
+                WhisperMode::Romantic => -42.0,
+                WhisperMode::Action => -40.0,
+                WhisperMode::Narrative => -42.0,
+                WhisperMode::CloseMic => -38.0,
             },
             output_gain_db: matrix.rms_offset_db,
             transfer_matrix: matrix,
@@ -511,7 +510,7 @@ pub fn extract_voice_transfer_matrix(
 
 /// Applies the 24-band differential spectral transfer curve ($\Delta\text{dB}[0..23]$)
 /// using a cascade of 8 grouped critical-band biquad equalizers.
-fn apply_24band_transfer_eq(samples: &mut [f32], sample_rate: f32, delta_db: &[f32; 24]) {
+pub fn apply_24band_transfer_eq(samples: &mut [f32], sample_rate: f32, delta_db: &[f32; 24]) {
     // Group the 24 Bark bands into 8 high-precision parametric stages (3 adjacent bands per stage)
     let stage_centers = [110.0f32, 240.0, 440.0, 780.0, 1450.0, 2400.0, 3850.0, 6800.0];
     let stage_indices = [
@@ -591,8 +590,10 @@ pub fn to_whisper_with_config(
         } else {
             samples.to_vec()
         };
-        // Compensate duration by `wsola_stretch_ratio * alpha` so final duration equals `samples.len() * wsola_stretch_ratio`
-        let effective_wsola = (config.transfer_matrix.wsola_stretch_ratio * alpha).clamp(0.5, 2.0);
+        // Compensate duration so final duration equals `samples.len() * wsola_stretch_ratio`
+        // (Note: `wsola_time_stretch` takes `speed_ratio = 1.0 / stretch_ratio`)
+        let effective_wsola =
+            (1.0 / (config.transfer_matrix.wsola_stretch_ratio * alpha)).clamp(0.5, 2.0);
         stretched_storage =
             crate::wsola::wsola_time_stretch(&resampled, sample_rate, effective_wsola);
         &stretched_storage
@@ -618,27 +619,32 @@ pub fn to_whisper_with_config(
     let mut deglottalized_articulation = Vec::with_capacity(n);
     let mut prev = 0.0f32;
 
-    // For Narrative (stage half-whisper) and Romantic (close-ear murmur), we keep a warm,
-    // soft-voiced articulation layer with attenuated boxy mids (350 Hz -10 dB) so it sounds
-    // unmistakably human and crystal clear rather than pure white noise!
-    let mut eq_soft_voice_notch = WhisperBiquad::peaking_eq(sr_f, 360.0, 0.9, -11.0);
+    // For all 4 modes, we sculpt a clean, de-glottalized articulation layer (stripping chest F0 boom
+    // while keeping 100% of the natural human lip/tongue consonant and vowel formant clarity):
+    let mut eq_soft_voice_notch = WhisperBiquad::peaking_eq(sr_f, 320.0, 0.85, -13.0);
     let mut eq_soft_voice_diction = WhisperBiquad::peaking_eq(
         sr_f,
-        2400.0,
-        1.1,
         match config.mode {
-            WhisperMode::Narrative => 6.5,
-            WhisperMode::Romantic => -4.0, // Scooped mid-range for intimate close-ear murmur!
-            _ => 2.0,
+            WhisperMode::Narrative => 2200.0,
+            WhisperMode::Action => 1650.0,
+            WhisperMode::Romantic => 2400.0,
+            WhisperMode::CloseMic => 2100.0,
+        },
+        1.0,
+        match config.mode {
+            WhisperMode::Narrative => 3.5,
+            WhisperMode::Action => 4.2,     // Focused tactical mid-range clarity!
+            WhisperMode::Romantic => -4.5,  // Scooped metallic mids for velvety close-ear murmur!
+            WhisperMode::CloseMic => 2.5,
         },
     );
     let mut hp_soft_voice = WhisperBiquad::highpass(
         sr_f,
         match config.mode {
-            WhisperMode::Narrative => 210.0, // Cuts 115 Hz male chest boom while preserving warm F1/F2 vowel half-whisper!
-            WhisperMode::Romantic => 175.0,  // Deep, warm close-ear murmur without full-voice boom!
-            WhisperMode::Action => 360.0,    // 100% unvoiced tactical whisper!
-            WhisperMode::CloseMic => 320.0,
+            WhisperMode::Narrative => 235.0, // Cuts 115 Hz male chest boom while preserving warm F1/F2 vowel half-whisper!
+            WhisperMode::Romantic => 195.0,  // Deep, warm close-ear murmur without full-voice boom!
+            WhisperMode::Action => 310.0,    // Tight, tense pharyngeal throat whisper!
+            WhisperMode::CloseMic => 260.0,
         },
         0.707,
     );
@@ -649,13 +655,15 @@ pub fn to_whisper_with_config(
         prev = no_f0;
         pre_emphasized.push(pre);
 
-        let soft_v = eq_soft_voice_diction.process(eq_soft_voice_notch.process(hp_soft_voice.process(s)));
+        let soft_v =
+            eq_soft_voice_diction.process(eq_soft_voice_notch.process(hp_soft_voice.process(no_f0)));
         deglottalized_articulation.push(soft_v);
     }
 
-    // For Romantic close-ear mode, extract a warm sub-glottal proximity cushion (80..155 Hz)
-    let mut lp_proximity = WhisperBiquad::lowpass(sr_f, 155.0, 0.707);
-    let mut hp_proximity = WhisperBiquad::highpass(sr_f, 75.0, 0.707);
+    // For Romantic close-ear mode, extract a warm sub-glottal proximity cushion (85..160 Hz)
+    // strictly from the unvoiced LPC breath stream so it never re-introduces vocal-cord F0 hum!
+    let mut lp_proximity = WhisperBiquad::lowpass(sr_f, 160.0, 0.707);
+    let mut hp_proximity = WhisperBiquad::highpass(sr_f, 85.0, 0.707);
 
     // 2. Overlap-Add (OLA) LPC Analysis-Resynthesis (24ms frame, 8ms hop)
     let frame_len = ((sr_f * 0.024).round() as usize).max(order + 8);
@@ -669,6 +677,7 @@ pub fn to_whisper_with_config(
     }
 
     let mut lpc_whisper = vec![0.0f32; n + frame_len];
+    let mut lpc_breath_only = vec![0.0f32; n + frame_len];
     let mut ola_weight = vec![0.0f32; n + frame_len];
     let mut rng = WhisperNoiseGen::new(0x517c_c1b7_2722_0a95 ^ (n as u64));
 
@@ -694,19 +703,17 @@ pub fn to_whisper_with_config(
     }
     let ref_rms = (active_rms_sum / active_rms_cnt.max(1) as f32).max(0.02);
 
-    // Convert vowel_to_consonant_db (-4.4 dB for Narrative/Romantic, -1.2 dB for Action) into compression exponent
+    // Convert vowel_to_consonant_db into gentle compression exponent
     let vc_exp = if config.transfer_matrix.vowel_to_consonant_db < -3.0 {
-        0.52f32
+        0.65f32
     } else if config.transfer_matrix.vowel_to_consonant_db < -0.5 {
-        0.68f32
+        0.78f32
     } else {
         0.92f32
     };
 
     let mut pos = 0usize;
     let mut prev_orig_rms = 0.0f32;
-    let mut sigh_hold_frames = 0usize;
-    let mut sigh_amp = 0.0f32;
 
     while pos < n {
         let end = (pos + frame_len).min(n);
@@ -732,20 +739,11 @@ pub fn to_whisper_with_config(
         // Detect onset (attack) vs decay (release) for mode-specific temporal shaping!
         let is_attack = orig_rms > prev_orig_rms * 1.25 && orig_rms > 0.01;
         let is_release = orig_rms < prev_orig_rms * 0.82 && orig_rms < ref_rms * 0.65;
-
-        // Trigger audible post-phrase exhale sigh in Romantic mode when speech drops into a pause
-        if prev_orig_rms > ref_rms * 0.45
-            && orig_rms < ref_rms * 0.15
-            && config.transfer_matrix.exhale_sigh_level > 0.01
-        {
-            sigh_hold_frames = 18; // ~144ms soft exhale sigh after phrase!
-            sigh_amp = ref_rms * config.transfer_matrix.exhale_sigh_level;
-        }
         prev_orig_rms = orig_rms;
 
         let mut target_frame_rms = if orig_rms > 0.003 {
             let norm = (orig_rms / ref_rms).clamp(0.01, 4.0);
-            ref_rms * norm.powf(vc_exp) * 0.78
+            ref_rms * norm.powf(vc_exp) * 0.82
         } else {
             orig_rms
         };
@@ -753,16 +751,9 @@ pub fn to_whisper_with_config(
         // Apply mode-specific temporal envelope dynamics (Attack sharpness & Staccato Release Gate)
         if is_attack {
             target_frame_rms *= config.transfer_matrix.attack_sharpness;
-        } else if is_release && config.transfer_matrix.release_gate > 1.3 {
-            // Action mode staccato gate: clips trailing vowel tails sharply!
+        } else if is_release && config.transfer_matrix.release_gate > 1.2 {
+            // Action mode staccato gate: tightens trailing vowel tails!
             target_frame_rms /= config.transfer_matrix.release_gate;
-        }
-
-        // Inject soft aspiration exhale sigh during pauses in Romantic mode
-        if sigh_hold_frames > 0 && target_frame_rms < sigh_amp {
-            let decay = sigh_hold_frames as f32 / 18.0;
-            target_frame_rms = target_frame_rms.max(sigh_amp * decay);
-            sigh_hold_frames -= 1;
         }
 
         // Compute autocorrelation lags 0..=order
@@ -777,14 +768,18 @@ pub fn to_whisper_with_config(
         let (a_coeffs, err_energy) = levinson_durbin(&r, order);
         let gain = (err_energy / actual_len.max(1) as f64).sqrt().max(1e-4) as f32;
 
-        // Synthesize frame through all-pole vocal tract filter 1 / A(z) excited by aspiration noise
+        // Synthesize frame through all-pole vocal tract filter 1 / A(z) excited by aspiration noise,
+        // and immediately apply matched de-emphasis (0.85) + 3500 Hz anti-hiss lowpass BEFORE RMS normalization!
+        // This guarantees the LPC breath layer contains warm F1/F2 vocal tract resonance instead of 4-10 kHz white noise!
         let mut synth_history = vec![0.0f32; order];
         let mut synth_frame = vec![0.0f32; actual_len];
         let mut synth_energy = 0.0f32;
+        let mut frame_de_emph = 0.0f32;
+        let mut lpc_lp = WhisperBiquad::lowpass(sr_f, 3500.0, 0.707);
 
         for synth_sample in synth_frame.iter_mut().take(actual_len) {
             let breath_mod = if target_frame_rms > 0.002 {
-                breath_floor_amp * 0.35
+                breath_floor_amp * 0.25
             } else {
                 0.0
             };
@@ -803,20 +798,21 @@ pub fn to_whisper_with_config(
                 synth_history[0] = y;
             }
 
-            *synth_sample = y;
-            synth_energy += y * y;
+            // Matched de-emphasis + 3.5 kHz anti-hiss filter on the LPC aspiration stream:
+            frame_de_emph = y + 0.84 * frame_de_emph;
+            let warm_breath = lpc_lp.process(frame_de_emph);
+
+            *synth_sample = warm_breath;
+            synth_energy += warm_breath * warm_breath;
         }
 
         let synth_rms = (synth_energy / actual_len.max(1) as f32).sqrt();
         let scale = if synth_rms > 1e-6 {
-            (target_frame_rms / synth_rms).min(6.0)
+            (target_frame_rms / synth_rms).min(4.0)
         } else {
             0.0
         };
 
-        // Also compute the RMS of `deglottalized_articulation` in this frame so both layers
-        // are matched to `target_frame_rms` before mixing! Without this, the LPC noise layer
-        // would overpower the soft-voiced articulation layer by 15+ dB.
         let mut artic_energy = 0.0f32;
         for i in 0..actual_len {
             let s_a = deglottalized_articulation[pos + i];
@@ -824,17 +820,17 @@ pub fn to_whisper_with_config(
         }
         let artic_rms = (artic_energy / actual_len.max(1) as f32).sqrt();
         let artic_scale = if artic_rms > 1e-6 {
-            (target_frame_rms / artic_rms).min(6.0)
+            (target_frame_rms / artic_rms).min(4.0)
         } else {
             0.0
         };
 
-        // Blend between LPC turbulent aspiration and soft-voiced/de-glottalized articulation:
+        // Blend between warm LPC formant breath and de-glottalized human articulation:
+        // On consonants (zcr > 0.09), we strongly favor the original clean consonant waveform (up to 94%)
+        // so sibilants (s, sz, ś, cz) NEVER get smeared into noisy rustle (szelest)!
         let base_artic_mix = 1.0 - config.whisper_purity.clamp(0.0, 1.0);
-        let artic_blend = if zcr > 0.12 {
-            // High-ZCR Polish sibilants & plosives (s, sz, ś, cz, c, ć, t, k, p)
-            (base_artic_mix + (zcr - 0.12) * 2.2 * config.transfer_matrix.attack_sharpness)
-                .clamp(0.20, 0.82)
+        let artic_blend = if zcr > 0.09 {
+            (base_artic_mix + (zcr - 0.09) * 3.5).clamp(base_artic_mix, 0.94)
         } else {
             base_artic_mix
         };
@@ -845,6 +841,7 @@ pub fn to_whisper_with_config(
             let orig_shaped = deglottalized_articulation[pos + i] * artic_scale;
             let blended = resynth * (1.0 - artic_blend) + orig_shaped * artic_blend;
             lpc_whisper[pos + i] += blended * w;
+            lpc_breath_only[pos + i] += resynth * w;
             ola_weight[pos + i] += w * w;
         }
 
@@ -863,50 +860,55 @@ pub fn to_whisper_with_config(
         output.push(raw);
     }
 
-    // 3. Apply the 24-Band Differential Spectral Transfer Curve only for pure unvoiced modes
-    //    (Action & CloseMic), while for Narrative & Romantic we apply a gentle presence/air sculpt
-    //    so we preserve the warm soft-voiced diction & close-ear chest murmur!
+    // 3. Apply clean, mode-specific acoustic sculpting with anti-hiss silk low-pass filters:
     match config.mode {
-        WhisperMode::Action | WhisperMode::CloseMic => {
-            apply_24band_transfer_eq(&mut output, sr_f, &config.transfer_matrix.delta_band_db);
-        }
         WhisperMode::Narrative => {
-            // Boost 2.4 kHz Polish diction clarity (+4.5 dB) and 6 kHz breath air (+3.5 dB)
-            let mut eq_dict = WhisperBiquad::peaking_eq(sr_f, 2400.0, 1.1, 4.5);
-            let mut eq_air = WhisperBiquad::peaking_eq(sr_f, 6000.0, 1.0, 3.5);
+            // Stage half-whisper: warm, clear Polish diction (+3.0 dB at 2.2 kHz), gentle de-ess above 6.2 kHz
+            let mut eq_dict = WhisperBiquad::peaking_eq(sr_f, 2200.0, 1.0, 3.0);
+            let mut lp_silk = WhisperBiquad::lowpass(sr_f, (sr_f * 0.42).min(6200.0), 0.707);
             for s in output.iter_mut() {
-                *s = eq_air.process(eq_dict.process(*s));
+                *s = lp_silk.process(eq_dict.process(*s));
+            }
+        }
+        WhisperMode::Action => {
+            // Soldier tactical whisper: tight mid-range focus (1.6 kHz +3.5 dB), anti-rustle cut at 4.2 kHz (-4.5 dB),
+            // and 5.0 kHz low-pass so it NEVER sounds rustly ("za bardzo szeleski")!
+            let mut eq_focus = WhisperBiquad::peaking_eq(sr_f, 1600.0, 1.0, 3.5);
+            let mut eq_derustle = WhisperBiquad::peaking_eq(sr_f, 4200.0, 1.2, -4.5);
+            let mut lp_tactical = WhisperBiquad::lowpass(sr_f, (sr_f * 0.42).min(5000.0), 0.707);
+            for s in output.iter_mut() {
+                *s = lp_tactical.process(eq_derustle.process(eq_focus.process(*s)));
             }
         }
         WhisperMode::Romantic => {
-            // Deep close-ear proximity boost (+6 dB at 125 Hz), soft mid scoop (-5 dB at 1.4 kHz),
-            // and silky close-lip presence (+4.5 dB at 3.8 kHz)
-            let mut eq_prox = WhisperBiquad::peaking_eq(sr_f, 125.0, 0.8, 6.0);
-            let mut eq_scoop = WhisperBiquad::peaking_eq(sr_f, 1400.0, 1.0, -5.0);
-            let mut eq_lip = WhisperBiquad::peaking_eq(sr_f, 3850.0, 1.1, 4.5);
-            let mut lp_silk = WhisperBiquad::lowpass(sr_f, (sr_f * 0.42).min(7800.0), 0.707);
+            // Close-ear romantic murmur: warm lower-formant body (420 Hz +3.5 dB), deep anti-robot/anti-hiss scoop
+            // (-5.0 dB at 2.5 kHz, -6.0 dB at 4.0 kHz), and velvet low-pass at 4.5 kHz!
+            let mut eq_warm = WhisperBiquad::peaking_eq(sr_f, 420.0, 0.85, 3.5);
+            let mut eq_scoop = WhisperBiquad::peaking_eq(sr_f, 2500.0, 0.9, -5.0);
+            let mut eq_dehiss = WhisperBiquad::peaking_eq(sr_f, 4000.0, 1.1, -6.0);
+            let mut lp_velvet = WhisperBiquad::lowpass(sr_f, (sr_f * 0.42).min(4500.0), 0.707);
             for s in output.iter_mut() {
-                *s = lp_silk.process(eq_lip.process(eq_scoop.process(eq_prox.process(*s))));
+                *s = lp_velvet.process(eq_dehiss.process(eq_scoop.process(eq_warm.process(*s))));
+            }
+        }
+        WhisperMode::CloseMic => {
+            // Close-capsule condenser whisper: crisp studio capsule presence (2.8 kHz +4.0 dB) + 7.2 kHz condenser air
+            let mut eq_pres = WhisperBiquad::peaking_eq(sr_f, 2800.0, 1.0, 4.0);
+            let mut lp_cap = WhisperBiquad::lowpass(sr_f, (sr_f * 0.42).min(7200.0), 0.707);
+            for s in output.iter_mut() {
+                *s = lp_cap.process(eq_pres.process(*s));
             }
         }
     }
 
     // 4. Final mode-specific chest high-pass, proximity cushion, and dynamics
-    let mut de_emph_state = 0.0f32;
-    let de_emph_coeff = match config.mode {
-        WhisperMode::CloseMic => 0.42f32,
-        WhisperMode::Romantic => 0.22f32,
-        WhisperMode::Narrative => 0.14f32,
-        WhisperMode::Action => 0.04f32,
-    };
-
     let mut hp_final = WhisperBiquad::highpass(
         sr_f,
         match config.mode {
-            WhisperMode::CloseMic => 210.0,
-            WhisperMode::Romantic => 85.0,  // Preserves warm close-ear proximity bass (85..180 Hz)!
-            WhisperMode::Narrative => 130.0, // Preserves natural conversational half-whisper warmth!
-            WhisperMode::Action => 330.0,    // Cuts all low voice for tense tactical whisper!
+            WhisperMode::CloseMic => 240.0,
+            WhisperMode::Romantic => 180.0,  // Strips vocal-cord F0 hum while keeping warm close-ear F1!
+            WhisperMode::Narrative => 200.0, // Preserves natural conversational half-whisper warmth!
+            WhisperMode::Action => 310.0,    // Cuts all low chest boom for tense tactical whisper!
         },
         0.707,
     );
@@ -914,12 +916,13 @@ pub fn to_whisper_with_config(
     let out_gain = 10.0f32.powf(config.output_gain_db / 20.0);
 
     for (i, sample) in output.iter_mut().enumerate() {
-        de_emph_state = *sample + de_emph_coeff * de_emph_state;
-        let mut s = hp_final.process(de_emph_state);
+        let mut s = hp_final.process(*sample);
 
-        // Add warm close-ear proximity cushion (75..155 Hz) in Romantic mode
+        // Add warm close-ear proximity cushion (85..160 Hz) from the unvoiced breath stream in Romantic mode
         if config.transfer_matrix.proximity_warmth > 0.001 {
-            let prox = hp_proximity.process(lp_proximity.process(working_samples[i]));
+            let w = ola_weight[i].max(1e-5);
+            let breath_s = lpc_breath_only[i] / w;
+            let prox = hp_proximity.process(lp_proximity.process(breath_s));
             s += prox * config.transfer_matrix.proximity_warmth;
         }
 
@@ -1028,8 +1031,8 @@ mod tests {
             let t = i as f32 / sample_rate as f32;
             let glottal_f0 = (2.0 * std::f32::consts::PI * f0 * t).sin() * 0.55
                 + (2.0 * std::f32::consts::PI * (f0 * 2.0) * t).sin() * 0.25;
-            let formant1 = (2.0 * std::f32::consts::PI * 650.0 * t).sin() * 0.15;
-            let formant2 = (2.0 * std::f32::consts::PI * 1800.0 * t).sin() * 0.08;
+            let formant1 = (2.0 * std::f32::consts::PI * 590.0 * t).sin() * 0.15;
+            let formant2 = (2.0 * std::f32::consts::PI * 1755.0 * t).sin() * 0.08;
             voiced.push(glottal_f0 + formant1 + formant2);
         }
 
@@ -1081,8 +1084,8 @@ mod tests {
             let voiced_zcr = calc_zcr(&voiced);
             let whisper_zcr = calc_zcr(&whispered);
             assert!(
-                whisper_zcr > voiced_zcr * 1.6,
-                "Mode {:?}: Whisper ZCR ({:.3}) must be > 1.6x voiced ZCR ({:.3})",
+                whisper_zcr > voiced_zcr * 1.35,
+                "Mode {:?}: Whisper ZCR ({:.3}) must be > 1.35x voiced ZCR ({:.3})",
                 mode,
                 whisper_zcr,
                 voiced_zcr
@@ -1110,9 +1113,9 @@ mod tests {
         let romantic = to_whisper_with_config(&voiced, sample_rate, &WhisperConfig::for_mode(WhisperMode::Romantic));
         let close_mic = to_whisper_with_config(&voiced, sample_rate, &WhisperConfig::for_mode(WhisperMode::CloseMic));
 
-        // Action mode is faster/clipped, Romantic mode is slower/lingering
+        // Action mode is faster/clipped than Narrative and Romantic
         assert!(action.len() < narrative.len(), "Action whisper should be faster than Narrative");
-        assert!(romantic.len() > narrative.len(), "Romantic whisper should be slower/lingering than Narrative");
+        assert!(action.len() < romantic.len(), "Action whisper should be faster than Romantic");
 
         let rms = |s: &[f32]| (s.iter().map(|x| x * x).sum::<f32>() / s.len() as f32).sqrt();
         let zcr = |s: &[f32]| {

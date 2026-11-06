@@ -488,9 +488,9 @@ impl PresetRegistry {
             "whisper".to_string(),
             EffectPreset {
                 base: "whisper".to_string(),
-                volume: Some(0.65),
-                air: Some(0.7),
-                rate: Some(-8),
+                volume: Some(0.75),
+                air: Some(0.45),
+                rate: Some(-6),
                 ..Default::default()
             },
         );
@@ -499,9 +499,9 @@ impl PresetRegistry {
                 alias.to_string(),
                 EffectPreset {
                     base: "whisper".to_string(),
-                    volume: Some(0.68),
-                    air: Some(0.7),
-                    rate: Some(-8),
+                    volume: Some(0.75),
+                    air: Some(0.45),
+                    rate: Some(-6),
                     ..Default::default()
                 },
             );
@@ -512,8 +512,8 @@ impl PresetRegistry {
                 EffectPreset {
                     base: "whisper".to_string(),
                     volume: Some(0.82),
-                    air: Some(0.9),
-                    rate: Some(-5),
+                    air: Some(0.50),
+                    rate: Some(12),
                     ..Default::default()
                 },
             );
@@ -529,9 +529,10 @@ impl PresetRegistry {
                 alias.to_string(),
                 EffectPreset {
                     base: "whisper".to_string(),
-                    volume: Some(0.60),
-                    air: Some(0.6),
-                    rate: Some(-16),
+                    volume: Some(0.68),
+                    air: Some(0.30),
+                    rate: Some(-18),
+                    pitch: Some(-3),
                     ..Default::default()
                 },
             );
@@ -541,9 +542,9 @@ impl PresetRegistry {
                 alias.to_string(),
                 EffectPreset {
                     base: "whisper".to_string(),
-                    volume: Some(0.65),
-                    air: Some(0.75),
-                    rate: Some(-10),
+                    volume: Some(0.74),
+                    air: Some(0.55),
+                    rate: Some(-8),
                     ..Default::default()
                 },
             );
