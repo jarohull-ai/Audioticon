@@ -3,7 +3,7 @@ use audioticon_core::{
     credentials, estimate_cost, export_to_m4b, export_to_mp3, find_model, models_dir,
     parse_size_string, presets, prune_cache_lru, AudioCertificate, AudioDirectorEngine,
     AudioWallet, AudiobookMetadata, EdgeTtsBridge, ElevenLabsBridge, EmojiDirector, ImportedBook,
-    PiperBridge, PresetRegistry, ProjectConfig, SpeechSynthesizer, DEFAULT_MAX_CACHE_BYTES,
+    PiperBridge, KokoroBridge, KokoroVoice, PresetRegistry, ProjectConfig, SpeechSynthesizer, DEFAULT_MAX_CACHE_BYTES,
     DEFAULT_SAMPLE_RATE,
 };
 use std::path::PathBuf;
@@ -98,6 +98,7 @@ pub async fn run_render(
         let (prov_str, est_voice) = match provider {
             TtsProvider::Edge => ("edge", voice.as_str()),
             TtsProvider::Piper => ("piper", voice.as_str()),
+            TtsProvider::Kokoro => ("kokoro", voice.as_str()),
             TtsProvider::Elevenlabs => {
                 let v = if voice == "pl-PL-MarekNeural" || voice == "default" {
                     creds
@@ -168,6 +169,25 @@ pub async fn run_render(
                 );
             }
             Arc::new(PiperBridge::new(m_path))
+        }
+        TtsProvider::Kokoro => {
+            let m_path = if let Some(ref custom_m) = model {
+                if custom_m.exists() {
+                    custom_m.clone()
+                } else {
+                    models_dir().join(custom_m)
+                }
+            } else {
+                models_dir().join("kokoro-v1.0.onnx")
+            };
+
+            let kokoro_voice = if voice != "default" && voice != "pl-PL-MarekNeural" {
+                voice.parse::<KokoroVoice>().unwrap_or(KokoroVoice::AfBella)
+            } else {
+                KokoroVoice::AfBella
+            };
+
+            Arc::new(KokoroBridge::new(m_path, Some(kokoro_voice)))
         }
     };
 

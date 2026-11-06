@@ -137,6 +137,23 @@ async fn resolve_synthesizer(
 ) -> Result<Arc<dyn SpeechSynthesizer>, String> {
     if provider == "edge" {
         Ok(Arc::new(EdgeTtsBridge::new(voice)))
+    } else if provider == "kokoro" {
+        let m_path = if let Some(custom_m) = model {
+            let p = PathBuf::from(custom_m);
+            if p.exists() {
+                p
+            } else {
+                models_dir().join(custom_m)
+            }
+        } else {
+            models_dir().join("kokoro-v1.0.onnx")
+        };
+        let kokoro_voice = if voice != "default" && voice != "pl-PL-MarekNeural" && !voice.is_empty() {
+            voice.parse::<audioticon_core::KokoroVoice>().unwrap_or(audioticon_core::KokoroVoice::AfBella)
+        } else {
+            audioticon_core::KokoroVoice::AfBella
+        };
+        Ok(Arc::new(audioticon_core::KokoroBridge::new(m_path, Some(kokoro_voice))))
     } else if provider == "elevenlabs" {
         let api_key = credentials::get_api_key("elevenlabs").ok_or_else(|| {
             "Brak skonfigurowanego klucza API dla ElevenLabs. Skonfiguruj klucz w ustawieniach dostawców API.".to_string()

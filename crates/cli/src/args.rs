@@ -20,6 +20,8 @@ pub enum TtsProvider {
     Edge,
     /// Piper TTS (100% lokalny, ultra szybki model neuronowy ONNX)
     Piper,
+    /// Kokoro-82M (100% lokalny, studyjna jakość lektorska Apache-2.0)
+    Kokoro,
     /// ElevenLabs v3 API (profesjonalne głosy generative AI)
     Elevenlabs,
 }
@@ -116,8 +118,8 @@ pub enum Commands {
         #[arg(short, long, default_value = "output.mp3")]
         output: PathBuf,
 
-        /// Silnik syntezy mowy: edge (online) lub piper (lokalny offline)
-        #[arg(long, value_enum, default_value_t = TtsProvider::Edge)]
+        /// Silnik syntezy mowy: edge (online), piper (lokalny offline), kokoro (studyjny offline), elevenlabs (v3)
+        #[arg(long, visible_alias = "engine", value_enum, default_value_t = TtsProvider::Edge)]
         provider: TtsProvider,
 
         /// Identyfikator głosu Edge-TTS (np. pl-PL-MarekNeural, pl-PL-ZofiaNeural)
@@ -241,8 +243,8 @@ pub enum Commands {
         #[arg(long, default_value = "127.0.0.1")]
         host: String,
 
-        /// Domyślny silnik syntezy (piper lub edge)
-        #[arg(long, value_enum, default_value_t = TtsProvider::Piper)]
+        /// Domyślny silnik syntezy (piper, edge, kokoro)
+        #[arg(long, visible_alias = "engine", value_enum, default_value_t = TtsProvider::Piper)]
         provider: TtsProvider,
 
         /// Domyślny język (pl lub en)

@@ -1238,3 +1238,35 @@ fn test_cli_model_hub_and_safe_harbor_eula() {
     let stdout_after = String::from_utf8_lossy(&out_hub_after.stdout);
     assert!(stdout_after.contains("[✅ EULA Podpisana]"));
 }
+
+#[test]
+fn test_cli_render_with_kokoro_provider() {
+    let exe = env!("CARGO_BIN_EXE_audioticon");
+    let tmp_dir = std::env::temp_dir().join(format!("test_cli_kokoro_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp_dir);
+    let out_wav = tmp_dir.join("kokoro_demo.wav");
+    let tmp_cache = tmp_dir.join("cache");
+
+    let out = Command::new(exe)
+        .args([
+            "render",
+            "--demo",
+            "--provider",
+            "kokoro",
+            "--voice",
+            "af_bella",
+            "--cache-dir",
+            tmp_cache.to_str().unwrap(),
+            "-o",
+            out_wav.to_str().unwrap(),
+        ])
+        .output()
+        .expect("Run audioticon render with kokoro");
+
+    assert!(out.status.success(), "Render failed: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(out_wav.exists());
+    let meta = std::fs::metadata(&out_wav).expect("Metadata");
+    assert!(meta.len() > 1000);
+
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+}

@@ -166,9 +166,33 @@ impl SpeechSynthesizer for KokoroBridge {
         }
 
         let mastered = self.post_process_studio_master(&raw_samples, KOKORO_SAMPLE_RATE);
-        Self::write_wav_file(&mastered, out_path, KOKORO_SAMPLE_RATE)?;
+        // Resample from Kokoro's native 24 kHz to Audioticon standard 44.1 kHz
+        let resampled = resample_linear(&mastered, KOKORO_SAMPLE_RATE, DEFAULT_SAMPLE_RATE);
+        Self::write_wav_file(&resampled, out_path, DEFAULT_SAMPLE_RATE)?;
         Ok(())
     }
+}
+
+/// Linear phase-continuous sample-rate converter across audio buffers.
+pub fn resample_linear(samples: &[f32], in_rate: u32, out_rate: u32) -> Vec<f32> {
+    if in_rate == out_rate || samples.is_empty() {
+        return samples.to_vec();
+    }
+    let n_out = ((samples.len() as f64 * out_rate as f64) / in_rate as f64).round() as usize;
+    let mut out = Vec::with_capacity(n_out);
+    let step = in_rate as f64 / out_rate as f64;
+
+    for i in 0..n_out {
+        let pos = i as f64 * step;
+        let idx = pos.floor() as usize;
+        let frac = (pos - idx as f64) as f32;
+
+        let s1 = if idx < samples.len() { samples[idx] } else { 0.0 };
+        let s2 = if idx + 1 < samples.len() { samples[idx + 1] } else { s1 };
+
+        out.push(s1 + frac * (s2 - s1));
+    }
+    out
 }
 
 #[cfg(test)]
@@ -194,7 +218,7 @@ mod tests {
 
         assert!(out_wav.exists());
         let reader = hound::WavReader::open(&out_wav).expect("Open WAV");
-        assert_eq!(reader.spec().sample_rate, 24000);
+        assert_eq!(reader.spec().sample_rate, 44100);
         assert!(reader.duration() > 1000);
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
