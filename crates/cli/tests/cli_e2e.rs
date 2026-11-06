@@ -1488,3 +1488,62 @@ fn test_api_waveform_and_punch_in_lifecycle_e2e() {
     let _ = child.wait();
     let _ = std::fs::remove_dir_all(&tmp_dir);
 }
+
+#[test]
+fn test_api_qc_latest_and_audit_e2e() {
+    let port = get_free_port();
+    let tmp_dir = std::env::temp_dir().join(format!(
+        "test_audioticon_qc_{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = std::fs::create_dir_all(&tmp_dir);
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .args(["serve", "--port", &port.to_string(), "--no-browser"])
+        .env("AUDIOTICON_CACHE_DIR", tmp_dir.to_str().unwrap())
+        .spawn()
+        .expect("Start studio server");
+
+    let mut connected = false;
+    for _ in 0..30 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        if std::net::TcpStream::connect(format!("127.0.0.1:{}", port)).is_ok() {
+            connected = true;
+            break;
+        }
+    }
+    assert!(connected, "Server failed to start on port {}", port);
+
+    // 1. GET /api/qc/latest should return 200 with default calibrated report initially
+    let (s_qc, _, b_qc) = http_roundtrip(port, "GET", "/api/qc/latest", None);
+    assert_eq!(s_qc, 200, "GET /api/qc/latest must return 200 OK");
+    let qc_json: serde_json::Value = serde_json::from_slice(&b_qc).expect("Parse initial qc json");
+    assert!(qc_json["integrated_lufs"].as_f64().is_some());
+    assert!(qc_json["true_peak_dbfs"].as_f64().is_some());
+    assert_eq!(qc_json["is_compliant"], true);
+
+    // 2. Synthesize audio WAV and run POST /api/qc/audit
+    let test_wav = tmp_dir.join("test_audit_input.wav");
+    audioticon_core::create_silence_wav(&test_wav, 1000, 16000).expect("Create silence wav");
+    let raw_wav = std::fs::read(&test_wav).expect("Read test wav");
+    let b64_wav = audioticon_core::base64_encode(&raw_wav);
+
+    let audit_req = serde_json::json!({
+        "audio_base64": format!("data:audio/wav;base64,{}", b64_wav)
+    }).to_string();
+
+    let (s_audit, _, b_audit) = http_roundtrip(port, "POST", "/api/qc/audit", Some(&audit_req));
+    assert_eq!(s_audit, 200, "POST /api/qc/audit must return 200 OK");
+    let audit_res: serde_json::Value = serde_json::from_slice(&b_audit).expect("Parse audit json");
+    assert!(audit_res["integrated_lufs"].as_f64().is_some());
+    assert!(audit_res["true_peak_dbfs"].as_f64().is_some());
+    assert!(audit_res["is_compliant"].as_bool().is_some());
+
+    // Clean up
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+}
