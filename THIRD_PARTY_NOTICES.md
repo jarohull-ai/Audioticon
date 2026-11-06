@@ -37,20 +37,29 @@ Voice models are hosted and distributed via the [rhasspy/piper-voices](https://h
 - **`en_US-ryan-medium`** / **`en_US-ryan-high`** — CC0 (Public Domain).
 - **`de_DE-thorsten-medium`** — CC0 (Public Domain).
 
-Before distributing or selling commercial audiobook productions, verify the specific license tag displayed in the Audioticon model manager (`audioticon models list` or Web Studio `Głosy & Silnik`). Models marked with `CC0` or `MIT` allow unrestricted commercial distribution.
+Before distributing or selling commercial audiobook productions, verify the specific license tag displayed in the Audioticon model manager (`audioticon models list`, `audioticon models hub`, or Web Studio `Głosy & Silnik`). Models marked with `CC0`, `MIT`, or `Apache-2.0` (`CommercialSafe`) allow unrestricted commercial distribution.
 
 ---
 
-## 3. Microsoft Edge TTS Service
+## 3. Kokoro-82M Neural Text-to-Speech (ONNX)
+
+- **Model:** [hexgrad/Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M)
+- **ONNX Runtime Wrapper:** [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx)
+- **License:** [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) (`CommercialSafe`)
+- **Supported Languages (v1.0):** English (`en-us`, `en-gb`), Spanish (`es`), French (`fr`), Italian (`it`), Portuguese (`pt-br`).
+
+---
+
+## 4. Microsoft Edge TTS Service & Cloud Providers (BYOK)
 
 - **Python Wrapper:** [edge-tts](https://github.com/rany2/edge-tts) (LGPL-3.0 / MIT)
-- **Service:** Microsoft Edge Speech Synthesis Service
+- **Service:** Microsoft Edge Speech Synthesis Service & ElevenLabs API (Bring Your Own Key)
 - **Notice & Disclaimer:** 
-  Edge-TTS connects to Microsoft Edge's public Read Aloud endpoints. This bridge is provided for development, experimentation, and personal workflows. For guaranteed SLAs, commercial scale, or legal enterprise distribution, users should either rely on 100% offline local Piper models or configure official cloud APIs (such as Azure Speech Services or ElevenLabs). Audioticon is not affiliated with or endorsed by Microsoft Corporation.
+  Edge-TTS connects to Microsoft Edge's public Read Aloud endpoints. This bridge is provided for development, experimentation, and personal workflows. For guaranteed SLAs, commercial scale, or legal enterprise distribution, users should either rely on 100% offline local models (Piper CC0 / Kokoro-82M Apache-2.0) or configure official commercial cloud APIs using their own API keys (such as ElevenLabs BYOK). Audioticon is not affiliated with or endorsed by Microsoft Corporation or ElevenLabs Inc.
 
 ---
 
-## 4. Rust Crates & External Libraries
+## 5. Rust Crates & External Libraries
 
 Audioticon is built with Rust and utilizes open-source libraries from crates.io:
 
