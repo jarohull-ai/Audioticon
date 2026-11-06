@@ -33,7 +33,13 @@ pub use audio::{
     SpeechSynthesizer, DEFAULT_SAMPLE_RATE,
 };
 pub use auto_director::{
-    auto_direct_text, strip_markdown_code_blocks, AUDIOTICON_DIRECTOR_SYSTEM_PROMPT,
+    approve_proposal_envelope, auto_direct_text, build_annotation_only_proposal,
+    compute_source_text_hash, expected_speaker_constraint, export_proposal_to_audioticon_script,
+    propose_annotations_auto, reject_proposal_envelope, segment_source_text,
+    strip_markdown_code_blocks, validate_proposal_envelope, verify_ordered_source_coverage,
+    AnnotationOnlyResponse, DecisionRecord, DirectorProposalEnvelope, DirectorProposalSegment,
+    ProposalStatus, SegmentAnnotation, SoundCue, SourceSegment, ValidationReport,
+    ANNOTATION_ONLY_SYSTEM_PROMPT, AUDIOTICON_DIRECTOR_SYSTEM_PROMPT,
 };
 pub use batch_pipeline::{
     audit_acx_compliance, AcxComplianceReport, BatchStateJournal, SegmentJournalEntry,

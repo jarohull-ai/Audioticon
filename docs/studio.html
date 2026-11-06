@@ -967,6 +967,11 @@
           <span>🧬</span> Kreator Ekspresji
         </button>
 
+        <!-- Bielik Annotation-Only Director Button -->
+        <button class="btn" onclick="openDirectorModal()" style="border-color:var(--accent-secondary); color:var(--accent-secondary); font-weight:700;">
+          <span>🎬</span> Reżyser AI (Bielik)
+        </button>
+
         <!-- Tile Toggle Menu -->
         <button class="btn" onclick="toggleTilePalette()">
           <span>🪟</span> Kafelki
@@ -1465,6 +1470,79 @@
           <input type="text" id="styleAliasInput" class="inspector-input" value="szept:narracyjny">
         </div>
         <button class="btn btn-primary" onclick="saveStylePattern()">💾 Zapisz pod ikoną</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: BIELIK ANNOTATION-ONLY DIRECTOR & SHA-256 VALIDATOR -->
+  <div class="modal-backdrop" id="directorModal">
+    <div class="modal-card" style="width:940px; max-width:96vw; max-height:92vh; overflow-y:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <div>
+          <div style="font-size:1.15rem; font-weight:800;">🎬 Reżyser AI — Tryb Annotation-Only &amp; Walidator SHA-256</div>
+          <div style="font-size:0.75rem; color:var(--text-dim);">
+            Architektura Bielik Writing Orchestrator: model proponuje wyłącznie metadane (emocje, tempo, presety DSP, lektora) bez prawa zmiany ani jednego słowa tekstu autora.
+          </div>
+        </div>
+        <button class="tile-btn" onclick="closeDirectorModal()">✕</button>
+      </div>
+
+      <!-- 1. Konfiguracja modelu i uruchomienie propozycji -->
+      <div style="display:grid; grid-template-columns:1fr auto; gap:0.75rem; align-items:end; margin-bottom:1rem; background:var(--surface-elev); padding:0.75rem; border-radius:8px; border:1px solid var(--border);">
+        <div>
+          <div style="font-size:0.72rem; color:var(--text-dim); margin-bottom:0.25rem; font-weight:700;">PROFIL REŻYSERA AI (ANNOTATION-ONLY)</div>
+          <select id="directorProfileSelect" class="inspector-select" style="width:100%;">
+            <option value="bielik-local">🦅 Bielik-4.5B-v3.0-Instruct (Ollama Lokalny + Fallback Heurystyczny PL)</option>
+            <option value="gemini-cloud">✨ Google Gemini 2.5 Flash (Chmura API + Fallback PL)</option>
+            <option value="openai-cloud">🤖 OpenAI GPT-4o-mini (Chmura API + Fallback PL)</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="btnRunDirectorPropose" onclick="runDirectorPropose()">
+          🔍 Generuj Propozycję Adnotacji (Bez zmiany tekstu)
+        </button>
+      </div>
+
+      <!-- 2. Pasek statusu Walidatora Fail-Closed SHA-256 -->
+      <div id="directorValidationBanner" style="display:none; margin-bottom:1rem; padding:0.75rem; border-radius:8px; background:var(--surface-elev); border:1px solid var(--border);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+          <div>
+            <span style="font-size:0.75rem; font-weight:800;" id="directorStatusBadge">STATUS: PROPOSED</span>
+            <span style="font-size:0.72rem; color:var(--text-dim); margin-left:0.6rem; font-family:var(--font-mono);" id="directorHashBadge">SHA-256: —</span>
+          </div>
+          <div style="font-size:0.72rem; font-family:var(--font-mono);" id="directorCoverageBadge">
+            Pokrycie tekstu źródłowego: 100% (mutacja tekstu zablokowana)
+          </div>
+        </div>
+        <div id="directorViolationsBox" style="margin-top:0.5rem; font-size:0.74rem; color:#ff6b6b; display:none;"></div>
+      </div>
+
+      <!-- 3. Pytania do autora (Open Questions dla nieznanych rozmówców) -->
+      <div id="directorQuestionsSection" style="display:none; margin-bottom:1rem; padding:0.75rem; border-radius:8px; background:rgba(245, 158, 11, 0.08); border:1px solid rgba(245, 158, 11, 0.35);">
+        <div style="font-size:0.78rem; font-weight:800; color:#fbbf24; margin-bottom:0.4rem;">
+          ❓ Pytania Reżysera do Autora (Wymagane rozstrzygnięcie przed zatwierdzeniem)
+        </div>
+        <div id="directorQuestionsList" style="display:flex; flex-direction:column; gap:0.45rem;"></div>
+      </div>
+
+      <!-- 4. Tabela segmentów i proponowanych adnotacji -->
+      <div id="directorSegmentsContainer" style="margin-bottom:1rem; max-height:300px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; background:var(--bg-base); padding:0.6rem;">
+        <div style="font-size:0.78rem; color:var(--text-dim); text-align:center; padding:1.5rem;">
+          Kliknij <b>„🔍 Generuj Propozycję Adnotacji”</b>, aby przeanalizować bieżący skrypt z edytora w trybie <code>annotation-only</code>.
+        </div>
+      </div>
+
+      <!-- 5. Manualny przegląd i zatwierdzenie (Proposed -> Approved / Rejected) -->
+      <div style="display:grid; grid-template-columns:1fr auto auto; gap:0.6rem; align-items:end; background:var(--surface-elev); padding:0.75rem; border-radius:8px; border:1px solid var(--border);">
+        <div>
+          <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:0.2rem;">Notatka recenzenta / autora (wymagana przez walidator fail-closed)</div>
+          <input type="text" id="directorReviewerNote" class="inspector-input" value="Zatwierdzono obsadę i presety ekspresji po przeglądzie autora.">
+        </div>
+        <button class="btn" id="btnRejectProposal" onclick="rejectDirectorProposal()" disabled style="border-color:#ff6b6b; color:#ff6b6b;">
+          ✕ Odrzuć propozycję
+        </button>
+        <button class="btn btn-primary" id="btnApproveProposal" onclick="approveDirectorProposal()" disabled>
+          ✅ Zatwierdź i zastosuj w edytorze
+        </button>
       </div>
     </div>
   </div>
@@ -2311,6 +2389,260 @@
       } catch (e) {
         alert("Błąd zapisu wzorca: " + e.message);
       }
+    }
+
+    // =====================================================================
+    // BIELIK ANNOTATION-ONLY DIRECTOR & FAIL-CLOSED SHA-256 VALIDATOR LOGIC
+    // =====================================================================
+    let currentProposalEnvelope = null;
+
+    function openDirectorModal() {
+      document.getElementById('directorModal').classList.add('open');
+    }
+
+    function closeDirectorModal() {
+      document.getElementById('directorModal').classList.remove('open');
+    }
+
+    function collectPlainSourceTextFromEditor() {
+      const blocks = document.querySelectorAll('#editorCanvas .script-block .block-text');
+      const lines = [];
+      blocks.forEach(el => {
+        // Strip existing inline emoji tags so annotation-only director works on clean author text
+        const raw = (el.innerText || '')
+          .replace(/\[(szept:narracyjny|szept:akcja|szept:ucho|szept:mikrofon|rozkaz|wolanie|spiew)\]/gi, '')
+          .replace(/[🤫🗣️📢🎭🎶🎵💥🚪🌧️⏸️⏳😮‍💨📞🏛️📻]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (raw.length > 0) lines.push(raw);
+      });
+      return lines.join('\n\n');
+    }
+
+    async function runDirectorPropose() {
+      const btn = document.getElementById('btnRunDirectorPropose');
+      const oldText = btn.innerText;
+      btn.disabled = true;
+      btn.innerText = '⏳ Analiza segmentów i walidacja SHA-256...';
+
+      try {
+        const sourceText = collectPlainSourceTextFromEditor();
+        const profile = document.getElementById('directorProfileSelect').value;
+        const res = await fetch('/api/auto-direct/propose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chapter_id: 'studio-chapter-01',
+            source_text: sourceText,
+            profile: profile,
+            known_characters: ['Narrator', 'Anna', 'Marek', 'Jan']
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.envelope) {
+          currentProposalEnvelope = data.envelope;
+          renderDirectorProposal(currentProposalEnvelope);
+        } else {
+          alert('Błąd generowania propozycji: ' + (data.error || 'Nieznany błąd'));
+        }
+      } catch (e) {
+        alert('Błąd komunikacji z Reżyserem AI: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = oldText;
+      }
+    }
+
+    function renderDirectorProposal(env) {
+      const banner = document.getElementById('directorValidationBanner');
+      banner.style.display = 'block';
+
+      const statusBadge = document.getElementById('directorStatusBadge');
+      statusBadge.innerText = `STATUS: ${String(env.status).toUpperCase()} (${env.model_name})`;
+      statusBadge.style.color = env.validation.valid ? '#34d399' : '#fbbf24';
+
+      document.getElementById('directorHashBadge').innerText =
+        `SHA-256: ${env.source_text_hash.slice(0, 24)}…`;
+      document.getElementById('directorCoverageBadge').innerText =
+        env.validation.source_coverage_ok
+          ? '✅ Pokrycie tekstu: 100% (0 zmienionych słów)'
+          : '❌ Błąd pokrycia tekstu!';
+
+      const violationsBox = document.getElementById('directorViolationsBox');
+      if (env.validation.violations && env.validation.violations.length > 0) {
+        violationsBox.style.display = 'block';
+        violationsBox.innerText = '⚠️ Naruszenia walidatora: ' + env.validation.violations.join(' | ');
+      } else {
+        violationsBox.style.display = 'none';
+      }
+
+      // Render Open Questions for unknown dialogue speakers
+      const qSection = document.getElementById('directorQuestionsSection');
+      const qList = document.getElementById('directorQuestionsList');
+      qList.innerHTML = '';
+
+      const unknownSegments = env.segments.filter(
+        s => s.kind === 'dialogue' && s.annotation.speaker === 'unknown'
+      );
+
+      if ((env.open_questions && env.open_questions.length > 0) || unknownSegments.length > 0) {
+        qSection.style.display = 'block';
+        unknownSegments.forEach(seg => {
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:0.5rem; background:var(--surface-elev); padding:0.45rem 0.65rem; border-radius:6px;';
+          row.innerHTML = `
+            <div style="font-size:0.74rem;">
+              <b>[${seg.segment_id}]</b> Kto wypowiada kwestię: <i>„${seg.text.slice(0, 75)}${seg.text.length > 75 ? '…' : ''}”</i>?
+            </div>
+            <select class="inspector-select" style="width:160px;" onchange="resolveDirectorSpeaker('${seg.segment_id}', this.value)">
+              <option value="unknown" ${seg.annotation.speaker === 'unknown' ? 'selected' : ''}>❓ unknown (wybierz)</option>
+              <option value="Anna">👩 Anna</option>
+              <option value="Marek">👨 Marek</option>
+              <option value="Jan">🧔 Jan</option>
+            </select>
+          `;
+          qList.appendChild(row);
+        });
+      } else {
+        qSection.style.display = 'none';
+      }
+
+      // Render segments table
+      const container = document.getElementById('directorSegmentsContainer');
+      container.innerHTML = '';
+      env.segments.forEach(seg => {
+        const card = document.createElement('div');
+        card.style.cssText = 'padding:0.55rem 0.7rem; border-bottom:1px solid var(--border); display:grid; grid-template-columns:110px 1fr 240px; gap:0.6rem; align-items:center; font-size:0.76rem;';
+        const presetBadge = seg.annotation.dsp_preset
+          ? `<span style="background:rgba(56,189,248,0.15); color:var(--accent); padding:0.1rem 0.4rem; border-radius:4px; font-family:var(--font-mono);">[${seg.annotation.dsp_preset}]</span>`
+          : '';
+        card.innerHTML = `
+          <div>
+            <div style="font-family:var(--font-mono); font-weight:700; color:var(--accent);">${seg.segment_id}</div>
+            <div style="font-size:0.68rem; color:var(--text-dim);">${seg.kind.toUpperCase()}</div>
+          </div>
+          <div style="line-height:1.4;">${seg.text}</div>
+          <div style="display:flex; flex-direction:column; gap:0.25rem; text-align:right;">
+            <div>
+              <b>Lektor:</b> <span style="color:${seg.annotation.speaker === 'unknown' ? '#fbbf24' : '#34d399'}; font-weight:700;">${seg.annotation.speaker}</span>
+              &nbsp;|&nbsp; <b>Emocja:</b> ${seg.annotation.emotion}
+            </div>
+            <div style="font-size:0.7rem; color:var(--text-dim);">
+              Tempo: ${seg.annotation.pace} | Pauza: +${seg.annotation.pause_before_ms}ms ${presetBadge}
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      document.getElementById('btnApproveProposal').disabled = false;
+      document.getElementById('btnRejectProposal').disabled = false;
+    }
+
+    function resolveDirectorSpeaker(segmentId, newSpeaker) {
+      if (!currentProposalEnvelope) return;
+      const seg = currentProposalEnvelope.segments.find(s => s.segment_id === segmentId);
+      if (seg) {
+        seg.annotation.speaker = newSpeaker;
+      }
+      // Remove resolved question if no unknown dialogue remains
+      const stillUnknown = currentProposalEnvelope.segments.some(
+        s => s.kind === 'dialogue' && s.annotation.speaker === 'unknown'
+      );
+      if (!stillUnknown) {
+        currentProposalEnvelope.open_questions = [];
+      }
+      renderDirectorProposal(currentProposalEnvelope);
+    }
+
+    async function approveDirectorProposal() {
+      if (!currentProposalEnvelope) return;
+      const reviewerNote = document.getElementById('directorReviewerNote').value.trim();
+      try {
+        const res = await fetch('/api/auto-direct/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            envelope: currentProposalEnvelope,
+            reviewer_note: reviewerNote
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.audioticon_script) {
+          currentProposalEnvelope = data.envelope;
+          renderDirectorProposal(currentProposalEnvelope);
+          applyApprovedScriptToEditor(data.envelope);
+          alert('✅ Propozycja zatwierdzona przez walidator SHA-256 i zastosowana w Edytorze Blokowym!');
+          closeDirectorModal();
+        } else {
+          alert('Walidator Fail-Closed zablokował zatwierdzenie:\n' + (data.error || 'Nieznany błąd'));
+        }
+      } catch (e) {
+        alert('Błąd zatwierdzania propozycji: ' + e.message);
+      }
+    }
+
+    async function rejectDirectorProposal() {
+      if (!currentProposalEnvelope) return;
+      const reviewerNote = document.getElementById('directorReviewerNote').value.trim() || 'Odrzucono przez autora.';
+      try {
+        const res = await fetch('/api/auto-direct/reject', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            envelope: currentProposalEnvelope,
+            reviewer_note: reviewerNote
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.envelope) {
+          currentProposalEnvelope = data.envelope;
+          renderDirectorProposal(currentProposalEnvelope);
+          alert('Propozycja została oznaczona jako REJECTED.');
+        }
+      } catch (e) {
+        alert('Błąd odrzucania propozycji: ' + e.message);
+      }
+    }
+
+    function applyApprovedScriptToEditor(envelope) {
+      const canvas = document.getElementById('editorCanvas');
+      if (!canvas || !envelope || !envelope.segments) return;
+      canvas.innerHTML = '';
+
+      envelope.segments.forEach((seg, idx) => {
+        const blockId = idx + 1;
+        const speaker = seg.annotation.speaker || 'Narrator';
+        const speakerIcon = speaker === 'Narrator' ? '🎙️' : (speaker === 'Anna' ? '👩' : '👨');
+        const badgeClass = speaker === 'Narrator' ? 'narrator' : (speaker === 'Anna' ? 'anna' : 'marek');
+
+        let prefixTags = '';
+        if (seg.annotation.pause_before_ms >= 500) prefixTags += '⏸️ ';
+        if (seg.annotation.dsp_preset) {
+          prefixTags += `[${seg.annotation.dsp_preset}] `;
+        } else if (seg.annotation.emotion === 'whisper') {
+          prefixTags += '[szept:narracyjny] ';
+        } else if (seg.annotation.emotion === 'shout') {
+          prefixTags += '[rozkaz] ';
+        }
+
+        const block = document.createElement('div');
+        block.className = 'script-block' + (idx === 0 ? ' active' : '');
+        block.dataset.blockId = String(blockId);
+        block.dataset.speaker = speaker;
+        block.onclick = (ev) => selectBlock(blockId, ev);
+        block.innerHTML = `
+          <div class="speaker-gutter">
+            <span class="speaker-badge ${badgeClass}" onclick="cycleSpeaker(${blockId}, event)">${speakerIcon} ${speaker}</span>
+            <button class="block-play-btn" onclick="playSingleBlock(${blockId}, event)" title="Odsłuchaj ten akapit">▶</button>
+          </div>
+          <div class="block-text" contenteditable="true" oninput="recalcWordCount()">${prefixTags}${seg.text}</div>
+        `;
+        canvas.appendChild(block);
+      });
+
+      recalcWordCount();
+      syncTimelineClips();
     }
 
     // Init

@@ -3187,6 +3187,296 @@ async fn handle_studio_request(
         }
     }
 
+    // Route: POST /api/auto-direct/propose (Annotation-Only Bielik / Gemini / OpenAI / Baseline)
+    if method == tiny_http::Method::Post && url == "/api/auto-direct/propose" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(10 * 1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp = tiny_http::Response::from_string(
+                "{\"error\": \"Nie można odczytać treści żądania\"}",
+            );
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct ProposeReq {
+            text: String,
+            #[serde(default = "default_bielik_provider")]
+            provider: String,
+            model: Option<String>,
+            api_key: Option<String>,
+        }
+
+        fn default_bielik_provider() -> String {
+            "bielik".to_string()
+        }
+
+        let parsed: ProposeReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": format!("Nieprawidłowy format JSON: {}", e)
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        match audioticon_core::propose_annotations_auto(
+            &parsed.text,
+            &parsed.provider,
+            parsed.model.as_deref(),
+            parsed.api_key.as_deref(),
+        ) {
+            Ok(envelope) => {
+                let json_resp = serde_json::json!({
+                    "success": true,
+                    "envelope": envelope,
+                });
+                let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+                resp.add_header(
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": format!("Błąd propozycji reżyserskiej: {}", e)
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        }
+    }
+
+    // Route: POST /api/auto-direct/approve
+    if method == tiny_http::Method::Post && url == "/api/auto-direct/approve" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(10 * 1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp = tiny_http::Response::from_string(
+                "{\"error\": \"Nie można odczytać treści żądania\"}",
+            );
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct ApproveReq {
+            envelope: audioticon_core::DirectorProposalEnvelope,
+            source_text: String,
+            reviewer_note: String,
+            #[serde(default)]
+            speaker_overrides: Option<HashMap<String, String>>,
+        }
+
+        let mut parsed: ApproveReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": format!("Nieprawidłowy format JSON: {}", e)
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let clean_source = parsed.source_text.trim();
+        if let Err(e) = audioticon_core::approve_proposal_envelope(
+            &mut parsed.envelope,
+            clean_source,
+            &parsed.reviewer_note,
+            parsed.speaker_overrides.as_ref(),
+        ) {
+            let err_json = serde_json::json!({
+                "error": e.to_string(),
+                "validation": parsed.envelope.validation,
+            });
+            let mut resp = tiny_http::Response::from_string(err_json.to_string());
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                    .unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        match audioticon_core::export_proposal_to_audioticon_script(&parsed.envelope, clean_source)
+        {
+            Ok(directed_text) => {
+                let json_resp = serde_json::json!({
+                    "success": true,
+                    "envelope": parsed.envelope,
+                    "directed_text": directed_text,
+                });
+                let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+                resp.add_header(
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": e.to_string()
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        }
+    }
+
+    // Route: POST /api/auto-direct/reject
+    if method == tiny_http::Method::Post && url == "/api/auto-direct/reject" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(5 * 1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp = tiny_http::Response::from_string(
+                "{\"error\": \"Nie można odczytać treści żądania\"}",
+            );
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct RejectReq {
+            envelope: audioticon_core::DirectorProposalEnvelope,
+            reviewer_note: String,
+        }
+
+        let mut parsed: RejectReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": format!("Nieprawidłowy format JSON: {}", e)
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        match audioticon_core::reject_proposal_envelope(&mut parsed.envelope, &parsed.reviewer_note)
+        {
+            Ok(()) => {
+                let json_resp = serde_json::json!({
+                    "success": true,
+                    "envelope": parsed.envelope,
+                });
+                let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+                resp.add_header(
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": e.to_string()
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        }
+    }
+
     // Route: GET /api/style-transfer/list
     if method == tiny_http::Method::Get && url == "/api/style-transfer/list" {
         let cfg = ProjectConfig::discover(None);
