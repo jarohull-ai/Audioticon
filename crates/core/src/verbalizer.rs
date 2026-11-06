@@ -337,33 +337,43 @@ fn normalize_dates(text: &str) -> String {
     .to_string()
 }
 
-/// Normalizuje daty słowne w dopełniaczu (np. "24 lutego 2024" -> "dwudziestego czwartego lutego dwa tysiące dwudziestego czwartego roku")
+/// Normalizuje daty słowne w dopełniaczu (np. "24 lutego 2024" lub "dwudziestego czwartego lutego 2026 roku")
 fn normalize_textual_dates(text: &str) -> String {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| {
-        Regex::new(r"(?i)\b([0-3]?[0-9])\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)(?:\s+([1-2][0-9]{3})(?:\s*(?:roku|r\.?))?)?\b")
-            .expect("Valid textual date regex")
+    static RE_MONTH_YEAR: OnceLock<Regex> = OnceLock::new();
+    let re_month_year = RE_MONTH_YEAR.get_or_init(|| {
+        Regex::new(r"(?i)\b(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\s+([1-2][0-9]{3})(?:\s*(?:roku|r\.?))?\b")
+            .expect("Valid month + year regex")
     });
 
-    re.replace_all(text, |caps: &Captures| {
-        let day: u32 = caps[1].parse().unwrap_or(0);
-        let month_str = caps[2].to_lowercase();
-        let year_opt: Option<u32> = caps.get(3).and_then(|m| m.as_str().parse().ok());
+    static RE_DAY_MONTH: OnceLock<Regex> = OnceLock::new();
+    let re_day_month = RE_DAY_MONTH.get_or_init(|| {
+        Regex::new(r"(?i)\b([0-3]?[0-9])\s+(stycznia|lutego|marca|kwietnia|maja|czerwca|lipca|sierpnia|września|października|listopada|grudnia)\b")
+            .expect("Valid day + month regex")
+    });
 
+    // 1. Najpierw zamień dzień przed nazwą miesiąca (np. "24 lutego" -> "dwudziestego czwartego lutego")
+    let with_days = re_day_month.replace_all(text, |caps: &Captures| {
+        let day: u32 = caps[1].parse().unwrap_or(0);
+        let month_str = &caps[2];
         if (1..=31).contains(&day) {
-            let day_word = ORDINAL_DAYS_GENITIVE[day as usize];
-            if let Some(year) = year_opt {
-                if year >= 1000 {
-                    let year_words = year_to_words_genitive(year);
-                    return format!("{} {} {}", day_word, month_str, year_words);
-                }
-            }
-            format!("{} {}", day_word, month_str)
+            format!("{} {}", ORDINAL_DAYS_GENITIVE[day as usize], month_str)
         } else {
             caps[0].to_string()
         }
-    })
-    .to_string()
+    });
+
+    // 2. Następnie zamień każdy rok po nazwie miesiąca w dopełniaczu (niezależnie czy dzień był cyfrą czy słowem!)
+    re_month_year
+        .replace_all(&with_days, |caps: &Captures| {
+            let month_str = &caps[1];
+            let year: u32 = caps[2].parse().unwrap_or(0);
+            if year >= 1000 {
+                format!("{} {}", month_str, year_to_words_genitive(year))
+            } else {
+                caps[0].to_string()
+            }
+        })
+        .to_string()
 }
 
 /// Normalizuje godziny w formacie HH:MM (z uwzględnieniem przyimków miejscownika np. "o 15:47" -> "o piętnastej czterdzieści siedem")
@@ -555,13 +565,179 @@ fn normalize_decimals(text: &str) -> String {
         .to_string()
 }
 
-/// Normalizuje skrót 'r.' po roku w środku zdania, aby kropka skrótu nie tworzyła sztucznej pauzy zdaniowej
+const ORDINAL_CHAPTERS_MASCULINE: [&str; 32] = [
+    "zerowy",
+    "pierwszy",
+    "drugi",
+    "trzeci",
+    "czwarty",
+    "piąty",
+    "szósty",
+    "siódmy",
+    "ósmy",
+    "dziewiąty",
+    "dziesiąty",
+    "jedenasty",
+    "dwunasty",
+    "trzynasty",
+    "czternasty",
+    "piętnasty",
+    "szesnasty",
+    "siedemnasty",
+    "osiemnasty",
+    "dziewiętnasty",
+    "dwudziesty",
+    "dwudziesty pierwszy",
+    "dwudziesty drugi",
+    "dwudziesty trzeci",
+    "dwudziesty czwarty",
+    "dwudziesty piąty",
+    "dwudziesty szósty",
+    "dwudziesty siódmy",
+    "dwudziesty ósmy",
+    "dwudziesty dziewiąty",
+    "trzydziesty",
+    "trzydziesty pierwszy",
+];
+
+const ORDINAL_CHAPTERS_FEMININE: [&str; 32] = [
+    "zerowa",
+    "pierwsza",
+    "druga",
+    "trzecia",
+    "czwarta",
+    "piąta",
+    "szósta",
+    "siódma",
+    "ósma",
+    "dziewiąta",
+    "dziesiąta",
+    "jedenasta",
+    "dwunasta",
+    "trzynasta",
+    "czternasta",
+    "piętnasta",
+    "szesnasta",
+    "siedemnasta",
+    "osiemnasta",
+    "dziewiętnasta",
+    "dwudziesta",
+    "dwudziesta pierwsza",
+    "dwudziesta druga",
+    "dwudziesta trzecia",
+    "dwudziesta czwarta",
+    "dwudziesta piąta",
+    "dwudziesta szósta",
+    "dwudziesta siódma",
+    "dwudziesta ósma",
+    "dwudziesta dziewiąta",
+    "trzydziesta",
+    "trzydziesta pierwsza",
+];
+
+fn roman_to_u32(roman: &str) -> Option<u32> {
+    match roman.to_uppercase().as_str() {
+        "I" => Some(1),
+        "II" => Some(2),
+        "III" => Some(3),
+        "IV" => Some(4),
+        "V" => Some(5),
+        "VI" => Some(6),
+        "VII" => Some(7),
+        "VIII" => Some(8),
+        "IX" => Some(9),
+        "X" => Some(10),
+        "XI" => Some(11),
+        "XII" => Some(12),
+        "XIII" => Some(13),
+        "XIV" => Some(14),
+        "XV" => Some(15),
+        "XVI" => Some(16),
+        "XVII" => Some(17),
+        "XVIII" => Some(18),
+        "XIX" => Some(19),
+        "XX" => Some(20),
+        _ => None,
+    }
+}
+
+/// Normalizuje nagłówki strukturalne: "Rozdział 1" / "Rozdział I" -> "Rozdział pierwszy",
+/// "Część 2" / "Scena 3" -> "Część druga" / "Scena trzecia"
+fn normalize_headings_and_ordinals(text: &str) -> String {
+    static RE_MASC: OnceLock<Regex> = OnceLock::new();
+    let re_masc = RE_MASC.get_or_init(|| {
+        Regex::new(r"(?i)\b(Rozdział|Tom|Akt|Odcinek|Etap|Punkt|Krok)\s+([0-9]{1,2}|[IVX]{1,5})\b")
+            .expect("Valid masculine heading regex")
+    });
+
+    let step1 = re_masc.replace_all(text, |caps: &Captures| {
+        let noun = &caps[1];
+        let num_str = &caps[2];
+        let num_opt = num_str.parse::<u32>().ok().or_else(|| roman_to_u32(num_str));
+        if let Some(n) = num_opt {
+            if (1..=31).contains(&n) {
+                return format!("{} {}", noun, ORDINAL_CHAPTERS_MASCULINE[n as usize]);
+            }
+        }
+        caps[0].to_string()
+    });
+
+    static RE_FEM: OnceLock<Regex> = OnceLock::new();
+    let re_fem = RE_FEM.get_or_init(|| {
+        Regex::new(r"(?i)\b(Część|Scena|Księga|Faza|Sekcja|Próba)\s+([0-9]{1,2}|[IVX]{1,5})\b")
+            .expect("Valid feminine heading regex")
+    });
+
+    re_fem
+        .replace_all(&step1, |caps: &Captures| {
+            let noun = &caps[1];
+            let num_str = &caps[2];
+            let num_opt = num_str.parse::<u32>().ok().or_else(|| roman_to_u32(num_str));
+            if let Some(n) = num_opt {
+                if (1..=31).contains(&n) {
+                    return format!("{} {}", noun, ORDINAL_CHAPTERS_FEMININE[n as usize]);
+                }
+            }
+            caps[0].to_string()
+        })
+        .to_string()
+}
+
+/// Normalizuje skrót 'r.' lub słowo 'roku' po czterocyfrowym roku (np. "w 2026 roku" -> "w dwa tysiące dwudziestym szóstym roku", "2026 roku" -> "dwa tysiące dwudziestego szóstego roku")
 fn normalize_year_abbreviations(text: &str) -> String {
+    // 1. Miejscownik po przyimku "w" / "we": "w 2026 roku" lub "w 2026 r."
+    static RE_LOC: OnceLock<Regex> = OnceLock::new();
+    let re_loc = RE_LOC.get_or_init(|| {
+        Regex::new(r"(?i)\b(w|we)\s+([1-2][0-9]{3})\s*(?:roku|r\.)").expect("Valid year locative regex")
+    });
+    let step0 = re_loc.replace_all(text, |caps: &Captures| {
+        let prep = &caps[1];
+        let year: u32 = caps[2].parse().unwrap_or(0);
+        let gen = year_to_words_genitive(year);
+        // Zamień końcówkę dopełniacza "-ego roku" na miejscownik "-ym roku" (lub "-im roku" dla trzeciego -> trzecim, drugiego -> drugim)
+        let loc = gen
+            .replace("pierwszego", "pierwszym")
+            .replace("drugiego", "drugim")
+            .replace("trzeciego", "trzecim")
+            .replace("ego ", "ym ");
+        format!("{} {}", prep, loc)
+    });
+
+    // 2. Dopełniacz przed słowem "roku": np. "z 2026 roku", "od 1999 roku", "dwudziestego czwartego lutego 2026 roku"
+    static RE_ROKU: OnceLock<Regex> = OnceLock::new();
+    let re_roku = RE_ROKU.get_or_init(|| {
+        Regex::new(r"(?i)\b([1-2][0-9]{3})\s+roku\b").expect("Valid year + roku regex")
+    });
+    let step0b = re_roku.replace_all(&step0, |caps: &Captures| {
+        let year: u32 = caps[1].parse().unwrap_or(0);
+        year_to_words_genitive(year)
+    });
+
     static RE_MID: OnceLock<Regex> = OnceLock::new();
     let re_mid = RE_MID.get_or_init(|| {
         Regex::new(r"\b([1-2][0-9]{3})\s*r\.(\s+[a-ząćęłńóśźż,;])").expect("Valid year mid regex")
     });
-    let step1 = re_mid.replace_all(text, |caps: &Captures| {
+    let step1 = re_mid.replace_all(&step0b, |caps: &Captures| {
         let year: u32 = caps[1].parse().unwrap_or(0);
         let trailing = &caps[2];
         format!(
@@ -605,7 +781,8 @@ fn normalize_standalone_numbers(text: &str) -> String {
 /// 4. Odmienia liczebniki po przyimkach dopełniacza (np. "z 5 domów" -> "z pięciu domów")
 /// 5. Konwertuje pozostałe samodzielne liczby (np. 1500 -> "tysiąc pięćset")
 pub fn normalize_polish_text(raw_text: &str) -> String {
-    let step1 = normalize_dates(raw_text);
+    let step0 = normalize_headings_and_ordinals(raw_text);
+    let step1 = normalize_dates(&step0);
     let step1b = normalize_textual_dates(&step1);
     let step1c = normalize_year_abbreviations(&step1b);
     let step2 = normalize_times(&step1c);
@@ -627,6 +804,14 @@ mod tests {
         assert_eq!(
             normalize_polish_text("Spotkanie 15 stycznia 2026 r."),
             "Spotkanie piętnastego stycznia dwa tysiące dwudziestego szóstego roku."
+        );
+        assert_eq!(
+            normalize_polish_text("Dwudziestego czwartego lutego 2026 roku o godzinie 15:45"),
+            "Dwudziestego czwartego lutego dwa tysiące dwudziestego szóstego roku o godzinie piętnastej czterdzieści pięć"
+        );
+        assert_eq!(
+            normalize_polish_text("Rozdział 1: Próba Generalna. Rozdział II: Finał. Część 3."),
+            "Rozdział pierwszy: Próba Generalna. Rozdział drugi: Finał. Część trzecia."
         );
         assert_eq!(
             normalize_polish_text("Święto 1 maja"),
