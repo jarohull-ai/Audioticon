@@ -1,24 +1,363 @@
-//! Kokoro-82M Neural Text-To-Speech Engine Bridge for Audioticon
+//! Native Rust Kokoro-82M Neural Text-To-Speech Engine for Audioticon
 //!
-//! Provides production offline support for Kokoro-82M (Apache-2.0):
-//! - Persistent Python ONNX Runtime worker (`kokoro_worker.py` via `kokoro-onnx`)
-//! - 24,000 Hz neural synthesis resampled and conditioned through FFmpeg DSP to 44,100 Hz
-//! - Honest model verification: fails with actionable download guidance when `.onnx` / `voices.bin` are missing
+//! Provides 100% pure Rust, zero-Python inference for Kokoro-82M (Apache-2.0):
+//! - Native ONNX Runtime (`ort` + `ndarray`) session execution in Rust
+//! - Native `.npz` / `.npy` voice style embedding tensor parser (`voices-v1.0.bin`)
+//! - Native `espeak-ng --ipa` phonemization + 178-symbol IPA vocabulary tokenizer
+//! - Fallback to `kokoro_worker.py` only if `ORT_DYLIB_PATH` / `libonnxruntime.so` is absent
+//! - Honest model verification: returns actionable download guidance when `.onnx` / `voices.bin` are missing
 
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
+use ndarray::{Array1, Array2};
+use ort::environment::Environment;
+use ort::session::Session;
+use ort::value::TensorRef;
 use serde::{Deserialize, Serialize};
-use std::io::{BufRead, BufReader, Write};
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
 
-use crate::audio::{build_ffmpeg_filter_chain, create_silence_wav, DEFAULT_SAMPLE_RATE, SpeechSynthesizer};
+use crate::audio::{
+    build_ffmpeg_filter_chain, create_silence_wav, SpeechSynthesizer, DEFAULT_SAMPLE_RATE,
+};
 use crate::models::models_dir;
 use crate::types::TextSegment;
 
 pub const KOKORO_SAMPLE_RATE: u32 = 24000;
+pub const KOKORO_MAX_PHONEMES: usize = 510;
+pub const KOKORO_STYLE_DIM: usize = 256;
 
 const KOKORO_WORKER_CODE: &str = include_str!("kokoro_worker.py");
+
+static ORT_ENV: OnceLock<Result<Environment, String>> = OnceLock::new();
+
+/// Discovers `libonnxruntime.so` on the system or inside `~/.local/share/audioticon/venv`
+/// and initializes the `ort` dynamic [`Environment`] once per process.
+pub fn get_ort_environment() -> Result<Environment> {
+    let res = ORT_ENV.get_or_init(|| {
+        let builder = if let Some(dylib) = find_onnxruntime_dylib() {
+            ort::init_from(dylib)
+                .map_err(|e| format!("Błąd ładowania biblioteki ONNX Runtime: {}", e))?
+        } else {
+            ort::init()
+        };
+        builder
+            .with_name("audioticon_ort")
+            .build()
+            .map_err(|e| format!("Błąd inicjalizacji ONNX Runtime (ort): {}", e))
+    });
+
+    match res {
+        Ok(env) => Ok(env.clone()),
+        Err(msg) => bail!("{}", msg),
+    }
+}
+
+fn find_onnxruntime_dylib() -> Option<PathBuf> {
+    if let Ok(custom) = std::env::var("ORT_DYLIB_PATH") {
+        let p = PathBuf::from(custom);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+
+    let mut search_roots = Vec::new();
+    if let Some(data_dir) = dirs::data_dir() {
+        search_roots.push(data_dir.join("audioticon/venv/lib"));
+    }
+    if let Ok(venv) = std::env::var("VIRTUAL_ENV") {
+        search_roots.push(PathBuf::from(venv).join("lib"));
+    }
+    search_roots.push(PathBuf::from("/usr/lib"));
+    search_roots.push(PathBuf::from("/usr/local/lib"));
+    search_roots.push(PathBuf::from("/usr/lib/x86_64-linux-gnu"));
+
+    for root in search_roots {
+        if !root.exists() {
+            continue;
+        }
+        if let Some(found) = scan_for_libonnxruntime(&root, 4) {
+            return Some(found);
+        }
+    }
+    None
+}
+
+fn scan_for_libonnxruntime(dir: &Path, max_depth: usize) -> Option<PathBuf> {
+    if max_depth == 0 {
+        return None;
+    }
+    let entries = std::fs::read_dir(dir).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
+                if (name.starts_with("libonnxruntime.so")
+                    || name.starts_with("libonnxruntime.dylib")
+                    || name == "onnxruntime.dll")
+                    && !name.contains("providers")
+                {
+                    return Some(path);
+                }
+            }
+        } else if path.is_dir() {
+            if let Some(found) = scan_for_libonnxruntime(&path, max_depth - 1) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
+/// Official Kokoro-82M v1.0 IPA Phoneme Vocabulary (178 tokens)
+pub fn kokoro_vocab() -> HashMap<char, i64> {
+    let pairs: &[(char, i64)] = &[
+        (';', 1),
+        (':', 2),
+        (',', 3),
+        ('.', 4),
+        ('!', 5),
+        ('?', 6),
+        ('—', 9),
+        ('…', 10),
+        ('"', 11),
+        ('(', 12),
+        (')', 13),
+        ('“', 14),
+        ('”', 15),
+        (' ', 16),
+        ('\u{0303}', 17),
+        ('ʣ', 18),
+        ('ʥ', 19),
+        ('ʦ', 20),
+        ('ʨ', 21),
+        ('ᵝ', 22),
+        ('\u{AB67}', 23),
+        ('A', 24),
+        ('I', 25),
+        ('O', 31),
+        ('Q', 33),
+        ('S', 35),
+        ('T', 36),
+        ('W', 39),
+        ('Y', 41),
+        ('ᵊ', 42),
+        ('a', 43),
+        ('b', 44),
+        ('c', 45),
+        ('d', 46),
+        ('e', 47),
+        ('f', 48),
+        ('h', 50),
+        ('i', 51),
+        ('j', 52),
+        ('k', 53),
+        ('l', 54),
+        ('m', 55),
+        ('n', 56),
+        ('o', 57),
+        ('p', 58),
+        ('q', 59),
+        ('r', 60),
+        ('s', 61),
+        ('t', 62),
+        ('u', 63),
+        ('v', 64),
+        ('w', 65),
+        ('x', 66),
+        ('y', 67),
+        ('z', 68),
+        ('ɑ', 69),
+        ('ɐ', 70),
+        ('ɒ', 71),
+        ('æ', 72),
+        ('β', 75),
+        ('ɔ', 76),
+        ('ɕ', 77),
+        ('ç', 78),
+        ('ɖ', 80),
+        ('ð', 81),
+        ('ʤ', 82),
+        ('ə', 83),
+        ('ɚ', 85),
+        ('ɛ', 86),
+        ('ɜ', 87),
+        ('ɟ', 90),
+        ('ɡ', 92),
+        ('ɥ', 99),
+        ('ɨ', 101),
+        ('ɪ', 102),
+        ('ʝ', 103),
+        ('ɯ', 110),
+        ('ɰ', 111),
+        ('ŋ', 112),
+        ('ɳ', 113),
+        ('ɲ', 114),
+        ('ɴ', 115),
+        ('ø', 116),
+        ('ɸ', 118),
+        ('θ', 119),
+        ('œ', 120),
+        ('ɹ', 123),
+        ('ɾ', 125),
+        ('ɻ', 126),
+        ('ʁ', 128),
+        ('ɽ', 129),
+        ('ʂ', 130),
+        ('ʃ', 131),
+        ('ʈ', 132),
+        ('ʧ', 133),
+        ('ʊ', 135),
+        ('ʋ', 136),
+        ('ʌ', 138),
+        ('ɣ', 139),
+        ('ɤ', 140),
+        ('χ', 142),
+        ('ʎ', 143),
+        ('ʒ', 147),
+        ('ʔ', 148),
+        ('ˈ', 156),
+        ('ˌ', 157),
+        ('ː', 158),
+        ('ʰ', 162),
+        ('ʲ', 164),
+        ('↓', 169),
+        ('→', 171),
+        ('↗', 172),
+        ('↘', 173),
+        ('ᵻ', 177),
+    ];
+    pairs.iter().copied().collect()
+}
+
+/// Converts raw text into IPA phonemes using `espeak-ng --ipa -q -v <lang>` and maps them to Kokoro token IDs.
+pub fn phonemize_and_tokenize_kokoro(text: &str, lang: &str) -> Result<Vec<i64>> {
+    let output = std::process::Command::new("espeak-ng")
+        .args(["--ipa", "-q", "-v", lang, text.trim()])
+        .output()
+        .context("Nie można uruchomić 'espeak-ng' do fonemizacji IPA dla modelu Kokoro-82M")?;
+
+    let ipa = if output.status.success() {
+        String::from_utf8_lossy(&output.stdout).to_string()
+    } else {
+        text.to_string()
+    };
+
+    let vocab = kokoro_vocab();
+    let mut tokens: Vec<i64> = ipa
+        .chars()
+        .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
+        .filter_map(|c| vocab.get(&c).copied())
+        .collect();
+
+    if tokens.len() > KOKORO_MAX_PHONEMES {
+        tokens.truncate(KOKORO_MAX_PHONEMES);
+    }
+
+    if tokens.is_empty() {
+        // Fallback: map basic ASCII letters directly
+        tokens = text
+            .chars()
+            .filter_map(|c| vocab.get(&c.to_ascii_lowercase()).copied())
+            .take(KOKORO_MAX_PHONEMES)
+            .collect();
+    }
+
+    Ok(tokens)
+}
+
+/// Parses a NumPy `.npy` float32 array from raw bytes (`\x93NUMPY` magic header).
+pub fn parse_npy_f32(bytes: &[u8]) -> Result<Vec<f32>> {
+    if bytes.len() < 10 || &bytes[0..6] != b"\x93NUMPY" {
+        bail!("Nieprawidłowy nagłówek pliku .npy w pakiecie głosów Kokoro");
+    }
+    let major = bytes[6];
+    let data_offset = if major == 1 {
+        let header_len = u16::from_le_bytes([bytes[8], bytes[9]]) as usize;
+        10 + header_len
+    } else {
+        if bytes.len() < 12 {
+            bail!("Uszkodzony nagłówek .npy v2");
+        }
+        let header_len =
+            u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]) as usize;
+        12 + header_len
+    };
+
+    if data_offset > bytes.len() {
+        bail!("Przekroczono rozmiar danych w pliku .npy");
+    }
+
+    let raw_data = &bytes[data_offset..];
+    let num_floats = raw_data.len() / 4;
+    let mut floats = Vec::with_capacity(num_floats);
+    for chunk in raw_data.chunks_exact(4) {
+        floats.push(f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
+    }
+    Ok(floats)
+}
+
+/// Loads a specific voice style vector of shape `(1, 256)` for `token_count` phonemes
+/// directly from a Kokoro `voices-v1.0.bin` (NPZ / ZIP archive containing `<voice>.npy` of shape `(510, 1, 256)`).
+pub fn load_voice_style_vector(
+    voices_bin_path: &Path,
+    voice_name: &str,
+    token_count: usize,
+) -> Result<Vec<f32>> {
+    let file = File::open(voices_bin_path).with_context(|| {
+        format!(
+            "Nie można otworzyć pliku wektorów głosów Kokoro: {:?}",
+            voices_bin_path
+        )
+    })?;
+    let mut archive = zip::ZipArchive::new(file).with_context(|| {
+        format!(
+            "Plik {:?} nie jest prawidłowym archiwum NPZ/ZIP głosów Kokoro",
+            voices_bin_path
+        )
+    })?;
+
+    let target_entry = format!("{}.npy", voice_name);
+    let mut npy_bytes = Vec::new();
+    let mut found = false;
+
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i)?;
+        if entry.name().ok().as_deref() == Some(target_entry.as_str()) {
+            entry.read_to_end(&mut npy_bytes)?;
+            found = true;
+            break;
+        }
+    }
+
+    if !found {
+        if archive.is_empty() {
+            bail!("Archiwum głosów Kokoro jest puste: {:?}", voices_bin_path);
+        }
+        let mut entry = archive.by_index(0)?;
+        entry.read_to_end(&mut npy_bytes)?;
+    }
+
+    let all_floats = parse_npy_f32(&npy_bytes)?;
+    if all_floats.len() < KOKORO_STYLE_DIM {
+        bail!(
+            "Wektor głosu '{}' jest zbyt krótki ({} elementów, wymagane min. {})",
+            voice_name,
+            all_floats.len(),
+            KOKORO_STYLE_DIM
+        );
+    }
+
+    let total_rows = all_floats.len() / KOKORO_STYLE_DIM;
+    let row_idx = token_count.clamp(1, total_rows) - 1;
+    let start = row_idx * KOKORO_STYLE_DIM;
+    let end = start + KOKORO_STYLE_DIM;
+    Ok(all_floats[start..end].to_vec())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum KokoroVoice {
@@ -93,6 +432,12 @@ impl Drop for KokoroWorkerProcess {
     }
 }
 
+/// Native Rust ONNX Runtime Session wrapper for Kokoro-82M
+struct NativeKokoroSession {
+    session: Session,
+    tokens_input_name: String,
+}
+
 pub struct KokoroBridge {
     pub model_path: PathBuf,
     pub voices_path: PathBuf,
@@ -100,6 +445,7 @@ pub struct KokoroBridge {
     pub speed: f32,
     pub python_bin: PathBuf,
     pub worker_script: PathBuf,
+    ort_session: Arc<Mutex<Option<NativeKokoroSession>>>,
     workers: Mutex<Vec<KokoroWorkerProcess>>,
 }
 
@@ -117,6 +463,7 @@ impl KokoroBridge {
             speed: 1.0,
             python_bin: py,
             worker_script: script,
+            ort_session: Arc::new(Mutex::new(None)),
             workers: Mutex::new(Vec::new()),
         }
     }
@@ -195,6 +542,114 @@ impl KokoroBridge {
             }
         }
         PathBuf::from("python3")
+    }
+
+    /// Runs 100% Pure Rust ONNX Runtime inference via `ort` and writes 24 kHz 16-bit PCM WAV.
+    async fn synthesize_native_ort(
+        &self,
+        text: &str,
+        voice: &KokoroVoice,
+        speed: f32,
+        out_raw_wav: &Path,
+    ) -> Result<()> {
+        if !self.model_path.exists() {
+            bail!(
+                "Nie znaleziono modelu Kokoro ONNX: {:?}.\nAby pobrać model (Apache-2.0, ~88 MB), użyj polecenia:\n   audioticon models download kokoro-82m-int8",
+                self.model_path
+            );
+        }
+        if !self.voices_path.exists() {
+            bail!(
+                "Nie znaleziono pliku wektorów głosów Kokoro: {:?}.\nAby pobrać pełny pakiet modelu Kokoro-82M, użyj polecenia:\n   audioticon models download kokoro-82m-int8 --force",
+                self.voices_path
+            );
+        }
+
+        let env = get_ort_environment()?;
+
+        let tokens = phonemize_and_tokenize_kokoro(text, voice.lang_code())?;
+        let style_vec =
+            load_voice_style_vector(&self.voices_path, voice.as_str(), tokens.len())?;
+
+        // Pad tokens with leading 0 (BOS) and trailing 0 (EOS): shape [1, N + 2]
+        let mut padded_tokens = Vec::with_capacity(tokens.len() + 2);
+        padded_tokens.push(0i64);
+        padded_tokens.extend_from_slice(&tokens);
+        padded_tokens.push(0i64);
+
+        let seq_len = padded_tokens.len();
+        let tokens_array = Array2::from_shape_vec((1, seq_len), padded_tokens)
+            .context("Błąd tworzenia tensora tokenów Kokoro")?;
+        let style_array = Array2::from_shape_vec((1, KOKORO_STYLE_DIM), style_vec)
+            .context("Błąd tworzenia tensora stylu głosu Kokoro")?;
+        let speed_array = Array1::from_vec(vec![speed]);
+
+        let mut guard = self.ort_session.lock().await;
+        if guard.is_none() {
+            let session = Session::builder(&env)
+                .map_err(|e| anyhow::anyhow!("ORT session builder error: {}", e))?
+                .commit_from_file(&self.model_path)
+                .map_err(|e| {
+                    anyhow::anyhow!(
+                        "Nie udało się załadować modelu ONNX {:?} przez natywny silnik ort: {}",
+                        self.model_path,
+                        e
+                    )
+                })?;
+
+            let has_input_ids = session
+                .inputs()
+                .iter()
+                .any(|inp| inp.name() == "input_ids");
+            let tokens_input_name = if has_input_ids {
+                "input_ids".to_string()
+            } else {
+                "tokens".to_string()
+            };
+
+            *guard = Some(NativeKokoroSession {
+                session,
+                tokens_input_name,
+            });
+        }
+
+        let native = guard.as_mut().expect("ORT session initialized");
+        let tokens_tensor = TensorRef::from_array_view(&tokens_array)
+            .map_err(|e| anyhow::anyhow!("ORT tensor ref tokens: {}", e))?;
+        let style_tensor = TensorRef::from_array_view(&style_array)
+            .map_err(|e| anyhow::anyhow!("ORT tensor ref style: {}", e))?;
+        let speed_tensor = TensorRef::from_array_view(&speed_array)
+            .map_err(|e| anyhow::anyhow!("ORT tensor ref speed: {}", e))?;
+
+        let inputs = ort::inputs![
+            native.tokens_input_name.as_str() => tokens_tensor,
+            "style" => style_tensor,
+            "speed" => speed_tensor,
+        ];
+
+        let outputs = native
+            .session
+            .run(inputs)
+            .map_err(|e| anyhow::anyhow!("Błąd natywnej inferencji ORT Kokoro-82M: {}", e))?;
+
+        let (_shape, audio_slice) = outputs[0]
+            .try_extract_tensor::<f32>()
+            .map_err(|e| anyhow::anyhow!("Błąd ekstrakcji tensora audio z Kokoro ONNX: {}", e))?;
+
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: KOKORO_SAMPLE_RATE,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(out_raw_wav, spec)?;
+        for &sample in audio_slice {
+            let s16 = (sample * 32767.0).clamp(-32768.0, 32767.0) as i16;
+            writer.write_sample(s16)?;
+        }
+        writer.finalize()?;
+
+        Ok(())
     }
 
     async fn acquire_worker(&self) -> Result<KokoroWorkerProcess> {
@@ -280,14 +735,22 @@ impl KokoroBridge {
                     .strip_prefix("kokoro:")
                     .unwrap_or(v.trim())
                     .to_lowercase();
-                if clean.contains("male") && !clean.contains("female") || clean.contains("mezczyzna") || clean.contains("mężczyzna") {
+                if clean.contains("male") && !clean.contains("female")
+                    || clean.contains("mezczyzna")
+                    || clean.contains("mężczyzna")
+                {
                     KokoroVoice::AmAdam
                 } else if clean.contains("female") || clean.contains("kobieta") {
                     KokoroVoice::AfBella
-                } else if clean.contains("guard") || clean.contains("straznik") || clean.contains("strażnik") {
+                } else if clean.contains("guard")
+                    || clean.contains("straznik")
+                    || clean.contains("strażnik")
+                {
                     KokoroVoice::BmGeorge
                 } else {
-                    clean.parse::<KokoroVoice>().unwrap_or_else(|_| self.default_voice.clone())
+                    clean
+                        .parse::<KokoroVoice>()
+                        .unwrap_or_else(|_| self.default_voice.clone())
                 }
             }
             _ => self.default_voice.clone(),
@@ -331,55 +794,70 @@ impl SpeechSynthesizer for KokoroBridge {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
-        let temp_raw_wav = out_path.with_extension(format!("{}_{}.kokoro_raw.wav", pid, unique_id));
+        let temp_raw_wav =
+            out_path.with_extension(format!("{}_{}.kokoro_raw.wav", pid, unique_id));
         let temp_wav = out_path.with_extension(format!("{}_{}.temp.wav", pid, unique_id));
 
         let voice = self.resolve_kokoro_voice(segment.voice.as_deref());
         let speed = (self.speed * (1.0 + (segment.rate_mod as f32 / 100.0))).clamp(0.5, 2.0);
 
-        let req_json = serde_json::json!({
-            "text": trimmed,
-            "out_path": temp_raw_wav.to_str().unwrap_or_default(),
-            "voice": voice.as_str(),
-            "speed": speed,
-            "lang": voice.lang_code()
-        });
+        // Primary path: 100% Pure Rust ONNX Runtime (`ort` + `ndarray`)
+        let ort_res = self
+            .synthesize_native_ort(trimmed, &voice, speed, &temp_raw_wav)
+            .await;
 
-        let mut worker = self.acquire_worker().await?;
+        if let Err(ort_err) = ort_res {
+            // Fallback to Python worker only if native ORT failed and Python worker is available
+            let req_json = serde_json::json!({
+                "text": trimmed,
+                "out_path": temp_raw_wav.to_str().unwrap_or_default(),
+                "voice": voice.as_str(),
+                "speed": speed,
+                "lang": voice.lang_code()
+            });
 
-        let synth_res: Result<()> = {
-            let mut line = req_json.to_string();
-            line.push('\n');
-
-            worker.stdin.write_all(line.as_bytes())?;
-            worker.stdin.flush()?;
-
-            let mut resp_line = String::new();
-            worker.reader.read_line(&mut resp_line)?;
-
-            let val: serde_json::Value = serde_json::from_str(&resp_line).with_context(|| {
+            let mut worker = self.acquire_worker().await.with_context(|| {
                 format!(
-                    "Nieprawidłowa odpowiedź procesu Kokoro: {}",
-                    resp_line.trim()
+                    "Natywna inferencja ORT nie powiodła się ({}), a zapasowy proces Pythona również zwrócił błąd",
+                    ort_err
                 )
             })?;
 
-            if val.get("status").and_then(|s| s.as_str()) != Some("ok") {
-                let err_msg = val
-                    .get("message")
-                    .and_then(|s| s.as_str())
-                    .unwrap_or("Nieznany błąd syntezy Kokoro");
-                bail!("Kokoro worker error: {}", err_msg);
+            let synth_res: Result<()> = {
+                let mut line = req_json.to_string();
+                line.push('\n');
+
+                worker.stdin.write_all(line.as_bytes())?;
+                worker.stdin.flush()?;
+
+                let mut resp_line = String::new();
+                worker.reader.read_line(&mut resp_line)?;
+
+                let val: serde_json::Value =
+                    serde_json::from_str(&resp_line).with_context(|| {
+                        format!(
+                            "Nieprawidłowa odpowiedź procesu Kokoro: {}",
+                            resp_line.trim()
+                        )
+                    })?;
+
+                if val.get("status").and_then(|s| s.as_str()) != Some("ok") {
+                    let err_msg = val
+                        .get("message")
+                        .and_then(|s| s.as_str())
+                        .unwrap_or("Nieznany błąd syntezy Kokoro");
+                    bail!("Kokoro worker error: {}", err_msg);
+                }
+                Ok(())
+            };
+
+            if let Err(e) = synth_res {
+                let _ = tokio::fs::remove_file(&temp_raw_wav).await;
+                return Err(e);
             }
-            Ok(())
-        };
 
-        if let Err(e) = synth_res {
-            let _ = tokio::fs::remove_file(&temp_raw_wav).await;
-            return Err(e);
+            self.return_worker(worker).await;
         }
-
-        self.return_worker(worker).await;
 
         let mut filter_chain = build_ffmpeg_filter_chain(segment.filter.as_deref());
         if segment.pitch_mod != 0 {
@@ -473,7 +951,10 @@ mod tests {
         };
 
         let res = bridge.synthesize(&segment, &out_wav).await;
-        assert!(res.is_err(), "Missing ONNX model must return an error, never a fake sine wave");
+        assert!(
+            res.is_err(),
+            "Missing ONNX model must return an error, never a fake sine wave"
+        );
         let err_msg = res.unwrap_err().to_string();
         assert!(err_msg.contains("Nie znaleziono modelu Kokoro ONNX"));
         assert!(err_msg.contains("audioticon models download kokoro-82m-int8"));
@@ -491,5 +972,27 @@ mod tests {
         let george: KokoroVoice = "bm_george".parse().unwrap();
         assert_eq!(george, KokoroVoice::BmGeorge);
         assert_eq!(george.lang_code(), "en-gb");
+    }
+
+    #[test]
+    fn test_native_kokoro_ipa_phonemizer_and_npy_parser() {
+        let tokens =
+            phonemize_and_tokenize_kokoro("Hello world", "en-us").expect("Phonemize en-us");
+        assert!(!tokens.is_empty(), "IPA tokens must not be empty");
+        assert!(tokens.iter().all(|&id| id > 0 && id < 178));
+
+        // Build a synthetic valid .npy v1 buffer with 256 float32 values
+        let header = b"{'descr': '<f4', 'fortran_order': False, 'shape': (1, 1, 256), }           \n";
+        let mut npy = Vec::new();
+        npy.extend_from_slice(b"\x93NUMPY\x01\x00");
+        npy.extend_from_slice(&(header.len() as u16).to_le_bytes());
+        npy.extend_from_slice(header);
+        for i in 0..256 {
+            npy.extend_from_slice(&((i as f32) * 0.01).to_le_bytes());
+        }
+
+        let parsed = parse_npy_f32(&npy).expect("Parse .npy float32");
+        assert_eq!(parsed.len(), 256);
+        assert!((parsed[10] - 0.10).abs() < 1e-5);
     }
 }

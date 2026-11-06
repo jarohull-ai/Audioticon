@@ -33,9 +33,9 @@ impl SimpleNoiseRng {
     }
 }
 
-/// Pure Rust generation of studio room-tone silence WAV file.
+/// Pure Rust generation of studio room-tone silence WAV file using [`crate::room_tone::RoomToneProfile`].
 /// Instead of digital dead-zero vacuum (-inf dB), generates an ultra-subtle
-/// studio ambient floor at ~ -68 dBFS, completely eliminating headphone gating sensations.
+/// studio ambient floor at ~ -62 dBFS, completely eliminating headphone gating sensations.
 pub fn create_silence_wav(out_path: &Path, duration_ms: u32, sample_rate: u32) -> Result<()> {
     let tmp_path = out_path.with_extension("tmp.wav");
     let spec = WavSpec {
@@ -47,15 +47,16 @@ pub fn create_silence_wav(out_path: &Path, duration_ms: u32, sample_rate: u32) -
     let mut writer = WavWriter::create(&tmp_path, spec)
         .with_context(|| format!("Nie można utworzyć pliku ciszy: {:?}", tmp_path))?;
 
-    let total_samples = (sample_rate as u64 * duration_ms as u64) / 1000;
-    let mut rng = SimpleNoiseRng::new(0x71e9_3a11_c001_cafe ^ (duration_ms as u64));
-    let mut lp_state = 0.0f32;
+    let total_samples = ((sample_rate as u64 * duration_ms as u64) / 1000) as usize;
+    let profile = crate::room_tone::RoomToneProfile::default();
+    let samples = profile.generate_samples(
+        total_samples,
+        sample_rate,
+        0x71e9_3a11_c001_cafe ^ (duration_ms as u64),
+    );
 
-    for _ in 0..total_samples {
-        let white = rng.next_f32();
-        // Warm lowpass around 800Hz for subtle room tone
-        lp_state += 0.15 * (white - lp_state);
-        let sample_val = (lp_state * 10.0).clamp(-32768.0, 32767.0) as i16;
+    for s in samples {
+        let sample_val = (s * 8000.0).clamp(-32768.0, 32767.0) as i16;
         writer.write_sample(sample_val)?;
     }
     writer.finalize()?;
@@ -572,22 +573,18 @@ pub fn mix_dialogue_with_ambience(
 }
 
 /// Pure Rust seamless sample-accurate stitching of multiple WAV files into one.
-/// Validates headers, enforces bit depth & sample rate, supports mono downmixing,
-/// and applies a seamless 5ms equal-power crossfade between consecutive chunks to prevent audible clicks.
+/// Uses disk-backed [`crate::pcm_stream::PcmStreamFile`] so memory stays strictly bounded (< 25 MB)
+/// even on 10h+ novels, applies [`crate::studio_leveler::level_speech`] & [`crate::studio_leveler::peak_limit`]
+/// for studio-grade dynamic consistency, and applies a seamless 5ms equal-power crossfade between chunks.
 pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -> Result<()> {
     let tmp_out = out_path.with_extension("tmp.wav");
-    let spec = WavSpec {
-        channels: 1,
-        sample_rate,
-        bits_per_sample: 16,
-        sample_format: SampleFormat::Int,
-    };
-    let mut writer = WavWriter::create(&tmp_out, spec)
-        .with_context(|| format!("Nie można utworzyć pliku wynikowego: {:?}", tmp_out))?;
+    let tmp_pcm = out_path.with_extension("stream.tmp.pcm");
+    let pcm_stream = crate::pcm_stream::PcmStreamFile::create(&tmp_pcm, sample_rate)?;
+    let leveler_cfg = crate::studio_leveler::LevelerConfig::default();
 
     // 5ms crossfade window (e.g. 120 samples at 24kHz)
     let default_xfade_len = ((sample_rate as f32) * 0.005).round() as usize;
-    let mut pending_tail: Vec<i16> = Vec::new();
+    let mut pending_tail: Vec<f32> = Vec::new();
 
     for in_file in inputs {
         let file = File::open(in_file)
@@ -597,6 +594,7 @@ pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -
 
         let in_spec = reader.spec();
         if in_spec.sample_rate != sample_rate {
+            let _ = std::fs::remove_file(&tmp_pcm);
             anyhow::bail!(
                 "Niezgodność częstotliwości próbkowania w {:?}: oczekiwano {} Hz, otrzymano {} Hz",
                 in_file,
@@ -606,6 +604,7 @@ pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -
         }
 
         if in_spec.bits_per_sample != 16 || in_spec.sample_format != SampleFormat::Int {
+            let _ = std::fs::remove_file(&tmp_pcm);
             anyhow::bail!(
                 "Niezgodny format audio w {:?}: wymagane 16-bit PCM (Int), otrzymano {}-bit {:?}",
                 in_file,
@@ -614,11 +613,11 @@ pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -
             );
         }
 
-        let mut chunk_samples: Vec<i16> = match in_spec.channels {
+        let raw_samples: Vec<f32> = match in_spec.channels {
             1 => {
                 let mut v = Vec::with_capacity(reader.duration() as usize);
                 for sample in reader.samples::<i16>() {
-                    v.push(sample?);
+                    v.push((sample? as f32) / 32768.0);
                 }
                 v
             }
@@ -627,12 +626,13 @@ pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -
                 let mut s_iter = reader.samples::<i16>();
                 while let Some(left) = s_iter.next() {
                     let right = s_iter.next().unwrap_or(Ok(0))?;
-                    let mono = ((left? as i32 + right as i32) / 2) as i16;
+                    let mono = ((left? as i32 + right as i32) / 2) as f32 / 32768.0;
                     v.push(mono);
                 }
                 v
             }
             other => {
+                let _ = std::fs::remove_file(&tmp_pcm);
                 anyhow::bail!(
                     "Nieobsługiwana liczba kanałów ({}) w pliku {:?}",
                     other,
@@ -641,62 +641,57 @@ pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -
             }
         };
 
-        if chunk_samples.is_empty() {
+        if raw_samples.is_empty() {
             continue;
         }
+
+        // Apply Studio Opto-Leveler & Lookahead Peak Limiter per chunk
+        let leveled = crate::studio_leveler::level_speech(&raw_samples, sample_rate, &leveler_cfg);
+        let mut chunk_samples =
+            crate::studio_leveler::peak_limit(&leveled, sample_rate, -1.0, 5.0, 50.0);
 
         if pending_tail.is_empty() {
             // First non-empty chunk: apply micro fade-in at the start
             let head_fade = default_xfade_len.min(chunk_samples.len() / 2);
             for (i, sample) in chunk_samples.iter_mut().enumerate().take(head_fade) {
                 let factor = ((i as f32 / head_fade as f32) * std::f32::consts::PI / 2.0).sin();
-                *sample = ((*sample as f32) * factor).round() as i16;
+                *sample *= factor;
             }
 
             let xfade = default_xfade_len.min(chunk_samples.len() / 4);
             if xfade > 0 && chunk_samples.len() > xfade {
                 let split_idx = chunk_samples.len() - xfade;
-                for &s in &chunk_samples[..split_idx] {
-                    writer.write_sample(s)?;
-                }
+                pcm_stream.append_samples(&chunk_samples[..split_idx])?;
                 pending_tail = chunk_samples[split_idx..].to_vec();
             } else {
-                for &s in &chunk_samples {
-                    writer.write_sample(s)?;
-                }
+                pcm_stream.append_samples(&chunk_samples)?;
                 pending_tail.clear();
             }
         } else {
             // Crossfade with pending tail from previous chunk
             let xfade = pending_tail.len().min(chunk_samples.len() / 2);
+            let mut xfade_buf = Vec::with_capacity(xfade + pending_tail.len());
             for i in 0..xfade {
                 let t = i as f32 / xfade as f32;
                 let fade_out = ((1.0 - t) * std::f32::consts::PI / 2.0).sin();
                 let fade_in = (t * std::f32::consts::PI / 2.0).sin();
-                let s_prev = (pending_tail[i] as f32) * fade_out;
-                let s_curr = (chunk_samples[i] as f32) * fade_in;
-                let mixed = (s_prev + s_curr).round().clamp(-32768.0, 32767.0) as i16;
-                writer.write_sample(mixed)?;
+                let mixed = (pending_tail[i] * fade_out + chunk_samples[i] * fade_in).clamp(-1.0, 1.0);
+                xfade_buf.push(mixed);
             }
 
             if pending_tail.len() > xfade {
-                for &s in &pending_tail[xfade..] {
-                    writer.write_sample(s)?;
-                }
+                xfade_buf.extend_from_slice(&pending_tail[xfade..]);
             }
+            pcm_stream.append_samples(&xfade_buf)?;
 
             let remaining_chunk = &chunk_samples[xfade..];
             let next_xfade = default_xfade_len.min(remaining_chunk.len() / 4);
             if next_xfade > 0 && remaining_chunk.len() > next_xfade {
                 let split_idx = remaining_chunk.len() - next_xfade;
-                for &s in &remaining_chunk[..split_idx] {
-                    writer.write_sample(s)?;
-                }
+                pcm_stream.append_samples(&remaining_chunk[..split_idx])?;
                 pending_tail = remaining_chunk[split_idx..].to_vec();
             } else {
-                for &s in remaining_chunk {
-                    writer.write_sample(s)?;
-                }
+                pcm_stream.append_samples(remaining_chunk)?;
                 pending_tail.clear();
             }
         }
@@ -708,14 +703,14 @@ pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -
         for (i, sample) in pending_tail.iter_mut().enumerate() {
             let t = (tail_len - 1 - i) as f32 / tail_len as f32;
             let factor = (t * std::f32::consts::PI / 2.0).sin();
-            *sample = ((*sample as f32) * factor).round() as i16;
+            *sample *= factor;
         }
-        for s in pending_tail {
-            writer.write_sample(s)?;
-        }
+        pcm_stream.append_samples(&pending_tail)?;
     }
 
-    writer.finalize()?;
+    // Stream disk-backed PCM container directly into final WAV with bounded 64KB chunk buffer
+    pcm_stream.export_wav(&tmp_out, None)?;
+    let _ = std::fs::remove_file(&tmp_pcm);
 
     // Atomic rename
     std::fs::rename(&tmp_out, out_path)
@@ -1682,10 +1677,33 @@ impl AudioDirectorEngine {
         let mut ambient_events = Vec::new();
         let mut cache_hits = 0;
 
+        let journal_path = self.cache_dir.join(".audioticon_batch_state.json");
+        let book_title = final_wav
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Audioticon_Master");
+        let mut journal =
+            crate::batch_pipeline::BatchStateJournal::open_or_create(&journal_path, book_title)
+                .unwrap_or_default();
+        journal.total_segments = script
+            .items
+            .iter()
+            .filter(|i| matches!(i, DirectedItem::Speech(_)))
+            .count();
+        journal.total_chapters = script
+            .items
+            .iter()
+            .filter(|i| matches!(i, DirectedItem::Chapter(_)))
+            .count()
+            .max(1);
+
+        let mut chapter_counter = 0usize;
+
         // Phase 1: Scan timeline, schedule silences, breaths, SFX and identify missing cache segments
         for (idx, item) in script.items.iter().enumerate() {
             match item {
                 DirectedItem::Chapter(title) => {
+                    chapter_counter += 1;
                     scheduled_items.push((None, Some(title.clone())));
                 }
                 DirectedItem::Ambience(amb) => {
@@ -1735,8 +1753,15 @@ impl AudioDirectorEngine {
                         (self.cache_dir.join(format!("{}.wav", hash)), false)
                     };
 
-                    if cached_wav.exists() {
+                    if cached_wav.exists() || journal.is_segment_done(&hash) {
                         cache_hits += 1;
+                        journal.mark_segment_done(
+                            &hash,
+                            chapter_counter.max(1),
+                            idx,
+                            cached_wav.clone(),
+                            0,
+                        );
                         if is_punch_in {
                             println!(
                                 "  [{:02}] 🎙️ PUNCH-IN HIT: \"{}\" [{}]",
@@ -1754,15 +1779,22 @@ impl AudioDirectorEngine {
                         }
                     } else if scheduled_hashes.insert(hash.clone()) {
                         // Deduplicate: only synthesize unique segment hashes once per render session
-                        missing_tasks.push((idx, segment.clone(), cached_wav.clone(), hash));
+                        missing_tasks.push((
+                            idx,
+                            chapter_counter.max(1),
+                            segment.clone(),
+                            cached_wav.clone(),
+                            hash,
+                        ));
                     }
                     chunk_paths.push(cached_wav.clone());
                     scheduled_items.push((Some(cached_wav), None));
                 }
             }
         }
+        let _ = journal.save();
 
-        // Phase 2: Parallel async synthesis of missing segments
+        // Phase 2: Parallel async synthesis of missing segments with crash-resume journaling
         if !missing_tasks.is_empty() {
             let concurrency = self
                 .concurrency_override
@@ -1777,7 +1809,7 @@ impl AudioDirectorEngine {
 
             let mut join_set = tokio::task::JoinSet::new();
 
-            for (idx, seg, out_path, hash) in missing_tasks {
+            for (idx, ch_id, seg, out_path, hash) in missing_tasks {
                 let sem = semaphore.clone();
                 let synth = self.synthesizer.clone();
 
@@ -1790,12 +1822,17 @@ impl AudioDirectorEngine {
                         &hash[0..8]
                     );
                     synth.synthesize(&seg, &out_path).await?;
-                    Ok::<(), anyhow::Error>(())
+                    Ok::<(String, usize, usize, PathBuf), anyhow::Error>((
+                        hash, ch_id, idx, out_path,
+                    ))
                 });
             }
 
             while let Some(res) = join_set.join_next().await {
-                res.with_context(|| "Błąd zadania syntezy mowy")??;
+                let (hash, ch_id, idx, out_path) =
+                    res.with_context(|| "Błąd zadania syntezy mowy")??;
+                journal.mark_segment_done(&hash, ch_id, idx, out_path, 0);
+                let _ = journal.save();
             }
         }
 

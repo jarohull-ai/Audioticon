@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod auto_director;
+pub mod batch_pipeline;
 pub mod cache;
 pub mod cadence;
 pub mod credentials;
@@ -10,14 +11,18 @@ pub mod ledger;
 pub mod model_hub;
 pub mod models;
 pub mod parser;
+pub mod pcm_stream;
 pub mod presets;
+pub mod room_tone;
 pub mod sfx;
+pub mod studio_leveler;
 pub mod types;
 pub mod verbalizer;
 pub mod voice_design;
 pub mod voicelab;
 pub mod voucher;
 pub mod wallet;
+pub mod wsola;
 
 pub use audio::{
     create_ambient_track, create_breath_wav, create_breath_wav_with_gain, create_sfx_wav,
@@ -27,6 +32,11 @@ pub use audio::{
 };
 pub use auto_director::{
     auto_direct_text, strip_markdown_code_blocks, AUDIOTICON_DIRECTOR_SYSTEM_PROMPT,
+};
+pub use batch_pipeline::{
+    audit_acx_compliance, AcxComplianceReport, BatchStateJournal, SegmentJournalEntry,
+    SegmentState, ACX_MAX_INTEGRATED_LUFS, ACX_MAX_NOISE_FLOOR_DBFS, ACX_MAX_TRUE_PEAK_DBFS,
+    ACX_MIN_INTEGRATED_LUFS,
 };
 pub use cache::{
     compute_segment_hash, get_cache_stats, parse_size_string, prune_cache_lru, CacheStats,
@@ -53,11 +63,17 @@ pub use models::{
     ModelCatalogItem,
 };
 pub use parser::EmojiDirector;
+pub use pcm_stream::{PcmStreamFile, DEFAULT_STREAM_BUFFER_SAMPLES};
 pub use presets::{CustomEmojiDef, EffectPreset, PresetRegistry, ProjectConfig, ProjectMetaConfig};
+pub use room_tone::{
+    fill_gaps_with_room_tone, trim_speech_padding, AudioTrackItem, RoomToneProfile,
+    ACX_TARGET_ROOM_TONE_DB, DEFAULT_TONE_FADE_MS, PLOSIVE_PROTECTION_MARGIN_MS,
+};
 pub use sfx::{
     ambient_dir, find_ambient_asset, find_sfx_asset, import_custom_sfx, infer_category,
     list_curated_essentials, list_installed_sfx, sfx_dir, CuratedSfxItem, SfxAssetInfo,
 };
+pub use studio_leveler::{level_speech, peak_limit, LevelerConfig};
 pub use types::{
     ActorTag, AudiobookMetadata, AudioticonProject, BreathIntensity, ChapterMark, DirectedItem,
     DirectedScript, EmojiAction, ProductionStyle, ProjectChapter, ProjectMasteringConfig,
@@ -75,3 +91,4 @@ pub use voicelab::{
 };
 pub use voucher::{generate_voucher_code, verify_voucher_code, VoucherPayload, WalletTier};
 pub use wallet::{AudioWallet, Transaction, STARTING_CREDITS};
+pub use wsola::wsola_time_stretch;

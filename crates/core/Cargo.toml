@@ -19,6 +19,8 @@ tokio = { workspace = true }
 async-trait = { workspace = true }
 dirs = { workspace = true }
 zip = { version = "9.3.0", default-features = false, features = ["deflate"] }
+ort = { workspace = true }
+ndarray = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }

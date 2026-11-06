@@ -8,7 +8,7 @@ members = [
 [workspace.package]
 version = "0.2.8"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.92"
 license = "MIT OR Apache-2.0"
 authors = ["Jarosław Kuchta"]
 repository = "https://github.com/jarohull-ai/Audioticon"
@@ -29,3 +29,5 @@ async-trait = "0.1"
 clap = { version = "4", features = ["derive"] }
 dirs = { version = "5" }
 tiny_http = "0.12"
+ort = { version = "2.0.0-rc.15", default-features = false, features = ["std", "ndarray", "load-dynamic", "api-31"] }
+ndarray = "0.17"
