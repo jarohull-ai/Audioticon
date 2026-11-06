@@ -16,6 +16,7 @@ pub mod presets;
 pub mod room_tone;
 pub mod sfx;
 pub mod studio_leveler;
+pub mod style_transfer;
 pub mod types;
 pub mod verbalizer;
 pub mod voice_design;
@@ -75,6 +76,11 @@ pub use sfx::{
     list_curated_essentials, list_installed_sfx, sfx_dir, CuratedSfxItem, SfxAssetInfo,
 };
 pub use studio_leveler::{level_speech, peak_limit, LevelerConfig};
+pub use style_transfer::{
+    apply_disentangled_style, apply_disentangled_style_to_wav, diagnose_styled_audio,
+    estimate_median_f0, extract_disentangled_style_matrix, DisentangledStyleMatrix, StyleCategory,
+    StyleDiagnosticReport,
+};
 pub use types::{
     ActorTag, AudiobookMetadata, AudioticonProject, BreathIntensity, ChapterMark, DirectedItem,
     DirectedScript, EmojiAction, ProductionStyle, ProjectChapter, ProjectMasteringConfig,

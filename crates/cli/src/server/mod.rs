@@ -125,6 +125,85 @@ fn url_decode(input: &str) -> String {
     result
 }
 
+fn base64_encode(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
+        let triple = (b0 << 16) | (b1 << 8) | b2;
+        out.push(TABLE[((triple >> 18) & 0x3F) as usize] as char);
+        out.push(TABLE[((triple >> 12) & 0x3F) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(TABLE[((triple >> 6) & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(TABLE[(triple & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
+}
+
+fn strip_data_url_prefix(b64: &str) -> &str {
+    let trimmed = b64.trim();
+    if let Some((_, rest)) = trimmed.split_once("base64,") {
+        rest.trim()
+    } else {
+        trimmed
+    }
+}
+
+fn encode_samples_to_wav_base64(samples: &[f32], sample_rate: u32) -> Result<String, String> {
+    let data_bytes = (samples.len() * 2) as u32;
+    let riff_size = 36 + data_bytes;
+    let byte_rate = sample_rate * 2;
+    let mut buf = Vec::with_capacity((44 + data_bytes) as usize);
+    buf.extend_from_slice(b"RIFF");
+    buf.extend_from_slice(&riff_size.to_le_bytes());
+    buf.extend_from_slice(b"WAVEfmt ");
+    buf.extend_from_slice(&16u32.to_le_bytes());
+    buf.extend_from_slice(&1u16.to_le_bytes()); // PCM
+    buf.extend_from_slice(&1u16.to_le_bytes()); // Mono
+    buf.extend_from_slice(&sample_rate.to_le_bytes());
+    buf.extend_from_slice(&byte_rate.to_le_bytes());
+    buf.extend_from_slice(&2u16.to_le_bytes()); // Block align
+    buf.extend_from_slice(&16u16.to_le_bytes()); // Bits per sample
+    buf.extend_from_slice(b"data");
+    buf.extend_from_slice(&data_bytes.to_le_bytes());
+    for &s in samples {
+        let val = (s.clamp(-1.0, 1.0) * 32767.0) as i16;
+        buf.extend_from_slice(&val.to_le_bytes());
+    }
+    Ok(base64_encode(&buf))
+}
+
+fn generate_synthetic_vocal_phrase(gender: &str, sample_rate: u32) -> Vec<f32> {
+    let f0 = if gender.eq_ignore_ascii_case("female") || gender.eq_ignore_ascii_case("kobieta") {
+        215.0f32
+    } else {
+        118.0f32
+    };
+    let dur_sec = 1.6f32;
+    let n = (sample_rate as f32 * dur_sec) as usize;
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let t = i as f32 / sample_rate as f32;
+        let syl_env = ((t * 3.2 * std::f32::consts::PI).sin().abs()).powf(0.55);
+        let glottal = (2.0 * std::f32::consts::PI * f0 * t).sin() * 0.45
+            + (2.0 * std::f32::consts::PI * (f0 * 2.0) * t).sin() * 0.25
+            + (2.0 * std::f32::consts::PI * 590.0 * t).sin() * 0.22
+            + (2.0 * std::f32::consts::PI * 1755.0 * t).sin() * 0.14
+            + (2.0 * std::f32::consts::PI * 2680.0 * t).sin() * 0.08;
+        out.push((glottal * syl_env * 0.55).clamp(-0.95, 0.95));
+    }
+    out
+}
+
 type PiperCache = Arc<Mutex<HashMap<PathBuf, Arc<PiperBridge>>>>;
 
 async fn resolve_synthesizer(
@@ -1427,7 +1506,7 @@ async fn handle_studio_request(
             }
         };
 
-        let director = EmojiDirector::default()
+        let director = EmojiDirector::with_registry(presets::get_active_registry())
             .with_lang(&req.lang)
             .with_style(parse_production_style(req.style.as_deref()));
         let script = director.parse(&req.text);
@@ -1687,7 +1766,7 @@ async fn handle_studio_request(
 
         let cache_dir = get_default_cache_dir();
         let _ = std::fs::create_dir_all(&cache_dir);
-        let director = EmojiDirector::default()
+        let director = EmojiDirector::with_registry(presets::get_active_registry())
             .with_lang(&clean_lang)
             .with_style(parse_production_style(req.style.as_deref()));
         let script = director.parse(&req.text);
@@ -1944,7 +2023,7 @@ async fn handle_studio_request(
 
         let cache_dir = get_default_cache_dir();
         let _ = std::fs::create_dir_all(&cache_dir);
-        let director = EmojiDirector::default()
+        let director = EmojiDirector::with_registry(presets::get_active_registry())
             .with_lang(&clean_lang)
             .with_style(parse_production_style(req.style.as_deref()));
         let script = director.parse(&req.text);
@@ -3108,6 +3187,447 @@ async fn handle_studio_request(
         }
     }
 
+    // Route: GET /api/style-transfer/list
+    if method == tiny_http::Method::Get && url == "/api/style-transfer/list" {
+        let cfg = ProjectConfig::discover(None);
+        let mut reg = presets::get_active_registry();
+        reg.load_project_config(&cfg);
+        let styles = reg.list_styles();
+        presets::set_active_registry(reg);
+
+        let json_resp = serde_json::json!({
+            "styles": styles,
+            "band_centers_hz": audioticon_core::TRANSFER_BAND_CENTERS_HZ,
+        });
+        let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                .unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: POST /api/style-transfer/extract
+    if method == tiny_http::Method::Post && url == "/api/style-transfer/extract" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(30 * 1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct ExtractStyleReq {
+            normal_audio_base64: String,
+            style_audio_base64: String,
+            #[serde(default)]
+            name: String,
+            #[serde(default)]
+            emoji: String,
+            #[serde(default)]
+            alias: String,
+        }
+
+        let parsed: ExtractStyleReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd parsowania JSON: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let norm_bytes = match base64_decode(strip_data_url_prefix(&parsed.normal_audio_base64)) {
+            Ok(b) => b,
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": format!("Nieprawidłowe dane audio głosu normalnego (base64): {}", e)
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let style_bytes = match base64_decode(strip_data_url_prefix(&parsed.style_audio_base64)) {
+            Ok(b) => b,
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": format!("Nieprawidłowe dane audio wzorca ekspresji (base64): {}", e)
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let cache_dir = get_default_cache_dir();
+        let _ = std::fs::create_dir_all(&cache_dir);
+        let req_id = REQ_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let pid = std::process::id();
+        let norm_wav = cache_dir.join(format!("ext_norm_{}_{}.wav", pid, req_id));
+        let style_wav = cache_dir.join(format!("ext_style_{}_{}.wav", pid, req_id));
+
+        let conv_norm = voicelab::convert_to_standard_wav(&norm_bytes, &norm_wav);
+        let conv_style = voicelab::convert_to_standard_wav(&style_bytes, &style_wav);
+
+        if let Err(e) = conv_norm.and(conv_style) {
+            let _ = std::fs::remove_file(&norm_wav);
+            let _ = std::fs::remove_file(&style_wav);
+            let err_json = serde_json::json!({
+                "error": format!("Błąd konwersji próbek audio przez FFmpeg: {}", e)
+            });
+            let mut resp = tiny_http::Response::from_string(err_json.to_string());
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        let norm_read = voicelab::read_wav_samples(&norm_wav);
+        let style_read = voicelab::read_wav_samples(&style_wav);
+        let _ = std::fs::remove_file(&norm_wav);
+        let _ = std::fs::remove_file(&style_wav);
+
+        match (norm_read, style_read) {
+            (Ok((norm_i16, sr, _)), Ok((style_i16, _, _))) => {
+                let norm_samples: Vec<f32> =
+                    norm_i16.into_iter().map(|s| s as f32 / 32768.0).collect();
+                let style_samples: Vec<f32> =
+                    style_i16.into_iter().map(|s| s as f32 / 32768.0).collect();
+                let name = if parsed.name.trim().is_empty() {
+                    "Własny wzorzec z mikrofonu".to_string()
+                } else {
+                    parsed.name.trim().to_string()
+                };
+                let emoji = if parsed.emoji.trim().is_empty() {
+                    "🎭".to_string()
+                } else {
+                    parsed.emoji.trim().to_string()
+                };
+                let alias = if parsed.alias.trim().is_empty() {
+                    "wzorzec:wlasny".to_string()
+                } else {
+                    parsed.alias.trim().to_string()
+                };
+                let extracted = audioticon_core::extract_disentangled_style_matrix(
+                    &norm_samples,
+                    &style_samples,
+                    sr,
+                    &name,
+                    &emoji,
+                    Some(alias),
+                );
+                let styled_preview =
+                    audioticon_core::apply_disentangled_style(&norm_samples, sr, &extracted);
+                let diagnostics = audioticon_core::diagnose_styled_audio(&styled_preview, sr);
+
+                let json_resp = serde_json::json!({
+                    "success": true,
+                    "style": extracted,
+                    "diagnostics": diagnostics,
+                });
+                let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                        .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            (Err(e), _) | (_, Err(e)) => {
+                let err_json = serde_json::json!({
+                    "error": format!("Nie udało się odczytać próbek WAV: {}", e)
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        }
+    }
+
+    // Route: POST /api/style-transfer/preview
+    if method == tiny_http::Method::Post && url == "/api/style-transfer/preview" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(5 * 1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct StylePreviewReq {
+            style: audioticon_core::DisentangledStyleMatrix,
+            #[serde(default)]
+            text: Option<String>,
+            #[serde(default)]
+            gender: Option<String>,
+            #[serde(default)]
+            provider: Option<String>,
+        }
+
+        let mut parsed: StylePreviewReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd parsowania JSON: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        parsed.style.sync_from_sliders();
+        let gender = parsed.gender.as_deref().unwrap_or("male");
+        let text = parsed
+            .text
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or("To jest test naszego nowego wzorca ekspresji głosowej w czasie rzeczywistym.");
+        let provider = parsed.provider.as_deref().unwrap_or("piper");
+
+        let voice_str = if gender.eq_ignore_ascii_case("female")
+            || gender.eq_ignore_ascii_case("kobieta")
+        {
+            if provider == "edge" {
+                "pl-PL-ZofiaNeural"
+            } else {
+                "female"
+            }
+        } else if provider == "edge" {
+            "pl-PL-MarekNeural"
+        } else {
+            "male"
+        };
+
+        let cache_dir = get_default_cache_dir();
+        let _ = std::fs::create_dir_all(&cache_dir);
+        let req_id = REQ_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dry_wav = cache_dir.join(format!("style_dry_{}_{}.wav", std::process::id(), req_id));
+
+        let mut dry_samples_opt: Option<(Vec<f32>, u32)> = None;
+        if let Ok(synth) = resolve_synthesizer(
+            provider,
+            voice_str,
+            None,
+            "pl",
+            default_model.as_ref(),
+            &piper_cache,
+        )
+        .await
+        {
+            let seg = audioticon_core::TextSegment {
+                text: audioticon_core::normalize_polish_text(text),
+                voice: Some(voice_str.to_string()),
+                rate_mod: parsed.style.pacing_mod_pct(),
+                ..Default::default()
+            };
+            if synth.synthesize(&seg, &dry_wav).await.is_ok() {
+                if let Ok((samples_i16, sr, _)) = voicelab::read_wav_samples(&dry_wav) {
+                    let f32_vec: Vec<f32> =
+                        samples_i16.into_iter().map(|s| s as f32 / 32768.0).collect();
+                    dry_samples_opt = Some((f32_vec, sr));
+                }
+            }
+            let _ = std::fs::remove_file(&dry_wav);
+        }
+
+        let (dry_samples, sr) = dry_samples_opt
+            .unwrap_or_else(|| (generate_synthetic_vocal_phrase(gender, 24000), 24000));
+
+        let styled_samples =
+            audioticon_core::apply_disentangled_style(&dry_samples, sr, &parsed.style);
+        let diagnostics = audioticon_core::diagnose_styled_audio(&styled_samples, sr);
+        let audio_base64 = match encode_samples_to_wav_base64(&styled_samples, sr) {
+            Ok(b64) => b64,
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": format!("Błąd kodowania podglądu WAV: {}", e)
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(500));
+                return;
+            }
+        };
+
+        let json_resp = serde_json::json!({
+            "success": true,
+            "audio_base64": audio_base64,
+            "diagnostics": diagnostics,
+            "style": parsed.style,
+        });
+        let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                .unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: POST /api/style-transfer/save
+    if method == tiny_http::Method::Post && url == "/api/style-transfer/save" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(2 * 1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct SaveStyleReq {
+            style: audioticon_core::DisentangledStyleMatrix,
+        }
+
+        let mut parsed: SaveStyleReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd parsowania JSON: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        parsed.style.sync_from_sliders();
+        let alias = parsed.style.alias_or_id();
+        parsed.style.alias = Some(alias.clone());
+        if parsed.style.id.trim().is_empty() {
+            parsed.style.id = audioticon_core::sanitize_slug(&alias);
+        }
+        if parsed.style.emoji.trim().is_empty() {
+            parsed.style.emoji = "🎭".to_string();
+        }
+
+        let mut cfg = ProjectConfig::discover(None);
+        cfg.styles.insert(alias.clone(), parsed.style.clone());
+        let emoji_def = CustomEmojiDef {
+            name: parsed.style.name.clone(),
+            alias: Some(alias.clone()),
+            action_type: "filter".to_string(),
+            filter: Some(format!("style:{}", alias)),
+            voice: None,
+            pitch: None,
+            rate: Some(parsed.style.pacing_mod_pct()),
+            volume: Some(parsed.style.output_gain()),
+            description: Some(format!(
+                "Wzorzec ekspresji ({:?}): {}",
+                parsed.style.category, parsed.style.name
+            )),
+        };
+        cfg.emojis
+            .insert(parsed.style.emoji.trim().to_string(), emoji_def);
+        let _ = cfg.save_to_path(std::path::Path::new("audioticon.toml"));
+
+        let mut reg = presets::get_active_registry();
+        reg.load_project_config(&cfg);
+        let styles = reg.list_styles();
+        presets::set_active_registry(reg);
+
+        let json_resp = serde_json::json!({
+            "success": true,
+            "style": parsed.style,
+            "styles": styles,
+            "emojis": cfg.emojis,
+        });
+        let mut resp = tiny_http::Response::from_string(json_resp.to_string());
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                .unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
     // 404 fallback
     let mut resp = tiny_http::Response::from_string("Nie znaleziono (404)");
     if let Some(ref h) = cors_header {
@@ -3188,6 +3708,12 @@ pub async fn run_studio_server(
     }
 
     let piper_cache: PiperCache = Arc::new(Mutex::new(HashMap::new()));
+    {
+        let cfg = ProjectConfig::discover(None);
+        let mut reg = presets::get_active_registry();
+        reg.load_project_config(&cfg);
+        presets::set_active_registry(reg);
+    }
 
     loop {
         let server_clone = server.clone();

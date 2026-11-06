@@ -962,6 +962,11 @@
           <option value="obsidian-daw">🌑 Obsidian Slate DAW</option>
         </select>
 
+        <!-- Style Transfer Lab Button -->
+        <button class="btn" onclick="openStyleLabModal()" style="border-color:var(--accent); color:var(--accent); font-weight:700;">
+          <span>🧬</span> Kreator Ekspresji
+        </button>
+
         <!-- Tile Toggle Menu -->
         <button class="btn" onclick="toggleTilePalette()">
           <span>🪟</span> Kafelki
@@ -991,13 +996,18 @@
         </div>
         <div class="tile-body">
           <div class="block-editor-toolbar">
-            <div class="emoji-pill-bar">
+            <div class="emoji-pill-bar" id="emojiPillBar">
               <span class="emoji-pill" onclick="insertEmojiIntoActive('🤫')">🤫 Szept</span>
-              <span class="emoji-pill" onclick="insertEmojiIntoActive('💥')">💥 Krzyk</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('🪖')">🪖 Szept Akcji</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('💋')">💋 Do Ucha</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('[rozkaz]')">💥 Krzyk/Rozkaz</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('[wolanie]')">📢 Wołanie</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('🎵')">🎵 Śpiew</span>
               <span class="emoji-pill" onclick="insertEmojiIntoActive('📞')">📞 Telefon</span>
               <span class="emoji-pill" onclick="insertEmojiIntoActive('🏛️')">🏛️ Katedra</span>
               <span class="emoji-pill" onclick="insertEmojiIntoActive('🛑')">🛑 Pauza 0.8s</span>
               <span class="emoji-pill" onclick="insertEmojiIntoActive('🌧️')">🌧️ Deszcz</span>
+              <span class="emoji-pill" onclick="openStyleLabModal()" style="border-color:var(--accent); color:var(--accent); font-weight:700;">+ 🧬 Własny Wzorzec</span>
             </div>
             <div style="font-size:0.75rem; color:var(--text-muted);">
               Słowa: <b id="wordCount">38</b> | Czas: <b id="estDuration">0:14s</b>
@@ -1310,6 +1320,151 @@
       </div>
       <div style="display:flex; justify-content:flex-end;">
         <button class="btn" onclick="closeWalletModal()">Zamknij</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: 🧬 KREATOR WZORCÓW EKSPRESJI (DISENTANGLED STYLE TRANSFER LAB) -->
+  <div class="modal-overlay" id="styleLabModal" onclick="if(event.target===this) closeStyleLabModal()">
+    <div class="modal-card" style="width:760px; max-width:95vw; max-height:92vh; overflow-y:auto;">
+      <div class="modal-title">
+        <span>🧬 Kreator Wzorców Ekspresji (Disentangled Style Transfer)</span>
+        <button class="btn-icon-xs" onclick="closeStyleLabModal()">✕</button>
+      </div>
+      <div style="font-size:0.78rem; color:var(--text-muted); line-height:1.4;">
+        Rozplątany silnik parametryczny oddziela <b>płeć i barwę mówcy</b> ($\Delta\log_2(F_0/F_{0,\text{med}})$ + normalizacja krtani $\alpha_{\text{VTLN}}$) od <b>wzorca ekspresji</b> (Szept / Krzyk / Wołanie / Śpiew). Wzorzec zapisany pod ikoną działa automatycznie dla głosów męskich i żeńskich.
+      </div>
+
+      <!-- 1. Wybór szablonu bazowego -->
+      <div>
+        <div class="inspector-label">1. Wybierz bazowy wzorzec ekspresji</div>
+        <div style="display:flex; flex-wrap:wrap; gap:0.4rem;" id="styleTemplateButtons">
+          <button class="btn" onclick="selectStyleTemplate('szept:narracyjny')">🤫 Szept Narracyjny</button>
+          <button class="btn" onclick="selectStyleTemplate('szept:akcja')">🪖 Szept w Akcji</button>
+          <button class="btn" onclick="selectStyleTemplate('szept:ucho')">💋 Szept do Ucha</button>
+          <button class="btn" onclick="selectStyleTemplate('szept:mikrofon')">🎙️ Szept Mikrofon</button>
+          <button class="btn" onclick="selectStyleTemplate('rozkaz')">💥 Krzyk Bojowy</button>
+          <button class="btn" onclick="selectStyleTemplate('wolanie')">📢 Wołanie z Oddali</button>
+          <button class="btn" onclick="selectStyleTemplate('spiew')">🎵 Śpiew / Melorecytacja</button>
+        </div>
+      </div>
+
+      <!-- 2. Opcjonalna ekstrakcja z 2 próbek referencyjnych -->
+      <div style="background:var(--track-bg); padding:0.75rem; border-radius:8px; border:1px solid var(--border);">
+        <div class="inspector-label">
+          <span>2. Lub wyciągnij macierz transferu z 2 nagrań referencyjnych (Głos normalny → Docelowa ekspresja)</span>
+          <span style="color:var(--accent);">LPC + 24 Bark ΔdB</span>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:0.5rem; align-items:end; margin-top:0.35rem;">
+          <div>
+            <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:0.2rem;">Próbka A: Normalna mowa (WAV/M4A/MP3)</div>
+            <input type="file" id="refNormalFile" accept="audio/*" class="inspector-input" style="font-size:0.72rem; padding:0.3rem;">
+          </div>
+          <div>
+            <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:0.2rem;">Próbka B: Szept / Krzyk / Śpiew (WAV/M4A/MP3)</div>
+            <input type="file" id="refStyleFile" accept="audio/*" class="inspector-input" style="font-size:0.72rem; padding:0.3rem;">
+          </div>
+          <button class="btn btn-primary" id="btnExtractStyle" onclick="extractStyleFromFiles()">🔬 Wyciągnij Macierz</button>
+        </div>
+      </div>
+
+      <!-- 3. 6 Suwaków Psychoakustycznych -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+        <div class="inspector-group" style="margin:0;">
+          <div class="inspector-label">
+            <span>Oddech vs Struny Głosowe</span>
+            <span class="slider-val" id="valBreath">74%</span>
+          </div>
+          <input type="range" id="slBreath" class="slider-input" min="0" max="1" step="0.02" value="0.74" oninput="onStyleSliderChange()">
+          <div style="font-size:0.68rem; color:var(--text-dim);">0% = pełny ton krtaniowy, 100% = czysty szept LPC bez F0</div>
+        </div>
+
+        <div class="inspector-group" style="margin:0;">
+          <div class="inspector-label">
+            <span>Wygładzenie Szelestu (Anti-Hiss)</span>
+            <span class="slider-val" id="valSmooth">84%</span>
+          </div>
+          <input type="range" id="slSmooth" class="slider-input" min="0" max="1" step="0.02" value="0.84" oninput="onStyleSliderChange()">
+          <div style="font-size:0.68rem; color:var(--text-dim);">Redukuje metaliczny szelest sybilantów (4–8 kHz)</div>
+        </div>
+
+        <div class="inspector-group" style="margin:0;">
+          <div class="inspector-label">
+            <span>Napięcie Krtani i Formantów (VTLN)</span>
+            <span class="slider-val" id="valTension">0.00</span>
+          </div>
+          <input type="range" id="slTension" class="slider-input" min="-1" max="1" step="0.05" value="0.0" oninput="onStyleSliderChange()">
+          <div style="font-size:0.68rem; color:var(--text-dim);">Automatycznie skalowane względem wykrytego F0 płci</div>
+        </div>
+
+        <div class="inspector-group" style="margin:0;">
+          <div class="inspector-label">
+            <span>Dynamika Sylab (Legato ↔ Staccato)</span>
+            <span class="slider-val" id="valArtic">+0.05</span>
+          </div>
+          <input type="range" id="slArtic" class="slider-input" min="-1" max="1" step="0.05" value="0.05" oninput="onStyleSliderChange()">
+          <div style="font-size:0.68rem; color:var(--text-dim);">Ujemne = płynne legato, Dodatnie = szarpany rozkaz w akcji</div>
+        </div>
+
+        <div class="inspector-group" style="margin:0;">
+          <div class="inspector-label">
+            <span>Intonacja Δlog₂F0 (Półtony) & Vibrato</span>
+            <span class="slider-val" id="valMelody">+0.0 ST / 0%</span>
+          </div>
+          <div style="display:flex; gap:0.4rem;">
+            <input type="range" id="slMelody" class="slider-input" min="-6" max="10" step="0.5" value="0" oninput="onStyleSliderChange()" title="Przesunięcie półtonów niezależne od płci">
+            <input type="range" id="slVibrato" class="slider-input" min="0" max="1" step="0.05" value="0" oninput="onStyleSliderChange()" title="Głębokość vibrato dla śpiewu">
+          </div>
+          <div style="font-size:0.68rem; color:var(--text-dim);">Lewo: wysokość względna (ST) · Prawo: vibrato śpiewne</div>
+        </div>
+
+        <div class="inspector-group" style="margin:0;">
+          <div class="inspector-label">
+            <span>Przestrzeń (Blisko Ucha ↔ Oddalenie)</span>
+            <span class="slider-val" id="valProx">-0.35</span>
+          </div>
+          <input type="range" id="slProx" class="slider-input" min="-1" max="1" step="0.05" value="-0.35" oninput="onStyleSliderChange()">
+          <div style="font-size:0.68rem; color:var(--text-dim);">-1.0 = intymnie przy uchu · +1.0 = wołanie z oddali (echo)</div>
+        </div>
+      </div>
+
+      <!-- 4. Wizualizacja 24 Pasm Bark + Diagnostyka Psychoakustyczna -->
+      <div style="background:var(--track-bg); padding:0.75rem; border-radius:8px; border:1px solid var(--border);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+          <span class="inspector-label" style="margin:0;">Widmo Różnicowe 24 Pasm Bark (ΔdB) & Audyt Psychoakustyczny</span>
+          <span id="styleDiagVerdict" style="font-size:0.74rem; font-weight:700; color:var(--success);">✅ Czysty wzorzec — brak ostrego szelestu</span>
+        </div>
+        <canvas id="styleBarkCanvas" width="700" height="90" style="width:100%; height:90px; background:var(--surface-elev); border-radius:6px; border:1px solid var(--border);"></canvas>
+        <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; margin-top:0.45rem; font-size:0.74rem; font-family:'Fira Code', monospace;">
+          <span>Hiss/Core: <b id="diagHissDb" style="color:var(--success);">-11.2 dB</b></span>
+          <span>Szum/Oddech: <b id="diagWhisperPct">21.0%</b></span>
+          <span>Wykryte F0: <b id="diagF0Hz">118 Hz</b></span>
+          <span>Skala VTLN (Płeć): <b id="diagVtln">1.00x</b></span>
+        </div>
+      </div>
+
+      <!-- 5. Podgląd na żywo (Mężczyzna 👨 / Kobieta 👩) -->
+      <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+        <input type="text" id="stylePreviewText" class="inspector-input" style="flex:1; min-width:220px;" value="Stój! Nie ruszaj się, oni już tu są w ciemności.">
+        <button class="btn" id="btnPreviewMale" onclick="previewStyleTransfer('male')">▶ Odsłuchaj: Mężczyzna 👨</button>
+        <button class="btn" id="btnPreviewFemale" onclick="previewStyleTransfer('female')">▶ Odsłuchaj: Kobieta 👩</button>
+      </div>
+
+      <!-- 6. Zapis wzorca pod wybraną ikoną i aliasem -->
+      <div style="display:grid; grid-template-columns:80px 1fr 1fr auto; gap:0.5rem; align-items:end; background:var(--surface-elev); padding:0.75rem; border-radius:8px; border:1px solid var(--border);">
+        <div>
+          <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:0.2rem;">Ikona</div>
+          <input type="text" id="styleEmojiInput" class="inspector-input" value="🤫" style="text-align:center; font-size:1.1rem;">
+        </div>
+        <div>
+          <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:0.2rem;">Nazwa wzorca</div>
+          <input type="text" id="styleNameInput" class="inspector-input" value="Szept narracyjny">
+        </div>
+        <div>
+          <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:0.2rem;">Tag w tekście [alias]</div>
+          <input type="text" id="styleAliasInput" class="inspector-input" value="szept:narracyjny">
+        </div>
+        <button class="btn btn-primary" onclick="saveStylePattern()">💾 Zapisz pod ikoną</button>
       </div>
     </div>
   </div>
@@ -1840,6 +1995,323 @@
         toggleMasterPlay();
       }
     });
+
+    // =========================================================================
+    // 🧬 DISENTANGLED STYLE TRANSFER LAB (KREATOR WZORCÓW EKSPRESJI)
+    // =========================================================================
+    let styleTemplatesMap = {};
+    let activeStyleMatrix = {
+      id: "whisper_narrative",
+      name: "Szept narracyjny (Półszept sceniczny)",
+      emoji: "🤫",
+      alias: "narracyjny",
+      category: "whisper",
+      breath_vs_voice: 0.42,
+      anti_hiss_smoothness: 0.65,
+      vocal_tract_tension: 0.0,
+      syllable_articulation: 0.05,
+      pitch_melody_semitones: 0.0,
+      vibrato_depth: 0.0,
+      proximity_vs_distance: -0.15,
+      delta_f0_octaves: 0.0,
+      f0_contour_dynamism: 0.75,
+      vtln_warp_factor: 1.0,
+      harmonic_drive: 0.0,
+      rms_offset_db: -3.5,
+      delta_cepstrum_bark_db: [-14,-13,-12,-10,-8,-6,-4.5,-3,-2,-1,0,1,2,2.8,3.2,3.4,3.0,2.2,1,0,-1.5,-3,-4.5,-6]
+    };
+
+    async function loadStyleTemplates() {
+      try {
+        const res = await fetch('/api/style-transfer/list');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.styles)) {
+            data.styles.forEach(st => {
+              const key = st.alias || st.id;
+              styleTemplatesMap[key] = st;
+              styleTemplatesMap['szept:' + key] = st;
+            });
+            if (styleTemplatesMap['narracyjny']) {
+              activeStyleMatrix = JSON.parse(JSON.stringify(styleTemplatesMap['narracyjny']));
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Style list fallback:", e);
+      }
+      syncStyleUiFromMatrix();
+    }
+
+    function openStyleLabModal() {
+      document.getElementById('styleLabModal').style.display = 'flex';
+      loadStyleTemplates();
+    }
+
+    function closeStyleLabModal() {
+      document.getElementById('styleLabModal').style.display = 'none';
+    }
+
+    function selectStyleTemplate(alias) {
+      if (styleTemplatesMap[alias]) {
+        activeStyleMatrix = JSON.parse(JSON.stringify(styleTemplatesMap[alias]));
+      } else {
+        const defaults = {
+          'szept:narracyjny': { id: 'whisper_narrative', name: 'Szept narracyjny', emoji: '🤫', alias: 'narracyjny', category: 'whisper', breath_vs_voice: 0.42, anti_hiss_smoothness: 0.65, vocal_tract_tension: 0.0, syllable_articulation: 0.05, pitch_melody_semitones: 0.0, vibrato_depth: 0.0, proximity_vs_distance: -0.15, rms_offset_db: -3.5 },
+          'szept:akcja': { id: 'whisper_action', name: 'Szept w akcji (Żołnierz)', emoji: '🪖', alias: 'akcja', category: 'whisper', breath_vs_voice: 0.50, anti_hiss_smoothness: 0.78, vocal_tract_tension: 0.55, syllable_articulation: 0.65, pitch_melody_semitones: 0.5, vibrato_depth: 0.0, proximity_vs_distance: 0.0, rms_offset_db: -1.5 },
+          'szept:ucho': { id: 'whisper_romantic', name: 'Szept do ucha (Romantyczny)', emoji: '💋', alias: 'ucho', category: 'whisper', breath_vs_voice: 0.38, anti_hiss_smoothness: 0.88, vocal_tract_tension: -0.50, syllable_articulation: -0.45, pitch_melody_semitones: -1.5, vibrato_depth: 0.0, proximity_vs_distance: -0.80, rms_offset_db: -5.0 },
+          'szept:mikrofon': { id: 'whisper_close_mic', name: 'Szept mikrofonowy', emoji: '🎙️', alias: 'mikrofon', category: 'whisper', breath_vs_voice: 0.56, anti_hiss_smoothness: 0.55, vocal_tract_tension: 0.10, syllable_articulation: 0.10, pitch_melody_semitones: 0.0, vibrato_depth: 0.0, proximity_vs_distance: -0.35, rms_offset_db: -3.0 },
+          'rozkaz': { id: 'shout_battle', name: 'Krzyk bojowy / Rozkaz', emoji: '💥', alias: 'rozkaz', category: 'shout', breath_vs_voice: 0.08, anti_hiss_smoothness: 0.45, vocal_tract_tension: 0.75, syllable_articulation: 0.70, pitch_melody_semitones: 3.5, vibrato_depth: 0.05, proximity_vs_distance: 0.15, rms_offset_db: 3.5 },
+          'wolanie': { id: 'call_distant', name: 'Wołanie z oddali', emoji: '📢', alias: 'wolanie', category: 'call', breath_vs_voice: 0.12, anti_hiss_smoothness: 0.70, vocal_tract_tension: 0.45, syllable_articulation: -0.60, pitch_melody_semitones: 4.0, vibrato_depth: 0.10, proximity_vs_distance: 0.85, rms_offset_db: -2.0 },
+          'spiew': { id: 'chant_melodic', name: 'Śpiew / Melorecytacja', emoji: '🎵', alias: 'spiew', category: 'chant', breath_vs_voice: 0.10, anti_hiss_smoothness: 0.75, vocal_tract_tension: -0.20, syllable_articulation: -0.75, pitch_melody_semitones: 2.0, vibrato_depth: 0.65, proximity_vs_distance: 0.25, rms_offset_db: 1.0 }
+        };
+        if (defaults[alias]) {
+          Object.assign(activeStyleMatrix, defaults[alias]);
+        }
+      }
+      syncStyleUiFromMatrix();
+    }
+
+    function syncStyleUiFromMatrix() {
+      document.getElementById('slBreath').value = activeStyleMatrix.breath_vs_voice ?? 0.42;
+      document.getElementById('slSmooth').value = activeStyleMatrix.anti_hiss_smoothness ?? 0.65;
+      document.getElementById('slTension').value = activeStyleMatrix.vocal_tract_tension ?? 0.0;
+      document.getElementById('slArtic').value = activeStyleMatrix.syllable_articulation ?? 0.05;
+      document.getElementById('slMelody').value = activeStyleMatrix.pitch_melody_semitones ?? 0.0;
+      document.getElementById('slVibrato').value = activeStyleMatrix.vibrato_depth ?? 0.0;
+      document.getElementById('slProx').value = activeStyleMatrix.proximity_vs_distance ?? -0.15;
+      document.getElementById('styleEmojiInput').value = activeStyleMatrix.emoji || '🤫';
+      document.getElementById('styleNameInput').value = activeStyleMatrix.name || 'Własny wzorzec';
+      document.getElementById('styleAliasInput').value = activeStyleMatrix.alias || activeStyleMatrix.id || 'wzorzec';
+      onStyleSliderChange();
+    }
+
+    function onStyleSliderChange() {
+      const breath = parseFloat(document.getElementById('slBreath').value);
+      const smooth = parseFloat(document.getElementById('slSmooth').value);
+      const tension = parseFloat(document.getElementById('slTension').value);
+      const artic = parseFloat(document.getElementById('slArtic').value);
+      const melody = parseFloat(document.getElementById('slMelody').value);
+      const vibrato = parseFloat(document.getElementById('slVibrato').value);
+      const prox = parseFloat(document.getElementById('slProx').value);
+
+      activeStyleMatrix.breath_vs_voice = breath;
+      activeStyleMatrix.anti_hiss_smoothness = smooth;
+      activeStyleMatrix.vocal_tract_tension = tension;
+      activeStyleMatrix.syllable_articulation = artic;
+      activeStyleMatrix.pitch_melody_semitones = melody;
+      activeStyleMatrix.vibrato_depth = vibrato;
+      activeStyleMatrix.proximity_vs_distance = prox;
+
+      document.getElementById('valBreath').innerText = Math.round(breath * 100) + '%';
+      document.getElementById('valSmooth').innerText = Math.round(smooth * 100) + '%';
+      document.getElementById('valTension').innerText = (tension >= 0 ? '+' : '') + tension.toFixed(2);
+      document.getElementById('valArtic').innerText = (artic >= 0 ? '+' : '') + artic.toFixed(2);
+      document.getElementById('valMelody').innerText = (melody >= 0 ? '+' : '') + melody.toFixed(1) + ' ST / ' + Math.round(vibrato * 100) + '%';
+      document.getElementById('valProx').innerText = (prox >= 0 ? '+' : '') + prox.toFixed(2);
+
+      // Update live Bark curve preview based on sliders
+      const centers = [60,150,250,350,450,570,700,840,1000,1170,1370,1600,1850,2150,2500,2900,3400,4000,4800,5800,7000,8500,10500,13500];
+      activeStyleMatrix.delta_cepstrum_bark_db = centers.map(fc => {
+        let db = 0;
+        if (fc < 250) {
+          db -= breath * 11.0;
+          db -= prox * 8.0;
+          db -= tension * 4.0;
+        } else if (fc < 600) {
+          db -= breath * 10.0;
+          db -= tension * 3.5;
+        } else if (fc <= 2800) {
+          db += tension * 4.5;
+          if (prox > 0.2) db += prox * 4.0;
+        } else {
+          const roll = (fc - 2800) / 5000.0;
+          db -= smooth * (6.0 + roll * 10.0);
+          db += (1.0 - smooth) * 4.0;
+        }
+        return Math.max(-18, Math.min(12, db));
+      });
+      drawStyleBarkCanvas(activeStyleMatrix.delta_cepstrum_bark_db);
+    }
+
+    function drawStyleBarkCanvas(barkDb) {
+      const canvas = document.getElementById('styleBarkCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      // Zero dB midline
+      const midY = h * 0.52;
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, midY);
+      ctx.lineTo(w, midY);
+      ctx.stroke();
+
+      const n = barkDb.length || 24;
+      const barW = (w - 20) / n;
+      for (let i = 0; i < n; i++) {
+        const val = barkDb[i] || 0;
+        const barH = (val / 18.0) * (h * 0.44);
+        const x = 10 + i * barW;
+        ctx.fillStyle = val >= 0 ? 'rgba(2, 132, 199, 0.78)' : 'rgba(13, 148, 136, 0.65)';
+        if (barH >= 0) {
+          ctx.fillRect(x + 2, midY - barH, barW - 4, barH);
+        } else {
+          ctx.fillRect(x + 2, midY, barW - 4, -barH);
+        }
+      }
+    }
+
+    function updateDiagnosticsUi(diag) {
+      if (!diag) return;
+      const hissEl = document.getElementById('diagHissDb');
+      const hissWarn = diag.hiss_to_core_db > -5.0;
+      hissEl.innerText = diag.hiss_to_core_db.toFixed(1) + ' dB';
+      hissEl.style.color = hissWarn ? 'var(--danger)' : 'var(--success)';
+      document.getElementById('diagWhisperPct').innerText = (diag.pure_noise_pct ?? 20.0).toFixed(1) + '%';
+      document.getElementById('diagF0Hz').innerText = (diag.detected_median_f0_hz ?? 118.0).toFixed(0) + ' Hz';
+      document.getElementById('diagVtln').innerText = (diag.applied_vtln_scale ?? 1.0).toFixed(2) + 'x';
+      const vEl = document.getElementById('styleDiagVerdict');
+      if (hissWarn) {
+        vEl.style.color = 'var(--danger)';
+        vEl.innerText = '⚠️ ' + diag.verdict;
+      } else {
+        vEl.style.color = 'var(--success)';
+        vEl.innerText = diag.verdict;
+      }
+    }
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function extractStyleFromFiles() {
+      const normFile = document.getElementById('refNormalFile').files[0];
+      const styleFile = document.getElementById('refStyleFile').files[0];
+      if (!normFile || !styleFile) {
+        alert("Wybierz oba pliki audio: 1) Normalna mowa oraz 2) Docelowa ekspresja (Szept/Krzyk/Śpiew).");
+        return;
+      }
+      const btn = document.getElementById('btnExtractStyle');
+      btn.disabled = true;
+      btn.innerText = '⏳ Analiza LPC/Bark...';
+      try {
+        const normB64 = await fileToBase64(normFile);
+        const styleB64 = await fileToBase64(styleFile);
+        const res = await fetch('/api/style-transfer/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            normal_audio_base64: normB64,
+            style_audio_base64: styleB64,
+            name: document.getElementById('styleNameInput').value,
+            emoji: document.getElementById('styleEmojiInput').value,
+            alias: document.getElementById('styleAliasInput').value
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.style) {
+          activeStyleMatrix = data.style;
+          syncStyleUiFromMatrix();
+          drawStyleBarkCanvas(activeStyleMatrix.delta_cepstrum_bark_db);
+          updateDiagnosticsUi(data.diagnostics);
+        } else {
+          alert("Błąd ekstrakcji: " + (data.error || "Nieznany błąd"));
+        }
+      } catch (e) {
+        alert("Błąd połączenia z serwerem ekstrakcji: " + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = '🔬 Wyciągnij Macierz';
+      }
+    }
+
+    async function previewStyleTransfer(gender) {
+      const btnId = gender === 'female' ? 'btnPreviewFemale' : 'btnPreviewMale';
+      const btn = document.getElementById(btnId);
+      const oldTxt = btn.innerText;
+      btn.disabled = true;
+      btn.innerText = '⏳ Synteza DSP...';
+      try {
+        activeStyleMatrix.name = document.getElementById('styleNameInput').value;
+        activeStyleMatrix.emoji = document.getElementById('styleEmojiInput').value;
+        activeStyleMatrix.alias = document.getElementById('styleAliasInput').value;
+        const text = document.getElementById('stylePreviewText').value;
+
+        const res = await fetch('/api/style-transfer/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            style: activeStyleMatrix,
+            text: text,
+            gender: gender,
+            provider: 'piper'
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.audio_base64) {
+          if (data.diagnostics) updateDiagnosticsUi(data.diagnostics);
+          if (data.style && data.style.delta_cepstrum_bark_db) drawStyleBarkCanvas(data.style.delta_cepstrum_bark_db);
+          const audioUrl = 'data:audio/wav;base64,' + data.audio_base64;
+          audioPlayer.src = audioUrl;
+          audioPlayer.onplay = () => startMasterPlay();
+          audioPlayer.onended = () => pauseMasterPlay();
+          await audioPlayer.play();
+        } else {
+          alert("Błąd podglądu: " + (data.error || "Nieznany błąd"));
+        }
+      } catch (e) {
+        alert("Błąd podglądu ekspresji: " + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerText = oldTxt;
+      }
+    }
+
+    async function saveStylePattern() {
+      activeStyleMatrix.emoji = document.getElementById('styleEmojiInput').value.trim() || '🎭';
+      activeStyleMatrix.name = document.getElementById('styleNameInput').value.trim() || 'Własny wzorzec';
+      activeStyleMatrix.alias = document.getElementById('styleAliasInput').value.trim() || 'wzorzec:wlasny';
+
+      try {
+        const res = await fetch('/api/style-transfer/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ style: activeStyleMatrix })
+        });
+        const data = await res.json();
+        if (data.success) {
+          styleTemplatesMap[activeStyleMatrix.alias] = data.style;
+          // Add pill to toolbar if not already present
+          const bar = document.getElementById('emojiPillBar');
+          const pillId = 'pill-style-' + activeStyleMatrix.alias.replace(/[^a-zA-Z0-9_-]/g, '_');
+          if (bar && !document.getElementById(pillId)) {
+            const span = document.createElement('span');
+            span.className = 'emoji-pill';
+            span.id = pillId;
+            span.title = activeStyleMatrix.name + ' [' + activeStyleMatrix.alias + ']';
+            span.innerText = `${activeStyleMatrix.emoji} ${activeStyleMatrix.name}`;
+            span.onclick = () => insertEmojiIntoActive(activeStyleMatrix.emoji);
+            bar.insertBefore(span, bar.lastElementChild);
+          }
+          alert(`✅ Zapisano wzorzec "${activeStyleMatrix.name}" pod ikoną ${activeStyleMatrix.emoji} oraz tagiem [${activeStyleMatrix.alias}] w audioticon.toml!`);
+          closeStyleLabModal();
+        } else {
+          alert("Błąd zapisu wzorca: " + (data.error || "Nieznany błąd"));
+        }
+      } catch (e) {
+        alert("Błąd zapisu wzorca: " + e.message);
+      }
+    }
 
     // Init
     window.addEventListener('DOMContentLoaded', () => {

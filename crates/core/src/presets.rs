@@ -337,6 +337,8 @@ pub struct ProjectConfig {
     pub voices: HashMap<String, String>,
     #[serde(default)]
     pub emojis: HashMap<String, CustomEmojiDef>,
+    #[serde(default)]
+    pub styles: HashMap<String, crate::style_transfer::DisentangledStyleMatrix>,
 }
 
 impl ProjectConfig {
@@ -405,6 +407,10 @@ pub struct PresetRegistry {
     voices: HashMap<String, String>,
     /// Custom user emojis
     emojis: HashMap<String, CustomEmojiDef>,
+    /// Built-in and custom Disentangled Style Transfer matrices indexed by alias/emoji/tag
+    styles: HashMap<String, crate::style_transfer::DisentangledStyleMatrix>,
+    /// Explicitly user-saved / overridden style keys
+    custom_style_keys: std::collections::HashSet<String>,
 }
 
 impl Default for PresetRegistry {
@@ -413,6 +419,8 @@ impl Default for PresetRegistry {
             presets: HashMap::new(),
             voices: HashMap::new(),
             emojis: HashMap::new(),
+            styles: HashMap::new(),
+            custom_style_keys: std::collections::HashSet::new(),
         };
         r.register_factory_defaults();
         r
@@ -586,9 +594,16 @@ impl PresetRegistry {
                 ..Default::default()
             },
         );
+
+        // Register built-in Disentangled Style Transfer templates
+        for st in crate::style_transfer::DisentangledStyleMatrix::builtin_catalog() {
+            let alias = st.alias_or_id();
+            self.styles.insert(st.id.clone(), st.clone());
+            self.styles.insert(alias, st);
+        }
     }
 
-    /// Loads custom presets, character voice mappings, and custom emojis from project config
+    /// Loads custom presets, character voice mappings, custom emojis, and disentangled styles from project config
     pub fn load_project_config(&mut self, config: &ProjectConfig) {
         for (name, preset) in &config.presets {
             self.presets.insert(name.clone(), preset.clone());
@@ -599,6 +614,114 @@ impl PresetRegistry {
         for (emoji, def) in &config.emojis {
             self.register_custom_emoji(emoji.clone(), def.clone());
         }
+        for (key, style) in &config.styles {
+            self.register_custom_style(key.clone(), style.clone());
+        }
+    }
+
+    /// Registers a custom Disentangled Style Matrix and binds its emoji + alias so the parser and synthesizer recognize it
+    pub fn register_custom_style(
+        &mut self,
+        key: impl Into<String>,
+        mut style: crate::style_transfer::DisentangledStyleMatrix,
+    ) {
+        style.sync_from_sliders();
+        let key_str = key.into();
+        let alias = style.alias_or_id();
+        let filter_tag = format!("style:{}", alias);
+        let rate_pct = style.pacing_mod_pct();
+        let gain = style.output_gain();
+
+        self.styles.insert(key_str.clone(), style.clone());
+        self.styles.insert(style.id.clone(), style.clone());
+        self.styles.insert(alias.clone(), style.clone());
+        self.styles.insert(filter_tag.clone(), style.clone());
+        self.custom_style_keys.insert(key_str);
+        self.custom_style_keys.insert(style.id.clone());
+        self.custom_style_keys.insert(alias.clone());
+        self.custom_style_keys.insert(filter_tag.clone());
+
+        if !style.emoji.trim().is_empty() {
+            let emoji_key = style.emoji.trim().to_string();
+            self.styles.insert(emoji_key.clone(), style.clone());
+            self.custom_style_keys.insert(emoji_key.clone());
+            self.register_custom_emoji(
+                emoji_key,
+                CustomEmojiDef {
+                    name: style.name.clone(),
+                    alias: Some(alias),
+                    action_type: "filter".to_string(),
+                    filter: Some(filter_tag),
+                    voice: None,
+                    pitch: None,
+                    rate: Some(rate_pct),
+                    volume: Some(gain),
+                    description: Some(format!(
+                        "Wzorzec ekspresji ({:?}): {}",
+                        style.category, style.name
+                    )),
+                },
+            );
+        }
+    }
+
+    /// Resolves a DisentangledStyleMatrix if the filter tag corresponds to a custom user style
+    /// or one of the expressive vocal categories (Shout / Call / Chant / explicit `style:...`).
+    pub fn resolve_style(
+        &self,
+        tag: &str,
+    ) -> Option<crate::style_transfer::DisentangledStyleMatrix> {
+        let clean = tag.trim().trim_start_matches('[').trim_end_matches(']');
+        if self.custom_style_keys.contains(clean) {
+            return self.styles.get(clean).cloned();
+        }
+        if let Some(stripped) = clean.strip_prefix("style:") {
+            if let Some(st) = self.styles.get(stripped.trim()) {
+                return Some(st.clone());
+            }
+        }
+        let lower = clean.to_lowercase();
+        match lower.as_str() {
+            "rozkaz" | "krzyk" | "shout" | "shout_battle" | "style:rozkaz" => {
+                self.styles.get("rozkaz").cloned()
+            }
+            "wolanie" | "wołanie" | "call" | "call_distant" | "style:wolanie" => {
+                self.styles.get("wolanie").cloned()
+            }
+            "spiew" | "śpiew" | "chant" | "chant_melodic" | "🎵" | "🎶" | "style:spiew" => {
+                self.styles.get("spiew").cloned()
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns all built-in and custom DisentangledStyleMatrix templates deduplicated by id
+    pub fn list_styles(&self) -> Vec<crate::style_transfer::DisentangledStyleMatrix> {
+        let mut seen = std::collections::HashSet::new();
+        let mut out = Vec::new();
+        let order = [
+            "whisper_narrative",
+            "whisper_action",
+            "whisper_romantic",
+            "whisper_close_mic",
+            "shout_battle",
+            "call_distant",
+            "chant_melodic",
+        ];
+        for key in order {
+            if let Some(st) = self.styles.get(key) {
+                seen.insert(st.id.clone());
+                out.push(st.clone());
+            }
+        }
+        let mut extra: Vec<_> = self.styles.values().collect();
+        extra.sort_by(|a, b| a.id.cmp(&b.id));
+        for st in extra {
+            if seen.insert(st.id.clone()) {
+                out.push(st.clone());
+            }
+        }
+        out
     }
 
     /// Registers a custom user emoji with associated DSP filter, voice, or modifier

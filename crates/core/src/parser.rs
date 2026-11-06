@@ -214,6 +214,34 @@ impl Default for EmojiDirector {
             EmojiAction::Filter("raw".to_string()),
         );
 
+        // Disentangled Vocal Expression Styles (Shout / Call / Chant)
+        m.insert(
+            "[rozkaz]".to_string(),
+            EmojiAction::Filter("rozkaz".to_string()),
+        );
+        m.insert(
+            "[krzyk]".to_string(),
+            EmojiAction::Filter("rozkaz".to_string()),
+        );
+        m.insert(
+            "[wolanie]".to_string(),
+            EmojiAction::Filter("wolanie".to_string()),
+        );
+        m.insert(
+            "[wołanie]".to_string(),
+            EmojiAction::Filter("wolanie".to_string()),
+        );
+        m.insert("🎵".to_string(), EmojiAction::Filter("spiew".to_string()));
+        m.insert("🎶".to_string(), EmojiAction::Filter("spiew".to_string()));
+        m.insert(
+            "[spiew]".to_string(),
+            EmojiAction::Filter("spiew".to_string()),
+        );
+        m.insert(
+            "[śpiew]".to_string(),
+            EmojiAction::Filter("spiew".to_string()),
+        );
+
         // Multi-Voice Casting & Characters
         m.insert("👩".to_string(), EmojiAction::Voice("female".to_string()));
         m.insert("👨".to_string(), EmojiAction::Voice("male".to_string()));
@@ -764,8 +792,17 @@ impl EmojiDirector {
                             }
                         }
                     }
-                    EmojiAction::Filter(_base_name) => {
-                        if self.style == ProductionStyle::AudioDrama {
+                    EmojiAction::Filter(base_name) => {
+                        if let Some(style) = self
+                            .registry
+                            .resolve_style(&full_tag)
+                            .or_else(|| self.registry.resolve_style(base_name))
+                        {
+                            current_segment.rate_mod = style.pacing_mod_pct();
+                            current_segment.volume_mod =
+                                ((style.output_gain() - 1.0) * 100.0) as i32;
+                            current_segment.filter = Some(format!("style:{}", style.alias_or_id()));
+                        } else if self.style == ProductionStyle::AudioDrama {
                             let (preset, warn) = self.registry.resolve(&full_tag);
                             if let Some(w) = warn {
                                 eprintln!("⚠️ {}", w);

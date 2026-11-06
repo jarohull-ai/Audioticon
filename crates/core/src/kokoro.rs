@@ -860,12 +860,16 @@ impl SpeechSynthesizer for KokoroBridge {
         }
 
         let is_whisper = crate::whisper_dsp::is_whisper_segment(segment);
-        let mut filter_chain = if is_whisper {
+        let custom_style = segment
+            .filter
+            .as_deref()
+            .and_then(|f| crate::presets::get_active_registry().resolve_style(f));
+        let mut filter_chain = if is_whisper || custom_style.is_some() {
             build_ffmpeg_filter_chain(None)
         } else {
             build_ffmpeg_filter_chain(segment.filter.as_deref())
         };
-        if segment.pitch_mod != 0 && !is_whisper {
+        if segment.pitch_mod != 0 && !is_whisper && custom_style.is_none() {
             let semitones = segment.pitch_mod as f32 / 3.0;
             let factor = 2f32.powf(semitones / 12.0);
             let pitch_filter = format!(
@@ -902,7 +906,9 @@ impl SpeechSynthesizer for KokoroBridge {
             bail!("Błąd przetwarzania FFmpeg dla Kokoro WAV: {}", stderr);
         }
 
-        if is_whisper {
+        if let Some(ref style) = custom_style {
+            crate::style_transfer::apply_disentangled_style_to_wav(&temp_wav, style)?;
+        } else if is_whisper {
             let mode =
                 crate::whisper_dsp::WhisperMode::from_filter_tag(segment.filter.as_deref());
             crate::whisper_dsp::apply_whisper_to_wav_file_with_mode(&temp_wav, mode)?;
