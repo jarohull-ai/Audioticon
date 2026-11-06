@@ -894,9 +894,14 @@ impl SpeechSynthesizer for EdgeTtsBridge {
             (segment.pitch_mod, segment.rate_mod)
         };
 
+        let is_whisper = crate::whisper_dsp::is_whisper_segment(segment);
         let rate_arg = format!("--rate={:+}%", rate_mod);
         let pitch_arg = format!("--pitch={:+}Hz", pitch_mod);
-        let vol_arg = format!("--volume={:+}%", segment.volume_mod);
+        let vol_arg = if is_whisper {
+            "--volume=+0%".to_string()
+        } else {
+            format!("--volume={:+}%", segment.volume_mod)
+        };
 
         let temp_mp3 = out_path.with_extension("temp.mp3");
         let temp_wav = out_path.with_extension("temp.wav");
@@ -917,9 +922,11 @@ impl SpeechSynthesizer for EdgeTtsBridge {
             anyhow::bail!("edge-tts zakończył się błędem: {:?}", status);
         }
 
-        // Adaptive DSP: for ElevenLabs pristine neural output, if no explicit acoustic filter is requested,
-        // we skip artificial de-essing/EQ conditioning and let the pure generative audio shine through untouched!
-        let filter_chain = if let Some(ref filter_name) = segment.filter {
+        // For whisper segments, skip the legacy FFmpeg bandpass filter so LPC whisper_dsp
+        // receives full-bandwidth formants and sibilants.
+        let filter_chain = if is_whisper {
+            "anull".to_string()
+        } else if let Some(ref filter_name) = segment.filter {
             let registry = crate::presets::get_active_registry();
             let (preset, _warn) = registry.resolve(filter_name);
             let dsp = preset.to_ffmpeg_filter();
@@ -955,6 +962,10 @@ impl SpeechSynthesizer for EdgeTtsBridge {
             let stderr = String::from_utf8_lossy(&conv.stderr);
             let _ = tokio::fs::remove_file(&temp_wav).await;
             anyhow::bail!("ffmpeg conversion failed: {}", stderr);
+        }
+
+        if is_whisper {
+            crate::whisper_dsp::apply_whisper_to_wav_file(&temp_wav)?;
         }
 
         tokio::fs::rename(&temp_wav, out_path)
@@ -1253,12 +1264,17 @@ impl SpeechSynthesizer for PiperBridge {
         let temp_raw_wav = out_path.with_extension(format!("{}_{}.piper_raw.wav", pid, unique_id));
         let temp_wav = out_path.with_extension(format!("{}_{}.temp.wav", pid, unique_id));
 
+        let is_whisper = crate::whisper_dsp::is_whisper_segment(segment);
         let length_scale = if segment.rate_mod < 0 {
             1.0 - (segment.rate_mod as f32 / 100.0)
         } else {
             1.0 / (1.0 + (segment.rate_mod as f32 / 100.0))
         };
-        let volume_scale = (1.0 + (segment.volume_mod as f32 / 100.0)).clamp(0.2, 2.0);
+        let volume_scale = if is_whisper {
+            1.0
+        } else {
+            (1.0 + (segment.volume_mod as f32 / 100.0)).clamp(0.2, 2.0)
+        };
 
         let req_json = serde_json::json!({
             "text": segment.text.trim(),
@@ -1306,10 +1322,14 @@ impl SpeechSynthesizer for PiperBridge {
             Err(_) => 22050,
         };
 
-        let mut filter_chain = build_ffmpeg_filter_chain(segment.filter.as_deref());
+        let mut filter_chain = if is_whisper {
+            build_ffmpeg_filter_chain(None)
+        } else {
+            build_ffmpeg_filter_chain(segment.filter.as_deref())
+        };
 
         // Handle pitch modification for Piper via ffmpeg asetrate + atempo
-        if segment.pitch_mod != 0 {
+        if segment.pitch_mod != 0 && !is_whisper {
             let semitones = segment.pitch_mod as f32 / 3.0;
             let factor = 2f32.powf(semitones / 12.0);
             let pitch_filter = format!(
@@ -1345,6 +1365,10 @@ impl SpeechSynthesizer for PiperBridge {
             let stderr = String::from_utf8_lossy(&conv.stderr);
             let _ = tokio::fs::remove_file(&temp_wav).await;
             anyhow::bail!("ffmpeg conversion failed: {}", stderr);
+        }
+
+        if is_whisper {
+            crate::whisper_dsp::apply_whisper_to_wav_file(&temp_wav)?;
         }
 
         tokio::fs::rename(&temp_wav, out_path)

@@ -488,7 +488,7 @@ impl PresetRegistry {
             "whisper".to_string(),
             EffectPreset {
                 base: "whisper".to_string(),
-                volume: Some(1.8),
+                volume: Some(0.65),
                 air: Some(0.7),
                 ..Default::default()
             },

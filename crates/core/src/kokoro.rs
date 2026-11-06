@@ -859,8 +859,13 @@ impl SpeechSynthesizer for KokoroBridge {
             self.return_worker(worker).await;
         }
 
-        let mut filter_chain = build_ffmpeg_filter_chain(segment.filter.as_deref());
-        if segment.pitch_mod != 0 {
+        let is_whisper = crate::whisper_dsp::is_whisper_segment(segment);
+        let mut filter_chain = if is_whisper {
+            build_ffmpeg_filter_chain(None)
+        } else {
+            build_ffmpeg_filter_chain(segment.filter.as_deref())
+        };
+        if segment.pitch_mod != 0 && !is_whisper {
             let semitones = segment.pitch_mod as f32 / 3.0;
             let factor = 2f32.powf(semitones / 12.0);
             let pitch_filter = format!(
@@ -895,6 +900,10 @@ impl SpeechSynthesizer for KokoroBridge {
             let stderr = String::from_utf8_lossy(&conv.stderr);
             let _ = tokio::fs::remove_file(&temp_wav).await;
             bail!("Błąd przetwarzania FFmpeg dla Kokoro WAV: {}", stderr);
+        }
+
+        if is_whisper {
+            crate::whisper_dsp::apply_whisper_to_wav_file(&temp_wav)?;
         }
 
         tokio::fs::rename(&temp_wav, out_path)

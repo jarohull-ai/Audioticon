@@ -22,6 +22,7 @@ pub mod voice_design;
 pub mod voicelab;
 pub mod voucher;
 pub mod wallet;
+pub mod whisper_dsp;
 pub mod wsola;
 
 pub use audio::{
@@ -91,4 +92,8 @@ pub use voicelab::{
 };
 pub use voucher::{generate_voucher_code, verify_voucher_code, VoucherPayload, WalletTier};
 pub use wallet::{AudioWallet, Transaction, STARTING_CREDITS};
+pub use whisper_dsp::{
+    apply_whisper_to_wav_file, is_whisper_segment, levinson_durbin, to_whisper,
+    to_whisper_with_config, WhisperConfig,
+};
 pub use wsola::wsola_time_stretch;
