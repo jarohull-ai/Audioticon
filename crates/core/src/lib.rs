@@ -93,7 +93,8 @@ pub use voicelab::{
 pub use voucher::{generate_voucher_code, verify_voucher_code, VoucherPayload, WalletTier};
 pub use wallet::{AudioWallet, Transaction, STARTING_CREDITS};
 pub use whisper_dsp::{
-    apply_whisper_to_wav_file, apply_whisper_to_wav_file_with_mode, is_whisper_segment,
-    levinson_durbin, to_whisper, to_whisper_with_config, WhisperConfig, WhisperMode,
+    apply_whisper_to_wav_file, apply_whisper_to_wav_file_with_mode, extract_voice_transfer_matrix,
+    is_whisper_segment, levinson_durbin, to_whisper, to_whisper_with_config, VoiceTransferMatrix,
+    WhisperConfig, WhisperMode, TRANSFER_BAND_CENTERS_HZ,
 };
 pub use wsola::wsola_time_stretch;
