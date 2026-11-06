@@ -3515,6 +3515,7 @@ async fn handle_studio_request(
 
         #[derive(serde::Deserialize)]
         struct ExtractStyleReq {
+            #[serde(default)]
             normal_audio_base64: String,
             style_audio_base64: String,
             #[serde(default)]
@@ -3542,21 +3543,28 @@ async fn handle_studio_request(
             }
         };
 
-        let norm_bytes = match base64_decode(strip_data_url_prefix(&parsed.normal_audio_base64)) {
-            Ok(b) => b,
-            Err(e) => {
-                let err_json = serde_json::json!({
-                    "error": format!("Nieprawidłowe dane audio głosu normalnego (base64): {}", e)
-                });
-                let mut resp = tiny_http::Response::from_string(err_json.to_string());
-                resp.add_header(
-                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
-                );
-                if let Some(ref h) = cors_header {
-                    resp.add_header(h.clone());
+        let norm_bytes = if parsed.normal_audio_base64.trim().is_empty() {
+            // Autogeneracja neutralnej mowy referencyjnej, jeśli użytkownik nagrał tylko ekspresję B
+            let synth = generate_synthetic_vocal_phrase("male", 22050);
+            let b64 = encode_samples_to_wav_base64(&synth, 22050).unwrap_or_default();
+            base64_decode(&b64).unwrap_or_default()
+        } else {
+            match base64_decode(strip_data_url_prefix(&parsed.normal_audio_base64)) {
+                Ok(b) => b,
+                Err(e) => {
+                    let err_json = serde_json::json!({
+                        "error": format!("Nieprawidłowe dane audio głosu normalnego (base64): {}", e)
+                    });
+                    let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                    resp.add_header(
+                        Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                    );
+                    if let Some(ref h) = cors_header {
+                        resp.add_header(h.clone());
+                    }
+                    let _ = request.respond(resp.with_status_code(400));
+                    return;
                 }
-                let _ = request.respond(resp.with_status_code(400));
-                return;
             }
         };
 

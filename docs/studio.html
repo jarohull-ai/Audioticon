@@ -1361,22 +1361,100 @@
         </div>
       </div>
 
-      <!-- 2. Opcjonalna ekstrakcja z 2 próbek referencyjnych -->
-      <div style="background:var(--track-bg); padding:0.75rem; border-radius:8px; border:1px solid var(--border);">
-        <div class="inspector-label">
-          <span>2. Lub wyciągnij macierz transferu z 2 nagrań referencyjnych (Głos normalny → Docelowa ekspresja)</span>
-          <span style="color:var(--accent);">LPC + 24 Bark ΔdB</span>
+      <!-- 2. Opcjonalna ekstrakcja z 2 próbek referencyjnych (Mikrofon lub Plik) -->
+      <div style="background:var(--track-bg); padding:0.85rem; border-radius:8px; border:1px solid var(--border);">
+        <div class="inspector-label" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+          <span>2. Wyciągnij macierz z nagrań mikrofonowych lub plików (Głos normalny → Docelowa ekspresja)</span>
+          <span style="color:var(--accent); font-family:var(--font-mono); font-size:0.72rem;">LPC + 24 Bark ΔdB · WebRTC Mic</span>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:0.5rem; align-items:end; margin-top:0.35rem;">
-          <div>
-            <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:0.2rem;">Próbka A: Normalna mowa (WAV/M4A/MP3)</div>
-            <input type="file" id="refNormalFile" accept="audio/*" class="inspector-input" style="font-size:0.72rem; padding:0.3rem;">
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:0.35rem;">
+          <!-- KARTA A: GŁOS NORMALNY -->
+          <div style="background:var(--surface-elev); padding:0.7rem; border-radius:8px; border:1px solid var(--border); display:flex; flex-direction:column; gap:0.45rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:0.75rem; font-weight:800; color:var(--text-main);">Próbka A: Normalna mowa</span>
+              <span id="statusNorm" style="font-size:0.68rem; color:var(--text-dim);">Neutralna (opcjonalna)</span>
+            </div>
+            <div style="font-size:0.68rem; color:var(--text-dim); line-height:1.3;">
+              Przeczytaj normalnym głosem dowolne 1–2 zdania. Jeśli pominiesz, użyjemy zbalansowanego syntetycznego wzorca.
+            </div>
+
+            <!-- Nagrywanie z mikrofonu -->
+            <div style="display:flex; gap:0.4rem; align-items:center;">
+              <button class="btn" id="btnRecNorm" onclick="toggleRecordSample('norm')" style="flex:1; border-color:var(--accent); color:var(--accent); font-weight:700;">
+                🎙️ Nagraj 5s z mikrofonu
+              </button>
+              <button class="btn" id="btnPlayNorm" onclick="playRecordedData('norm')" style="display:none; padding:0 0.6rem;" title="Odsłuchaj nagranie">
+                ▶
+              </button>
+              <button class="tile-btn" id="btnClearNorm" onclick="clearRecordedData('norm')" style="display:none;" title="Usuń nagranie">
+                ✕
+              </button>
+            </div>
+
+            <!-- Timer i VU Meter A -->
+            <div id="recPanelNorm" style="display:none; flex-direction:column; gap:0.25rem;">
+              <div id="recTimerNorm" style="font-size:0.7rem; font-weight:700; color:#ef4444; font-family:var(--font-mono);">🔴 Nagrywanie: 5.0s</div>
+              <div style="height:6px; background:var(--bg-base); border-radius:3px; overflow:hidden; border:1px solid var(--border);">
+                <div id="recVuNorm" style="height:100%; width:0%; background:#34d399; transition:width 0.05s linear;"></div>
+              </div>
+            </div>
+
+            <!-- Alternatywa: wczytaj plik -->
+            <div style="display:flex; align-items:center; gap:0.4rem; margin-top:0.15rem;">
+              <span style="font-size:0.68rem; color:var(--text-dim);">lub plik:</span>
+              <input type="file" id="refNormalFile" accept="audio/*" class="inspector-input" style="font-size:0.68rem; padding:0.25rem; flex:1;" onchange="onSampleFileSelected('norm', this)">
+            </div>
           </div>
-          <div>
-            <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom:0.2rem;">Próbka B: Szept / Krzyk / Śpiew (WAV/M4A/MP3)</div>
-            <input type="file" id="refStyleFile" accept="audio/*" class="inspector-input" style="font-size:0.72rem; padding:0.3rem;">
+
+          <!-- KARTA B: DOCELOWA EKSPRESJA -->
+          <div style="background:var(--surface-elev); padding:0.7rem; border-radius:8px; border:1px solid var(--border); display:flex; flex-direction:column; gap:0.45rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:0.75rem; font-weight:800; color:var(--accent);">Próbka B: Szept / Krzyk / Śpiew</span>
+              <span id="statusStyle" style="font-size:0.68rem; color:var(--text-dim);">Wymagana</span>
+            </div>
+            <div style="font-size:0.68rem; color:var(--text-dim); line-height:1.3;">
+              Wyszepcz, zawołaj lub zaśpiewaj to samo zdanie do mikrofonu (telefon, zestaw słuchawkowy lub laptop).
+            </div>
+
+            <!-- Nagrywanie z mikrofonu -->
+            <div style="display:flex; gap:0.4rem; align-items:center;">
+              <button class="btn" id="btnRecStyle" onclick="toggleRecordSample('style')" style="flex:1; border-color:#34d399; color:#34d399; font-weight:700;">
+                🎙️ Nagraj 5s z mikrofonu
+              </button>
+              <button class="btn" id="btnPlayStyle" onclick="playRecordedData('style')" style="display:none; padding:0 0.6rem;" title="Odsłuchaj nagranie">
+                ▶
+              </button>
+              <button class="tile-btn" id="btnClearStyle" onclick="clearRecordedData('style')" style="display:none;" title="Usuń nagranie">
+                ✕
+              </button>
+            </div>
+
+            <!-- Timer i VU Meter B -->
+            <div id="recPanelStyle" style="display:none; flex-direction:column; gap:0.25rem;">
+              <div id="recTimerStyle" style="font-size:0.7rem; font-weight:700; color:#ef4444; font-family:var(--font-mono);">🔴 Nagrywanie: 5.0s</div>
+              <div style="height:6px; background:var(--bg-base); border-radius:3px; overflow:hidden; border:1px solid var(--border);">
+                <div id="recVuStyle" style="height:100%; width:0%; background:#34d399; transition:width 0.05s linear;"></div>
+              </div>
+            </div>
+
+            <!-- Alternatywa: wczytaj plik -->
+            <div style="display:flex; align-items:center; gap:0.4rem; margin-top:0.15rem;">
+              <span style="font-size:0.68rem; color:var(--text-dim);">lub plik:</span>
+              <input type="file" id="refStyleFile" accept="audio/*" class="inspector-input" style="font-size:0.68rem; padding:0.25rem; flex:1;" onchange="onSampleFileSelected('style', this)">
+            </div>
           </div>
-          <button class="btn btn-primary" id="btnExtractStyle" onclick="extractStyleFromFiles()">🔬 Wyciągnij Macierz</button>
+        </div>
+
+        <!-- Opcje przetwarzania i przycisk ekstrakcji -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.65rem; padding-top:0.5rem; border-top:1px solid rgba(148,163,184,0.15); flex-wrap:wrap; gap:0.5rem;">
+          <label style="font-size:0.7rem; color:var(--text-dim); display:flex; align-items:center; gap:0.35rem; cursor:pointer;">
+            <input type="checkbox" id="chkNoiseGate" checked>
+            <span>Automatyczna bramka szumów i filtr dolnozaporowy 75 Hz (usuwa szum tła i buczenie telefonu)</span>
+          </label>
+          <button class="btn btn-primary" id="btnExtractStyle" onclick="extractStyleFromSamples()" style="padding:0.45rem 1.1rem; font-weight:800;">
+            🔬 Wyciągnij Macierz z Nagrań / Plików
+          </button>
         </div>
       </div>
 
@@ -2355,19 +2433,336 @@
       });
     }
 
-    async function extractStyleFromFiles() {
-      const normFile = document.getElementById('refNormalFile').files[0];
-      const styleFile = document.getElementById('refStyleFile').files[0];
-      if (!normFile || !styleFile) {
-        alert("Wybierz oba pliki audio: 1) Normalna mowa oraz 2) Docelowa ekspresja (Szept/Krzyk/Śpiew).");
+    // =====================================================================
+    // MICROPHONE RECORDER & NOISE GATE SUITE (WebRTC MediaStream + AudioContext)
+    // =====================================================================
+    let recMediaStream = null;
+    let recAudioCtx = null;
+    let recProcessor = null;
+    let recBuffers = [];
+    let recSampleRate = 44100;
+    let recTimer = null;
+    let recActiveTarget = null; // 'norm' | 'style'
+    let recordedNormB64 = null;
+    let recordedStyleB64 = null;
+    let recAnalyser = null;
+    let recAnimId = null;
+
+    function toggleRecordSample(target) {
+      if (recActiveTarget === target) {
+        stopMicRecording();
+      } else {
+        if (recActiveTarget) stopMicRecording();
+        startMicRecording(target);
+      }
+    }
+
+    async function startMicRecording(target) {
+      recActiveTarget = target;
+      recBuffers = [];
+
+      const btn = document.getElementById(target === 'norm' ? 'btnRecNorm' : 'btnRecStyle');
+      const panel = document.getElementById(target === 'norm' ? 'recPanelNorm' : 'recPanelStyle');
+      const timerEl = document.getElementById(target === 'norm' ? 'recTimerNorm' : 'recTimerStyle');
+
+      btn.classList.add('btn-primary');
+      btn.innerText = '⏹ Zatrzymaj nagrywanie';
+      if (panel) panel.style.display = 'flex';
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+
+        recMediaStream = stream;
+        recAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        recSampleRate = recAudioCtx.sampleRate;
+        const source = recAudioCtx.createMediaStreamSource(stream);
+
+        // Opcjonalny filtr dolnozaporowy 75 Hz (usuwa dudnienie, wiatr i buczenie telefonu)
+        const useGate = document.getElementById('chkNoiseGate')?.checked !== false;
+        let lastNode = source;
+        if (useGate) {
+          const hpFilter = recAudioCtx.createBiquadFilter();
+          hpFilter.type = 'highpass';
+          hpFilter.frequency.value = 75;
+          hpFilter.Q.value = 0.707;
+          source.connect(hpFilter);
+          lastNode = hpFilter;
+        }
+
+        recAnalyser = recAudioCtx.createAnalyser();
+        recAnalyser.fftSize = 256;
+        lastNode.connect(recAnalyser);
+
+        recProcessor = recAudioCtx.createScriptProcessor(4096, 1, 1);
+        recProcessor.onaudioprocess = (e) => {
+          if (!recActiveTarget) return;
+          const input = e.inputBuffer.getChannelData(0);
+          recBuffers.push(new Float32Array(input));
+        };
+        lastNode.connect(recProcessor);
+        recProcessor.connect(recAudioCtx.destination);
+
+        startVuMeter(target);
+
+        let timeLeft = 5.0;
+        if (timerEl) timerEl.innerText = `🔴 Nagrywanie: 5.0s (mów do mikrofonu)`;
+
+        recTimer = setInterval(() => {
+          timeLeft -= 0.1;
+          if (timerEl) timerEl.innerText = `🔴 Nagrywanie: ${Math.max(0, timeLeft).toFixed(1)}s`;
+          if (timeLeft <= 0) {
+            stopMicRecording();
+          }
+        }, 100);
+
+      } catch (err) {
+        alert("Błąd dostępu do mikrofonu: " + err.message + "\nUpewnij się, że przeglądarka ma uprawnienia do nagrywania.");
+        resetRecUi(target);
+        recActiveTarget = null;
+      }
+    }
+
+    function stopMicRecording() {
+      if (!recActiveTarget) return;
+      const target = recActiveTarget;
+      clearInterval(recTimer);
+      recTimer = null;
+
+      if (recAnimId) {
+        cancelAnimationFrame(recAnimId);
+        recAnimId = null;
+      }
+      if (recProcessor) {
+        recProcessor.disconnect();
+        recProcessor = null;
+      }
+      if (recMediaStream) {
+        recMediaStream.getTracks().forEach(t => t.stop());
+        recMediaStream = null;
+      }
+      if (recAudioCtx) {
+        recAudioCtx.close();
+        recAudioCtx = null;
+      }
+
+      // Połącz próbki PCM
+      let totalLength = 0;
+      for (const b of recBuffers) totalLength += b.length;
+      if (totalLength === 0) {
+        resetRecUi(target);
+        recActiveTarget = null;
         return;
       }
+
+      const merged = new Float32Array(totalLength);
+      let offset = 0;
+      for (const b of recBuffers) {
+        merged.set(b, offset);
+        offset += b.length;
+      }
+
+      // Zaaplikuj inteligentną bramkę szumów i łagodne wyrównanie poziomu
+      const useGate = document.getElementById('chkNoiseGate')?.checked !== false;
+      const cleanPcm = useGate ? processRecordedPcm(merged, recSampleRate) : merged;
+      const wavBlob = encodePcmToWav(cleanPcm, recSampleRate);
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const b64 = reader.result;
+        const durSec = (totalLength / recSampleRate).toFixed(1);
+        if (target === 'norm') {
+          recordedNormB64 = b64;
+          document.getElementById('statusNorm').innerHTML = `✅ Nagrano ${durSec}s (Gotowe)`;
+          document.getElementById('statusNorm').style.color = 'var(--success)';
+          document.getElementById('btnPlayNorm').style.display = 'inline-block';
+          document.getElementById('btnClearNorm').style.display = 'inline-block';
+        } else {
+          recordedStyleB64 = b64;
+          document.getElementById('statusStyle').innerHTML = `✅ Nagrano ${durSec}s (Gotowe)`;
+          document.getElementById('statusStyle').style.color = 'var(--success)';
+          document.getElementById('btnPlayStyle').style.display = 'inline-block';
+          document.getElementById('btnClearStyle').style.display = 'inline-block';
+        }
+        resetRecUi(target);
+        recActiveTarget = null;
+      };
+      reader.readAsDataURL(wavBlob);
+    }
+
+    function resetRecUi(target) {
+      const btn = document.getElementById(target === 'norm' ? 'btnRecNorm' : 'btnRecStyle');
+      const panel = document.getElementById(target === 'norm' ? 'recPanelNorm' : 'recPanelStyle');
+      if (btn) {
+        btn.classList.remove('btn-primary');
+        btn.innerText = '🎙️ Nagraj 5s z mikrofonu';
+      }
+      if (panel) panel.style.display = 'none';
+      const vu = document.getElementById(target === 'norm' ? 'recVuNorm' : 'recVuStyle');
+      if (vu) vu.style.width = '0%';
+    }
+
+    function startVuMeter(target) {
+      if (!recAnalyser) return;
+      const pcmData = new Uint8Array(recAnalyser.frequencyBinCount);
+      const vuBar = document.getElementById(target === 'norm' ? 'recVuNorm' : 'recVuStyle');
+
+      function draw() {
+        if (!recAnalyser || !recActiveTarget) return;
+        recAnalyser.getByteFrequencyData(pcmData);
+        let sum = 0;
+        for (let i = 0; i < pcmData.length; i++) sum += pcmData[i];
+        const avg = sum / pcmData.length;
+        const pct = Math.min(100, Math.round((avg / 128) * 100));
+        if (vuBar) {
+          vuBar.style.width = pct + '%';
+          vuBar.style.backgroundColor = pct > 80 ? '#ef4444' : (pct > 45 ? '#f59e0b' : '#34d399');
+        }
+        recAnimId = requestAnimationFrame(draw);
+      }
+      draw();
+    }
+
+    function processRecordedPcm(samples, sampleRate) {
+      let maxPeak = 0;
+      for (let i = 0; i < samples.length; i++) {
+        const a = Math.abs(samples[i]);
+        if (a > maxPeak) maxPeak = a;
+      }
+
+      // Bramka szumów: ramki 20 ms tłumiące szum tła poniżej ~ -44 dBFS
+      const frameSize = Math.floor(sampleRate * 0.020);
+      const threshold = 0.006;
+      const processed = new Float32Array(samples.length);
+
+      for (let i = 0; i < samples.length; i += frameSize) {
+        const end = Math.min(i + frameSize, samples.length);
+        let sumSq = 0;
+        for (let j = i; j < end; j++) sumSq += samples[j] * samples[j];
+        const rms = Math.sqrt(sumSq / (end - i));
+
+        let gain = 1.0;
+        if (rms < threshold) {
+          gain = Math.max(0.0, (rms / threshold) * 0.5);
+        }
+        for (let j = i; j < end; j++) {
+          processed[j] = samples[j] * gain;
+        }
+      }
+
+      // Normalizacja cichych szeptów/mowy do -2.5 dBFS (peak 0.75)
+      if (maxPeak > 0.015 && maxPeak < 0.70) {
+        const normFactor = 0.75 / maxPeak;
+        for (let i = 0; i < processed.length; i++) {
+          processed[i] = Math.max(-1.0, Math.min(1.0, processed[i] * normFactor));
+        }
+      }
+
+      return processed;
+    }
+
+    function encodePcmToWav(samples, sampleRate) {
+      const buffer = new ArrayBuffer(44 + samples.length * 2);
+      const view = new DataView(buffer);
+      function writeStr(offset, str) {
+        for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+      }
+      writeStr(0, 'RIFF');
+      view.setUint32(4, 36 + samples.length * 2, true);
+      writeStr(8, 'WAVE');
+      writeStr(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true); // PCM
+      view.setUint16(22, 1, true); // Mono
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2, true);
+      view.setUint16(34, 16, true);
+      writeStr(36, 'data');
+      view.setUint32(40, samples.length * 2, true);
+      let offset = 44;
+      for (let i = 0; i < samples.length; i++, offset += 2) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      }
+      return new Blob([buffer], { type: 'audio/wav' });
+    }
+
+    function playRecordedData(target) {
+      const b64 = target === 'norm' ? recordedNormB64 : recordedStyleB64;
+      if (!b64) return;
+      audioPlayer.src = b64;
+      audioPlayer.play().catch(e => console.warn(e));
+    }
+
+    function clearRecordedData(target) {
+      if (target === 'norm') {
+        recordedNormB64 = null;
+        document.getElementById('statusNorm').innerHTML = 'Neutralna (opcjonalna)';
+        document.getElementById('statusNorm').style.color = 'var(--text-dim)';
+        document.getElementById('btnPlayNorm').style.display = 'none';
+        document.getElementById('btnClearNorm').style.display = 'none';
+        document.getElementById('refNormalFile').value = '';
+      } else {
+        recordedStyleB64 = null;
+        document.getElementById('statusStyle').innerHTML = 'Wymagana';
+        document.getElementById('statusStyle').style.color = 'var(--text-dim)';
+        document.getElementById('btnPlayStyle').style.display = 'none';
+        document.getElementById('btnClearStyle').style.display = 'none';
+        document.getElementById('refStyleFile').value = '';
+      }
+    }
+
+    function onSampleFileSelected(target, input) {
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        if (target === 'norm') {
+          recordedNormB64 = null;
+          document.getElementById('statusNorm').innerHTML = `📁 ${file.name.slice(0, 18)}…`;
+          document.getElementById('statusNorm').style.color = 'var(--accent)';
+          document.getElementById('btnPlayNorm').style.display = 'none';
+          document.getElementById('btnClearNorm').style.display = 'inline-block';
+        } else {
+          recordedStyleB64 = null;
+          document.getElementById('statusStyle').innerHTML = `📁 ${file.name.slice(0, 18)}…`;
+          document.getElementById('statusStyle').style.color = '#34d399';
+          document.getElementById('btnPlayStyle').style.display = 'none';
+          document.getElementById('btnClearStyle').style.display = 'inline-block';
+        }
+      }
+    }
+
+    async function extractStyleFromSamples() {
+      const normFileInput = document.getElementById('refNormalFile').files[0];
+      const styleFileInput = document.getElementById('refStyleFile').files[0];
+
+      let normB64 = recordedNormB64;
+      if (!normB64 && normFileInput) {
+        normB64 = await fileToBase64(normFileInput);
+      }
+      normB64 = normB64 || "";
+
+      let styleB64 = recordedStyleB64;
+      if (!styleB64 && styleFileInput) {
+        styleB64 = await fileToBase64(styleFileInput);
+      }
+
+      if (!styleB64) {
+        alert("Wymagana jest Próbka B (Szept / Krzyk / Wołanie / Śpiew)!\nNagraj ją przyciskiem „🎙️ Nagraj 5s z mikrofonu” lub wczytaj plik.");
+        return;
+      }
+
       const btn = document.getElementById('btnExtractStyle');
       btn.disabled = true;
-      btn.innerText = '⏳ Analiza LPC/Bark...';
+      btn.innerText = '⏳ Analiza LPC, F0 & 24 pasm Bark...';
+
       try {
-        const normB64 = await fileToBase64(normFile);
-        const styleB64 = await fileToBase64(styleFile);
         const res = await fetch('/api/style-transfer/extract', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2385,6 +2780,7 @@
           syncStyleUiFromMatrix();
           drawStyleBarkCanvas(activeStyleMatrix.delta_cepstrum_bark_db);
           updateDiagnosticsUi(data.diagnostics);
+          alert(`✅ Sukces! Wyekstrahowano wzorzec ekspresji: ${activeStyleMatrix.name}\n(Wykryte F0: ${data.diagnostics?.detected_median_f0_hz?.toFixed(0) || 120} Hz, VTLN: ${data.diagnostics?.applied_vtln_scale?.toFixed(2) || '1.00'}x)`);
         } else {
           alert("Błąd ekstrakcji: " + (data.error || "Nieznany błąd"));
         }
@@ -2392,7 +2788,7 @@
         alert("Błąd połączenia z serwerem ekstrakcji: " + e.message);
       } finally {
         btn.disabled = false;
-        btn.innerText = '🔬 Wyciągnij Macierz';
+        btn.innerText = '🔬 Wyciągnij Macierz z Nagrań / Plików';
       }
     }
 
