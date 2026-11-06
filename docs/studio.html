@@ -715,6 +715,54 @@
       border-color: var(--accent-secondary);
     }
 
+    .track-row.track-voice {
+      height: 64px;
+      position: relative;
+    }
+    .waveform-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .audio-clip.clip-dialogue.is-punch-in {
+      border: 1px solid #f59e0b !important;
+      background: linear-gradient(90deg, rgba(245, 158, 11, 0.25), var(--surface-elev)) !important;
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.3) !important;
+    }
+    .clip-punch-tag {
+      font-size: 0.62rem;
+      background: #f59e0b;
+      color: #000;
+      font-weight: 800;
+      padding: 1px 4px;
+      border-radius: 3px;
+      margin-left: 4px;
+    }
+    .clip-mini-punch-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 0.65rem;
+      padding: 1px 3px;
+      border-radius: 3px;
+      opacity: 0.7;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .clip-mini-punch-btn:hover {
+      opacity: 1;
+      transform: scale(1.2);
+    }
+    .btn-punchin-block {
+      color: #ef4444 !important;
+    }
+    .btn-punchin-block:hover {
+      background: rgba(239, 68, 68, 0.2) !important;
+    }
+
     .playhead-scrubber {
       position: absolute;
       top: 0;
@@ -1045,6 +1093,7 @@
                 <span class="block-dsp-tag">DSP: Czysty · Głos: Bzipek (Piper)</span>
                 <div class="block-actions">
                   <button class="btn-icon-xs btn-preview-block" title="Odtwórz ten blok" onclick="previewBlock(1)">▶</button>
+                  <button class="btn-icon-xs btn-punchin-block" title="Dograj lektora / AI Retake (Punch-In)" onclick="openPunchInModal(1)">🔴</button>
                   <button class="btn-icon-xs" title="Duplikuj" onclick="duplicateBlock(1)">📋</button>
                   <button class="btn-icon-xs" title="Usuń" onclick="deleteBlock(1)">🗑️</button>
                 </div>
@@ -1064,6 +1113,7 @@
                 <span class="block-dsp-tag">DSP: 📞 Telefon + 🤫 Szept · Głos: Dorota (ElevenLabs)</span>
                 <div class="block-actions">
                   <button class="btn-icon-xs btn-preview-block" title="Odtwórz ten blok" onclick="previewBlock(2)">▶</button>
+                  <button class="btn-icon-xs btn-punchin-block" title="Dograj lektora / AI Retake (Punch-In)" onclick="openPunchInModal(2)">🔴</button>
                   <button class="btn-icon-xs" title="Duplikuj" onclick="duplicateBlock(2)">📋</button>
                   <button class="btn-icon-xs" title="Usuń" onclick="deleteBlock(2)">🗑️</button>
                 </div>
@@ -1083,6 +1133,7 @@
                 <span class="block-dsp-tag">DSP: 🏛️ Katedra Reverb · Głos: Antoni (EdgeTTS)</span>
                 <div class="block-actions">
                   <button class="btn-icon-xs btn-preview-block" title="Odtwórz ten blok" onclick="previewBlock(3)">▶</button>
+                  <button class="btn-icon-xs btn-punchin-block" title="Dograj lektora / AI Retake (Punch-In)" onclick="openPunchInModal(3)">🔴</button>
                   <button class="btn-icon-xs" title="Duplikuj" onclick="duplicateBlock(3)">📋</button>
                   <button class="btn-icon-xs" title="Usuń" onclick="deleteBlock(3)">🗑️</button>
                 </div>
@@ -1210,10 +1261,12 @@
         <div class="tile-header" onmousedown="initTileDrag(event, 'tile-timeline')">
           <div class="tile-title">
             <span class="tile-icon">🎞️</span>
-            <span>Wielościeżkowa Oś Czasu (CapCut)</span>
+            <span>Wielościeżkowa Oś Czasu (Waveform & Punch-In)</span>
           </div>
           <div class="tile-actions">
             <div class="timecode-display" id="timecodeDisplay">00:00:00.000 / 00:00:14.800</div>
+            <button class="tile-btn" title="Odsłuchaj tylko ten fragment" onclick="playCurrentSegmentSolo()">🎯 Solo</button>
+            <button class="tile-btn" title="Odśwież falę dźwiękową z serwera" onclick="fetchLatestWaveformData()">🌊 Fala</button>
             <button class="tile-btn" title="Zwiń/Rozwiń" onclick="minimizeTile('tile-timeline')">━</button>
             <button class="tile-btn" title="Maksymalizuj" onclick="maximizeTile('tile-timeline')">⤢</button>
           </div>
@@ -1233,20 +1286,23 @@
                 <span style="position:absolute; left:750px;">00:15s</span>
               </div>
 
-              <!-- Track 1: Voice / Lektor -->
-              <div class="track-row">
+              <!-- Track 1: Voice / Lektor with Dynamic Waveform Canvas -->
+              <div class="track-row track-voice">
                 <div class="track-label">
                   <span>🎙️ Lektor</span>
                 </div>
-                <div class="track-lane" id="trackLaneVoice" onclick="onTimelineClick(event)">
-                  <div class="audio-clip clip-dialogue" style="left: 10px; width: 190px;" onclick="event.stopPropagation(); selectBlock(1)">
-                    <span>👨 Narrator (Nowy Świat)</span>
-                  </div>
-                  <div class="audio-clip clip-dialogue" style="left: 210px; width: 230px;" onclick="event.stopPropagation(); selectBlock(2)">
-                    <span>👩 Anna (Nie ruszaj się!)</span>
-                  </div>
-                  <div class="audio-clip clip-dialogue" style="left: 450px; width: 200px;" onclick="event.stopPropagation(); selectBlock(3)">
-                    <span>🧔 Jan (Za późno!)</span>
+                <div class="track-lane track-lane-voice" id="trackLaneVoice" onclick="onTimelineClick(event)">
+                  <canvas id="timelineWaveformCanvas" class="waveform-canvas"></canvas>
+                  <div id="timelineClipsContainer" style="position:relative; width:100%; height:100%; z-index:2;">
+                    <div class="audio-clip clip-dialogue" style="left: 10px; width: 190px;" onclick="event.stopPropagation(); selectBlock(1)">
+                      <span>👨 Narrator (Nowy Świat)</span>
+                    </div>
+                    <div class="audio-clip clip-dialogue" style="left: 210px; width: 230px;" onclick="event.stopPropagation(); selectBlock(2)">
+                      <span>👩 Anna (Nie ruszaj się!)</span>
+                    </div>
+                    <div class="audio-clip clip-dialogue" style="left: 450px; width: 200px;" onclick="event.stopPropagation(); selectBlock(3)">
+                      <span>🧔 Jan (Za późno!)</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1771,6 +1827,108 @@
     </div>
   </div>
 
+  <!-- MODAL: PUNCH-IN & RETAKE WORKBENCH -->
+  <div class="modal-overlay" id="punchInModal" onclick="if(event.target===this) closePunchInModal()">
+    <div class="modal-box" style="max-width:680px;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>🎙️</span>
+          <span>Studio Punch-In & Retake (Podmiana fragmentu)</span>
+        </div>
+        <button class="modal-close" onclick="closePunchInModal()">✕</button>
+      </div>
+
+      <!-- Segment Details Card -->
+      <div style="background:var(--surface-elev); border:1px solid var(--border); border-radius:8px; padding:0.75rem 1rem; margin-bottom:1rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+          <span style="font-size:0.75rem; color:var(--text-dim);">WYBRANY FRAGMENT: <b id="punchInBlockNum">#1</b></span>
+          <span id="punchInStatusBadge" style="font-size:0.7rem; font-weight:700; padding:2px 8px; border-radius:4px; background:var(--bg-base); color:var(--text-muted);">
+            Oryginał syntezatora
+          </span>
+        </div>
+        <div id="punchInSentenceText" style="font-size:0.88rem; font-weight:600; line-height:1.45; color:var(--text); margin-bottom:0.4rem;">
+          W ciemnym zaułku Nowego Światu deszcz bębnił o blaszany dach.
+        </div>
+        <div style="display:flex; gap:1rem; font-size:0.72rem; color:var(--text-dim); font-family:var(--font-mono);">
+          <span>HASH: <code id="punchInHashVal">...</code></span>
+          <span>CZAS: <span id="punchInTimeRange">00:00.000 – 00:03.200</span></span>
+        </div>
+      </div>
+
+      <!-- Mode Tabs -->
+      <div style="display:flex; gap:0.5rem; border-bottom:1px solid var(--border); padding-bottom:0.5rem; margin-bottom:1rem;">
+        <button class="btn btn-tab active" id="tabPunchInMic" onclick="switchPunchInTab('mic')">
+          🎙️ Nagraj z mikrofonu (Live Voice)
+        </button>
+        <button class="btn btn-tab" id="tabPunchInAi" onclick="switchPunchInTab('ai')">
+          ⚡ Szybka resynteza AI (Retake)
+        </button>
+      </div>
+
+      <!-- TAB 1: Live Voice Recording -->
+      <div id="punchInTabMicBody">
+        <div style="text-align:center; padding:1.2rem; background:var(--bg-base); border-radius:8px; border:1px dashed var(--border); margin-bottom:1rem;">
+          <div id="punchInRecStatus" style="font-size:0.82rem; color:var(--text-muted); margin-bottom:0.6rem;">
+            Kliknij przycisk poniżej, aby dograć ten fragment własnym głosem.
+          </div>
+          <button class="btn btn-primary" id="btnTogglePunchInRec" onclick="togglePunchInRecording()" style="padding:0.6rem 1.4rem; font-size:0.9rem;">
+            🔴 Rozpocznij nagrywanie
+          </button>
+          <div id="punchInRecTimer" style="font-size:0.8rem; font-family:var(--font-mono); color:var(--accent); margin-top:0.5rem; display:none;">
+            00:00.0
+          </div>
+          <!-- Mini VU Meter -->
+          <div id="punchInVuTrack" style="width:200px; height:6px; background:var(--track-bg); border-radius:3px; margin:0.6rem auto 0; overflow:hidden; display:none;">
+            <div id="punchInVuBar" style="width:0%; height:100%; background:#22c55e; transition:width 0.05s;"></div>
+          </div>
+        </div>
+
+        <!-- Recorded Take Preview Audio Player -->
+        <div id="punchInRecordedPreview" style="display:none; align-items:center; justify-content:space-between; background:var(--surface-elev); padding:0.6rem 0.8rem; border-radius:6px; border:1px solid var(--border); margin-bottom:1rem;">
+          <div style="font-size:0.75rem;">
+            <span>🎧 Twoje nagrane ujęcie: <b id="punchInTakeDuration">0.0s</b></span>
+          </div>
+          <div style="display:flex; gap:0.4rem;">
+            <button class="btn" onclick="playPunchInTakePreview()">▶ Odsłuchaj</button>
+            <button class="btn btn-primary" onclick="savePunchInMicTake()">💾 Podmień w audiobooku</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: AI Retake -->
+      <div id="punchInTabAiBody" style="display:none;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
+          <div>
+            <label style="font-size:0.74rem; color:var(--text-dim); display:block; margin-bottom:0.3rem;">Tempo (Rate)</label>
+            <input type="range" class="slider-input" id="punchInRateSlider" min="0.7" max="1.3" step="0.05" value="1.0" oninput="document.getElementById('punchInRateVal').innerText=this.value+'x'">
+            <div style="text-align:right; font-size:0.72rem; color:var(--text-dim);"><span id="punchInRateVal">1.00x</span></div>
+          </div>
+          <div>
+            <label style="font-size:0.74rem; color:var(--text-dim); display:block; margin-bottom:0.3rem;">Wysokość tonu (Pitch)</label>
+            <input type="range" class="slider-input" id="punchInPitchSlider" min="-6" max="6" step="1" value="0" oninput="document.getElementById('punchInPitchVal').innerText=this.value+'Hz'">
+            <div style="text-align:right; font-size:0.72rem; color:var(--text-dim);"><span id="punchInPitchVal">0Hz</span></div>
+          </div>
+        </div>
+        <button class="btn btn-primary" style="width:100%; margin-bottom:1rem;" onclick="aiRerenderPunchInTake()">
+          ⚡ Resyntezuj tylko to zdanie (AI Punch-In)
+        </button>
+      </div>
+
+      <!-- Modal Footer -->
+      <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border); padding-top:0.75rem;">
+        <div>
+          <button class="btn" id="btnPunchInSolo" onclick="playActiveSegmentSolo()">
+            ▶ Odsłuchaj tylko ten fragment
+          </button>
+          <button class="btn" id="btnPunchInRevert" onclick="revertActivePunchInTake()" style="color:#ef4444; margin-left:0.4rem; display:none;">
+            ↺ Usuń podmianę (Przywróć oryginał)
+          </button>
+        </div>
+        <button class="btn" onclick="closePunchInModal()">Zamknij</button>
+      </div>
+    </div>
+  </div>
+
   <!-- HIDDEN AUDIO PLAYER ELEMENT -->
   <audio id="audioPlayer" style="display:none;"></audio>
 
@@ -1991,6 +2149,7 @@
           <span class="block-dsp-tag">DSP: Czysty · Głos: Bzipek (Piper)</span>
           <div class="block-actions">
             <button class="btn-icon-xs btn-preview-block" title="Odtwórz" onclick="previewBlock(${blockCount})">▶</button>
+            <button class="btn-icon-xs btn-punchin-block" title="Dograj lektora / AI Retake (Punch-In)" onclick="openPunchInModal(${blockCount})">🔴</button>
             <button class="btn-icon-xs" title="Duplikuj" onclick="duplicateBlock(${blockCount})">📋</button>
             <button class="btn-icon-xs" title="Usuń" onclick="deleteBlock(${blockCount})">🗑️</button>
           </div>
@@ -2069,61 +2228,511 @@
       syncTimelineClips();
     }
 
-    // Timeline synchronization
+    // WAVEFORM & PUNCH-IN STATE
+    window.currentWaveform = null;
+    window.currentPunchInTarget = null;
+    let punchInMediaStream = null;
+    let punchInAudioCtx = null;
+    let punchInProcessor = null;
+    let punchInBuffers = [];
+    let isPunchInRecording = false;
+    let punchInRecTimerInterval = null;
+    let punchInRecordedWavBlob = null;
+    let punchInRecordedWavUrl = null;
+
+    // Timeline & Waveform synchronization
     function syncTimelineClips() {
+      const container = document.getElementById('timelineClipsContainer');
+      const lane = document.getElementById('trackLaneVoice');
+      if (!container || !lane) return;
+      container.innerHTML = '';
+
+      const totalWidth = lane.clientWidth || 800;
+      const wave = window.currentWaveform;
+
+      if (wave && wave.segments && wave.segments.length > 0 && wave.duration_ms > 0) {
+        // Real waveform synchronized clips
+        wave.segments.forEach((seg, idx) => {
+          const left = (seg.start_ms / wave.duration_ms) * totalWidth;
+          const width = Math.max(70, (seg.duration_ms / wave.duration_ms) * totalWidth);
+
+          const clip = document.createElement('div');
+          clip.className = 'audio-clip clip-dialogue' + (seg.is_punch_in ? ' is-punch-in' : '');
+          clip.style.left = `${left}px`;
+          clip.style.width = `${width}px`;
+
+          const punchBadge = seg.is_punch_in ? '<span class="clip-punch-tag">🎙️ PUNCH-IN</span>' : '';
+          const cleanTxt = seg.text.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
+          clip.innerHTML = `<span>#${idx + 1} ${cleanTxt.slice(0, 22)}... ${punchBadge}</span>`;
+          clip.title = `${seg.text} (${(seg.duration_ms / 1000).toFixed(1)}s)`;
+
+          clip.onclick = (e) => {
+            e.stopPropagation();
+            selectBlock(idx + 1);
+            seekToSegment(seg.start_ms);
+          };
+
+          const pBtn = document.createElement('button');
+          pBtn.className = 'clip-mini-punch-btn';
+          pBtn.innerHTML = '🔴';
+          pBtn.title = 'Dograj lub podmień ten fragment (Punch-In)';
+          pBtn.onclick = (e) => {
+            e.stopPropagation();
+            openPunchInModal(idx + 1, seg);
+          };
+          clip.appendChild(pBtn);
+
+          container.appendChild(clip);
+        });
+      } else {
+        // Proportional fallback to blocks
+        let leftOffset = 10;
+        document.querySelectorAll('.script-block').forEach((block) => {
+          const id = block.getAttribute('data-id');
+          const actor = block.querySelector('.actor-name')?.innerText || 'Lektor';
+          const icon = block.querySelector('.actor-icon')?.innerText || '🎙️';
+          const text = block.querySelector('.block-content')?.value.trim() || '';
+          const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
+          const width = Math.max(80, Math.min(300, wordCount * 12 + 60));
+
+          const clip = document.createElement('div');
+          clip.className = 'audio-clip clip-dialogue';
+          clip.style.left = `${leftOffset}px`;
+          clip.style.width = `${width}px`;
+          clip.innerHTML = `<span>${icon} ${actor} (${wordCount}sł.)</span>`;
+          clip.onclick = (e) => {
+            e.stopPropagation();
+            selectBlock(id);
+            block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          };
+          container.appendChild(clip);
+          leftOffset += width + 15;
+        });
+      }
+
+      renderWaveformOnCanvas(window.currentWaveform);
+    }
+
+    // Render Neon RMS Waveform on HTML5 Canvas
+    function renderWaveformOnCanvas(waveData) {
+      const canvas = document.getElementById('timelineWaveformCanvas');
+      if (!canvas) return;
       const lane = document.getElementById('trackLaneVoice');
       if (!lane) return;
-      lane.innerHTML = '';
-      let leftOffset = 10;
-      
-      document.querySelectorAll('.script-block').forEach((block, idx) => {
-        const id = block.getAttribute('data-id');
-        const actor = block.querySelector('.actor-name')?.innerText || 'Lektor';
-        const icon = block.querySelector('.actor-icon')?.innerText || '🎙️';
-        const text = block.querySelector('.block-content')?.value.trim() || '';
-        const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
-        const width = Math.max(80, Math.min(300, wordCount * 12 + 60));
 
-        const clip = document.createElement('div');
-        clip.className = 'audio-clip clip-dialogue';
-        clip.style.left = `${leftOffset}px`;
-        clip.style.width = `${width}px`;
-        clip.innerHTML = `<span>${icon} ${actor} (${wordCount}sł.)</span>`;
-        clip.onclick = (e) => {
-          e.stopPropagation();
-          selectBlock(id);
-          block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        };
-        lane.appendChild(clip);
-        leftOffset += width + 15;
-      });
+      const dpr = window.devicePixelRatio || 1;
+      const width = lane.clientWidth || 800;
+      const height = lane.clientHeight || 56;
+
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
+
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, width, height);
+
+      if (!waveData || !waveData.peaks || waveData.peaks.length === 0) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, height / 2);
+        ctx.lineTo(width, height / 2);
+        ctx.stroke();
+        return;
+      }
+
+      const peaks = waveData.peaks;
+      const numPeaks = peaks.length;
+      const midY = height / 2;
+      const barWidth = Math.max(1.5, width / numPeaks);
+      const currentProgress = (audioPlayer && audioPlayer.duration > 0)
+        ? (audioPlayer.currentTime / audioPlayer.duration)
+        : (playheadX / width);
+
+      const theme = document.documentElement.getAttribute('data-theme') || 'ice-cyber';
+      let playedColor1 = '#00e5ff', playedColor2 = '#0284c7';
+      let unplayedColor = 'rgba(255, 255, 255, 0.18)';
+
+      if (theme === 'midnight') {
+        playedColor1 = '#a855f7'; playedColor2 = '#6366f1';
+      } else if (theme === 'tokyo-neon') {
+        playedColor1 = '#ec4899'; playedColor2 = '#f59e0b';
+      } else if (theme === 'minimal-light') {
+        playedColor1 = '#0ea5e9'; playedColor2 = '#2563eb';
+        unplayedColor = 'rgba(0, 0, 0, 0.12)';
+      }
+
+      for (let i = 0; i < numPeaks; i++) {
+        const x = (i / numPeaks) * width;
+        const p = peaks[i];
+        const topAmp = Math.max(0.04, Math.abs(p.max)) * (midY - 4);
+        const btmAmp = Math.max(0.04, Math.abs(p.min)) * (midY - 4);
+
+        const isPlayed = (x / width) <= currentProgress;
+        if (isPlayed) {
+          const grad = ctx.createLinearGradient(0, midY - topAmp, 0, midY + btmAmp);
+          grad.addColorStop(0, playedColor1);
+          grad.addColorStop(1, playedColor2);
+          ctx.fillStyle = grad;
+        } else {
+          ctx.fillStyle = unplayedColor;
+        }
+
+        ctx.fillRect(x, midY - topAmp, Math.max(1, barWidth - 0.5), topAmp + btmAmp);
+      }
+
+      if (waveData.segments && waveData.duration_ms > 0) {
+        waveData.segments.forEach(seg => {
+          const startX = (seg.start_ms / waveData.duration_ms) * width;
+          const segW = (seg.duration_ms / waveData.duration_ms) * width;
+
+          if (seg.is_punch_in) {
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.15)';
+            ctx.fillRect(startX, 0, segW, height);
+          }
+
+          ctx.strokeStyle = seg.is_punch_in ? '#f59e0b' : 'rgba(255, 255, 255, 0.15)';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([2, 2]);
+          ctx.beginPath();
+          ctx.moveTo(startX, 0);
+          ctx.lineTo(startX, height);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        });
+      }
+    }
+
+    async function fetchLatestWaveformData() {
+      try {
+        const res = await fetch('/api/waveform/latest');
+        if (res.ok) {
+          window.currentWaveform = await res.json();
+          renderWaveformOnCanvas(window.currentWaveform);
+          syncTimelineClips();
+        }
+      } catch (e) {
+        console.warn("Waveform fetch notice:", e);
+      }
     }
 
     // Playhead & audio playback
     function onTimelineClick(e) {
       const rect = e.currentTarget.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      playheadX = Math.max(10, Math.min(800, clickX));
+      const w = rect.width;
+      const ratio = Math.max(0, Math.min(1, clickX / w));
+
+      if (audioPlayer && audioPlayer.duration > 0) {
+        audioPlayer.currentTime = ratio * audioPlayer.duration;
+      }
+      playheadX = Math.max(10, Math.min(w, clickX));
       document.getElementById('timelinePlayhead').style.left = playheadX + 'px';
       updateTimecode();
+      renderWaveformOnCanvas(window.currentWaveform);
     }
 
     function seekOffset(seconds) {
-      playheadX = Math.max(10, Math.min(780, playheadX + seconds * 20));
-      document.getElementById('timelinePlayhead').style.left = playheadX + 'px';
-      updateTimecode();
+      if (audioPlayer && audioPlayer.duration > 0) {
+        audioPlayer.currentTime = Math.max(0, Math.min(audioPlayer.duration, audioPlayer.currentTime + seconds));
+      } else {
+        playheadX = Math.max(10, Math.min(780, playheadX + seconds * 20));
+        document.getElementById('timelinePlayhead').style.left = playheadX + 'px';
+        updateTimecode();
+      }
+      renderWaveformOnCanvas(window.currentWaveform);
+    }
+
+    function seekToSegment(startMs) {
+      if (audioPlayer && audioPlayer.duration > 0) {
+        audioPlayer.currentTime = startMs / 1000;
+        audioPlayer.play();
+        startMasterPlay();
+      }
+    }
+
+    function playCurrentSegmentSolo() {
+      const wave = window.currentWaveform;
+      if (!wave || !wave.segments || wave.segments.length === 0) {
+        previewBlock(currentSelectedBlockId);
+        return;
+      }
+      const seg = wave.segments[currentSelectedBlockId - 1] || wave.segments[0];
+      if (!seg) return;
+
+      if (audioPlayer && audioPlayer.duration > 0) {
+        audioPlayer.currentTime = seg.start_ms / 1000;
+        audioPlayer.play();
+        startMasterPlay();
+
+        const stopAt = seg.end_ms / 1000;
+        const checkEnd = () => {
+          if (audioPlayer.currentTime >= stopAt) {
+            audioPlayer.pause();
+            pauseMasterPlay();
+            audioPlayer.removeEventListener('timeupdate', checkEnd);
+          }
+        };
+        audioPlayer.addEventListener('timeupdate', checkEnd);
+      } else {
+        previewBlock(currentSelectedBlockId);
+      }
     }
 
     function updateTimecode() {
-      const seconds = (playheadX / 50).toFixed(3);
-      document.getElementById('timecodeDisplay').innerText = `00:00:${seconds.padStart(6, '0')} / 00:00:14.800`;
+      if (audioPlayer && audioPlayer.duration > 0) {
+        const curSec = formatSecToTimecode(audioPlayer.currentTime);
+        const totalSec = formatSecToTimecode(audioPlayer.duration);
+        document.getElementById('timecodeDisplay').innerText = `${curSec} / ${totalSec}`;
+      } else {
+        const seconds = (playheadX / 50).toFixed(3);
+        document.getElementById('timecodeDisplay').innerText = `00:00:${seconds.padStart(6, '0')} / 00:00:14.800`;
+      }
     }
 
-    function toggleMasterPlay() {
-      if (isPlaying) {
-        pauseMasterPlay();
+    function formatSecToTimecode(s) {
+      const mins = Math.floor(s / 60);
+      const secs = (s % 60).toFixed(3);
+      return `00:${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    // PUNCH-IN & RETAKE CONTROLLER
+    async function openPunchInModal(blockId, segOpt) {
+      const block = document.querySelector(`.script-block[data-id="${blockId}"]`);
+      const text = block ? block.querySelector('.block-content').value.trim() : "";
+      const voice = document.getElementById('insVoice')?.value || 'bzipek';
+
+      let seg = segOpt;
+      if (!seg && window.currentWaveform && window.currentWaveform.segments) {
+        seg = window.currentWaveform.segments[blockId - 1];
+      }
+
+      const hash = seg ? seg.hash : ("seg_" + blockId + "_" + Math.abs(text.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a; }, 0)).toString(16));
+
+      window.currentPunchInTarget = {
+        blockId,
+        text,
+        voice,
+        hash,
+        start_ms: seg ? seg.start_ms : 0,
+        end_ms: seg ? seg.end_ms : 3000,
+        is_punch_in: seg ? seg.is_punch_in : false
+      };
+
+      document.getElementById('punchInBlockNum').innerText = `#${blockId}`;
+      document.getElementById('punchInSentenceText').innerText = text || "(Pusty tekst)";
+      document.getElementById('punchInHashVal').innerText = hash.slice(0, 16);
+      document.getElementById('punchInTimeRange').innerText = `${(window.currentPunchInTarget.start_ms / 1000).toFixed(2)}s – ${(window.currentPunchInTarget.end_ms / 1000).toFixed(2)}s`;
+
+      const badge = document.getElementById('punchInStatusBadge');
+      const revertBtn = document.getElementById('btnPunchInRevert');
+      if (window.currentPunchInTarget.is_punch_in) {
+        badge.innerText = '🎙️ Podmiana aktywna (Punch-In)';
+        badge.style.background = '#f59e0b';
+        badge.style.color = '#000';
+        revertBtn.style.display = 'inline-block';
       } else {
-        startMasterPlay();
+        badge.innerText = 'Oryginał syntezatora';
+        badge.style.background = 'var(--bg-base)';
+        badge.style.color = 'var(--text-muted)';
+        revertBtn.style.display = 'none';
+      }
+
+      document.getElementById('punchInRecordedPreview').style.display = 'none';
+      document.getElementById('punchInRecStatus').innerText = 'Kliknij przycisk poniżej, aby dograć ten fragment własnym głosem.';
+      document.getElementById('punchInModal').style.display = 'flex';
+    }
+
+    function closePunchInModal() {
+      if (isPunchInRecording) stopPunchInRecording();
+      document.getElementById('punchInModal').style.display = 'none';
+    }
+
+    function switchPunchInTab(tab) {
+      document.getElementById('tabPunchInMic').classList.toggle('active', tab === 'mic');
+      document.getElementById('tabPunchInAi').classList.toggle('active', tab === 'ai');
+      document.getElementById('punchInTabMicBody').style.display = tab === 'mic' ? 'block' : 'none';
+      document.getElementById('punchInTabAiBody').style.display = tab === 'ai' ? 'block' : 'none';
+    }
+
+    function playActiveSegmentSolo() {
+      if (!window.currentPunchInTarget) return;
+      seekToSegment(window.currentPunchInTarget.start_ms);
+    }
+
+    async function togglePunchInRecording() {
+      if (isPunchInRecording) {
+        stopPunchInRecording();
+      } else {
+        startPunchInRecording();
+      }
+    }
+
+    async function startPunchInRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, noiseSuppression: true } });
+        punchInMediaStream = stream;
+        punchInAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = punchInAudioCtx.createMediaStreamSource(stream);
+
+        punchInBuffers = [];
+        punchInProcessor = punchInAudioCtx.createScriptProcessor(4096, 1, 1);
+        punchInProcessor.onaudioprocess = (e) => {
+          if (!isPunchInRecording) return;
+          punchInBuffers.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+        };
+        source.connect(punchInProcessor);
+        punchInProcessor.connect(punchInAudioCtx.destination);
+
+        isPunchInRecording = true;
+        document.getElementById('btnTogglePunchInRec').innerText = '⏹ Zatrzymaj nagranie';
+        document.getElementById('btnTogglePunchInRec').classList.add('btn-warning');
+        document.getElementById('punchInRecStatus').innerText = '🔴 Nagrywanie głosu lektora... Powiedz kwestię do mikrofonu.';
+        document.getElementById('punchInRecTimer').style.display = 'block';
+        document.getElementById('punchInVuTrack').style.display = 'block';
+
+        const startTime = Date.now();
+        punchInRecTimerInterval = setInterval(() => {
+          const elap = ((Date.now() - startTime) / 1000).toFixed(1);
+          document.getElementById('punchInRecTimer').innerText = `00:0${elap}s`;
+          const simVu = 30 + Math.random() * 60;
+          document.getElementById('punchInVuBar').style.width = simVu + '%';
+        }, 100);
+      } catch (err) {
+        alert("Błąd mikrofonu: " + err.message);
+      }
+    }
+
+    function stopPunchInRecording() {
+      isPunchInRecording = false;
+      clearInterval(punchInRecTimerInterval);
+      if (punchInMediaStream) {
+        punchInMediaStream.getTracks().forEach(t => t.stop());
+        punchInMediaStream = null;
+      }
+      if (punchInProcessor) {
+        punchInProcessor.disconnect();
+        punchInProcessor = null;
+      }
+
+      document.getElementById('btnTogglePunchInRec').innerText = '🔴 Rozpocznij ponownie';
+      document.getElementById('btnTogglePunchInRec').classList.remove('btn-warning');
+      document.getElementById('punchInRecStatus').innerText = '✅ Nagranie zakończone. Odsłuchaj ujęcie lub zapisz jako Punch-In.';
+      document.getElementById('punchInVuTrack').style.display = 'none';
+
+      // Flatten buffers
+      let totalLen = 0;
+      for (const b of punchInBuffers) totalLen += b.length;
+      const flat = new Float32Array(totalLen);
+      let offset = 0;
+      for (const b of punchInBuffers) {
+        flat.set(b, offset);
+        offset += b.length;
+      }
+
+      const sampleRate = punchInAudioCtx ? punchInAudioCtx.sampleRate : 44100;
+      punchInRecordedWavBlob = encodePcmToWav(flat, sampleRate);
+      if (punchInRecordedWavUrl) URL.revokeObjectURL(punchInRecordedWavUrl);
+      punchInRecordedWavUrl = URL.createObjectURL(punchInRecordedWavBlob);
+
+      const durSec = (totalLen / sampleRate).toFixed(2);
+      document.getElementById('punchInTakeDuration').innerText = `${durSec}s`;
+      document.getElementById('punchInRecordedPreview').style.display = 'flex';
+    }
+
+    function playPunchInTakePreview() {
+      if (!punchInRecordedWavUrl) return;
+      const a = new Audio(punchInRecordedWavUrl);
+      a.play();
+    }
+
+    async function savePunchInMicTake() {
+      if (!punchInRecordedWavBlob || !window.currentPunchInTarget) return;
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const b64 = reader.result;
+        try {
+          const res = await fetch('/api/voicelab/punch-in', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              profile_id: "studio_narrator",
+              segment_hash: window.currentPunchInTarget.hash,
+              audio_base64: b64
+            })
+          });
+          if (res.ok) {
+            alert("✅ Pomyślnie podmieniono kwestię w audiobooku (Punch-In zapisany)!");
+            window.currentPunchInTarget.is_punch_in = true;
+            closePunchInModal();
+            renderAllAudio();
+          } else {
+            alert("Błąd zapisu punch-in: HTTP " + res.status);
+          }
+        } catch (e) {
+          alert("Błąd połączenia: " + e.message);
+        }
+      };
+      reader.readAsDataURL(punchInRecordedWavBlob);
+    }
+
+    async function aiRerenderPunchInTake() {
+      if (!window.currentPunchInTarget) return;
+      const rate = parseFloat(document.getElementById('punchInRateSlider').value) || 1.0;
+      const pitch = parseInt(document.getElementById('punchInPitchSlider').value, 10) || 0;
+
+      try {
+        const res = await fetch('/api/segment/rerender', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: window.currentPunchInTarget.text,
+            voice: window.currentPunchInTarget.voice,
+            lang: 'pl',
+            rate: rate,
+            pitch: pitch,
+            segment_hash: window.currentPunchInTarget.hash
+          })
+        });
+        if (res.ok) {
+          alert("✅ Wygenerowano nowe ujęcie AI dla tego zdania! Odświeżam audiobook.");
+          window.currentPunchInTarget.is_punch_in = true;
+          closePunchInModal();
+          renderAllAudio();
+        } else {
+          alert("Błąd resyntezy: HTTP " + res.status);
+        }
+      } catch (e) {
+        alert("Błąd sieci: " + e.message);
+      }
+    }
+
+    async function revertActivePunchInTake() {
+      if (!window.currentPunchInTarget) return;
+      if (!confirm("Czy na pewno chcesz usunąć nagraną dogrywkę i przywrócić oryginalną syntezę?")) return;
+
+      try {
+        const res = await fetch('/api/voicelab/punch-in/revert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            segment_hash: window.currentPunchInTarget.hash
+          })
+        });
+        if (res.ok) {
+          alert("✅ Przywrócono oryginalne nagranie syntezatora.");
+          window.currentPunchInTarget.is_punch_in = false;
+          closePunchInModal();
+          renderAllAudio();
+        } else {
+          alert("Błąd przywracania: HTTP " + res.status);
+        }
+      } catch (e) {
+        alert("Błąd: " + e.message);
+      }
+    }
       }
     }
 
@@ -2251,9 +2860,22 @@
           const blob = await res.blob();
           const url = URL.createObjectURL(blob);
           audioPlayer.src = url;
+          audioPlayer.ontimeupdate = () => {
+            if (audioPlayer.duration > 0) {
+              const progress = audioPlayer.currentTime / audioPlayer.duration;
+              const lane = document.getElementById('trackLaneVoice');
+              const w = lane ? lane.clientWidth : 800;
+              playheadX = Math.max(10, Math.min(w, progress * w));
+              document.getElementById('timelinePlayhead').style.left = playheadX + 'px';
+              updateTimecode();
+              updateKaraokeFollower(audioPlayer.currentTime * 1000);
+              renderWaveformOnCanvas(window.currentWaveform);
+            }
+          };
           audioPlayer.play();
           startMasterPlay();
           fetchLatestSubtitlesTrack();
+          fetchLatestWaveformData();
         } else {
           previewBlock(1);
         }
@@ -3617,6 +4239,11 @@
       loadSavedLayout();
       recalcWordCount();
       syncTimelineClips();
+      fetchLatestWaveformData();
+    });
+
+    window.addEventListener('resize', () => {
+      renderWaveformOnCanvas(window.currentWaveform);
     });
   </script>
 </body>

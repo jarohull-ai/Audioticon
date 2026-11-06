@@ -579,6 +579,11 @@ pub enum ModelsAction {
 }
 
 pub fn get_default_cache_dir() -> PathBuf {
+    if let Ok(override_dir) = std::env::var("AUDIOTICON_CACHE_DIR") {
+        if !override_dir.trim().is_empty() {
+            return PathBuf::from(override_dir);
+        }
+    }
     if let Some(user_cache) = dirs::cache_dir() {
         user_cache.join("audioticon")
     } else {

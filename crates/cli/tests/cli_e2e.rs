@@ -158,7 +158,29 @@ fn http_roundtrip(
         .unwrap_or(res.len());
     let header_str = String::from_utf8_lossy(&res[..header_end]).to_string();
     let body_bytes = if header_end + 4 <= res.len() {
-        res[header_end + 4..].to_vec()
+        let raw_body = &res[header_end + 4..];
+        if header_str.to_lowercase().contains("transfer-encoding: chunked") {
+            let mut dechunked = Vec::new();
+            let mut cursor = 0;
+            while cursor < raw_body.len() {
+                if let Some(pos) = raw_body[cursor..].windows(2).position(|w| w == b"\r\n") {
+                    let hex_str = std::str::from_utf8(&raw_body[cursor..cursor + pos]).unwrap_or("0");
+                    let chunk_size = usize::from_str_radix(hex_str.trim(), 16).unwrap_or(0);
+                    if chunk_size == 0 {
+                        break;
+                    }
+                    cursor += pos + 2;
+                    let chunk_end = (cursor + chunk_size).min(raw_body.len());
+                    dechunked.extend_from_slice(&raw_body[cursor..chunk_end]);
+                    cursor = chunk_end + 2; // skip trailing \r\n
+                } else {
+                    break;
+                }
+            }
+            dechunked
+        } else {
+            raw_body.to_vec()
+        }
     } else {
         Vec::new()
     };
@@ -520,7 +542,29 @@ fn http_roundtrip_with_headers(
         .unwrap_or(res.len());
     let header_str = String::from_utf8_lossy(&res[..header_end]).to_string();
     let body_bytes = if header_end + 4 <= res.len() {
-        res[header_end + 4..].to_vec()
+        let raw_body = &res[header_end + 4..];
+        if header_str.to_lowercase().contains("transfer-encoding: chunked") {
+            let mut dechunked = Vec::new();
+            let mut cursor = 0;
+            while cursor < raw_body.len() {
+                if let Some(pos) = raw_body[cursor..].windows(2).position(|w| w == b"\r\n") {
+                    let hex_str = std::str::from_utf8(&raw_body[cursor..cursor + pos]).unwrap_or("0");
+                    let chunk_size = usize::from_str_radix(hex_str.trim(), 16).unwrap_or(0);
+                    if chunk_size == 0 {
+                        break;
+                    }
+                    cursor += pos + 2;
+                    let chunk_end = (cursor + chunk_size).min(raw_body.len());
+                    dechunked.extend_from_slice(&raw_body[cursor..chunk_end]);
+                    cursor = chunk_end + 2; // skip trailing \r\n
+                } else {
+                    break;
+                }
+            }
+            dechunked
+        } else {
+            raw_body.to_vec()
+        }
     } else {
         Vec::new()
     };
@@ -1359,6 +1403,85 @@ fn test_api_subtitles_export_e2e() {
     let vtt_text = json_kar["content"].as_str().unwrap_or("");
     assert!(vtt_text.starts_with("WEBVTT"), "Karaoke export must start with WEBVTT");
     assert!(vtt_text.contains("<00:"), "Karaoke must contain inline word timestamps");
+
+    // Clean up
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+}
+
+#[test]
+fn test_api_waveform_and_punch_in_lifecycle_e2e() {
+    let port = get_free_port();
+    let tmp_dir = std::env::temp_dir().join(format!(
+        "test_waveform_e2e_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = std::fs::create_dir_all(&tmp_dir);
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .args(["serve", "--port", &port.to_string(), "--no-browser"])
+        .env("AUDIOTICON_CACHE_DIR", tmp_dir.to_str().unwrap())
+        .spawn()
+        .expect("Start studio server");
+
+    let mut connected = false;
+    for _ in 0..30 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        if std::net::TcpStream::connect(format!("127.0.0.1:{}", port)).is_ok() {
+            connected = true;
+            break;
+        }
+    }
+    assert!(connected, "Server failed to start on port {}", port);
+
+    // 1. Initially GET /api/waveform/latest must return 404
+    let (s_init, _, _) = http_roundtrip(port, "GET", "/api/waveform/latest", None);
+    assert_eq!(s_init, 404, "No waveform initially");
+
+    // 2. Synthesize a 1-second WAV file on disk and test POST /api/waveform/analyze
+    let tmp_wav = tmp_dir.join("test_synth.wav");
+    audioticon_core::create_silence_wav(&tmp_wav, 1000, 16000).expect("Create synthetic wav");
+    let raw_wav = std::fs::read(&tmp_wav).expect("Read synthetic wav");
+    let b64_wav = audioticon_core::base64_encode(&raw_wav);
+
+    let analyze_req = serde_json::json!({
+        "audio_base64": format!("data:audio/wav;base64,{}", b64_wav)
+    }).to_string();
+
+    let (s_wave, hdrs, b_wave) = http_roundtrip(port, "POST", "/api/waveform/analyze", Some(&analyze_req));
+    assert_eq!(s_wave, 200, "Analyze waveform must return 200 OK");
+    let wave_str = String::from_utf8_lossy(&b_wave);
+    let wave_json: serde_json::Value = match serde_json::from_str(&wave_str) {
+        Ok(v) => v,
+        Err(e) => panic!("Parse waveform json: {:?}, hdrs: {}, raw: {}", e, hdrs, &wave_str[..wave_str.len().min(300)]),
+    };
+    assert_eq!(wave_json["duration_ms"], 1000);
+    assert_eq!(wave_json["sample_rate"], 16000);
+    assert!(wave_json["peaks"].as_array().map(|a| a.len()).unwrap_or(0) > 0);
+
+    // 3. Test Punch-in Revert lifecycle:
+    // Create a dummy punch-in recorded wav file in the isolated cache dir
+    let test_hash = "deadbeef123456";
+    let dummy_punch_wav = tmp_dir.join(format!("recorded_{}.wav", test_hash));
+    let dummy_punch_meta = tmp_dir.join(format!("recorded_{}.meta.json", test_hash));
+    std::fs::write(&dummy_punch_wav, b"RIFF dummy punch in").unwrap();
+    std::fs::write(&dummy_punch_meta, b"{}").unwrap();
+    assert!(dummy_punch_wav.exists());
+
+    let revert_req = serde_json::json!({
+        "segment_hash": test_hash
+    }).to_string();
+    let (s_rev, _, b_rev) = http_roundtrip(port, "POST", "/api/voicelab/punch-in/revert", Some(&revert_req));
+    assert_eq!(s_rev, 200, "Punch-in revert must return 200 OK");
+    let rev_json: serde_json::Value = serde_json::from_slice(&b_rev).expect("Parse revert json");
+    assert_eq!(rev_json["status"], "ok");
+    assert_eq!(rev_json["reverted"], true);
+    assert!(!dummy_punch_wav.exists(), "Punch-in file must be deleted upon revert");
 
     // Clean up
     let _ = child.kill();

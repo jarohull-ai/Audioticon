@@ -861,6 +861,42 @@ impl CharDocExt for char {
     }
 }
 
+const BASE64_CHARS: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/// Koduje wektor bajtów do ciągu base64
+pub fn base64_encode(input: &[u8]) -> String {
+    let mut out = String::with_capacity(input.len().div_ceil(3) * 4);
+    let mut i = 0;
+    while i < input.len() {
+        let b0 = input[i];
+        let b1 = if i + 1 < input.len() { input[i + 1] } else { 0 };
+        let b2 = if i + 2 < input.len() { input[i + 2] } else { 0 };
+
+        let idx0 = (b0 >> 2) as usize;
+        let idx1 = (((b0 & 0x03) << 4) | (b1 >> 4)) as usize;
+        let idx2 = (((b1 & 0x0f) << 2) | (b2 >> 6)) as usize;
+        let idx3 = (b2 & 0x3f) as usize;
+
+        out.push(BASE64_CHARS[idx0] as char);
+        out.push(BASE64_CHARS[idx1] as char);
+
+        if i + 1 < input.len() {
+            out.push(BASE64_CHARS[idx2] as char);
+        } else {
+            out.push('=');
+        }
+
+        if i + 2 < input.len() {
+            out.push(BASE64_CHARS[idx3] as char);
+        } else {
+            out.push('=');
+        }
+
+        i += 3;
+    }
+    out
+}
+
 /// Dekoduje ciąg base64 do wektora bajtów
 pub fn base64_decode(input: &str) -> Result<Vec<u8>> {
     let mut out = Vec::new();

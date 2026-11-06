@@ -265,6 +265,8 @@ pub struct RenderResult {
     pub chapters: Vec<ChapterMark>,
     #[serde(default)]
     pub subtitles: Option<crate::subtitles::SubtitleTrack>,
+    #[serde(default)]
+    pub waveform: Option<crate::waveform::WaveformData>,
 }
 
 /// Complete directed script composed of sequential items.

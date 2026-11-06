@@ -24,6 +24,7 @@ pub mod voice_design;
 pub mod voicelab;
 pub mod voucher;
 pub mod wallet;
+pub mod waveform;
 pub mod whisper_dsp;
 pub mod wsola;
 
@@ -59,7 +60,7 @@ pub use credentials::{
 };
 pub use estimator::{estimate_cost, CostEstimate};
 pub use importer::{
-    base64_decode, decode_html_entities, strip_html_tags, ImportedBook, ImportedChapter,
+    base64_decode, base64_encode, decode_html_entities, strip_html_tags, ImportedBook, ImportedChapter,
 };
 pub use kokoro::{KokoroBridge, KokoroVoice, KOKORO_SAMPLE_RATE};
 pub use ledger::{measure_audio_loudness, AudioCertificate};
@@ -109,6 +110,10 @@ pub use voicelab::{
 };
 pub use voucher::{generate_voucher_code, verify_voucher_code, VoucherPayload, WalletTier};
 pub use wallet::{AudioWallet, Transaction, STARTING_CREDITS};
+pub use waveform::{
+    build_waveform_with_script_segments, compute_waveform_peaks, extract_waveform_from_wav_bytes,
+    extract_waveform_from_wav_file, SegmentTimeRange, WaveformData, WaveformPeak,
+};
 pub use whisper_dsp::{
     apply_whisper_to_wav_file, apply_whisper_to_wav_file_with_mode, extract_voice_transfer_matrix,
     is_whisper_segment, levinson_durbin, to_whisper, to_whisper_with_config, VoiceTransferMatrix,

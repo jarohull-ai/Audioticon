@@ -1985,11 +1985,26 @@ impl AudioDirectorEngine {
             chunk_paths.len() - cache_hits
         );
         let subtitles = crate::subtitles::build_subtitles_from_script_and_durations(script, &item_durations_ms);
+        let default_v = self.synthesizer.resolve_voice_label(None);
+        let waveform = std::fs::read(final_wav)
+            .ok()
+            .and_then(|bytes| {
+                crate::waveform::build_waveform_with_script_segments(
+                    &bytes,
+                    script,
+                    &default_v,
+                    &item_durations_ms,
+                    &self.cache_dir,
+                    512,
+                )
+                .ok()
+            });
         Ok(RenderResult {
             total_segments: chunk_paths.len(),
             duration_ms: current_ms,
             chapters,
             subtitles: Some(subtitles),
+            waveform,
         })
     }
 }

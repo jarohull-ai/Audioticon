@@ -1823,6 +1823,12 @@ async fn handle_studio_request(
                     let _ = std::fs::write(cache_dir.join("latest_subtitles_karaoke.vtt"), subs.to_karaoke_vtt());
                 }
 
+                if let Some(ref wave) = render_res.waveform {
+                    if let Ok(wave_json) = serde_json::to_string(wave) {
+                        let _ = std::fs::write(cache_dir.join("latest_waveform.json"), wave_json);
+                    }
+                }
+
                 if let Ok(bytes) = std::fs::read(&tmp_mp3) {
                     let _ = std::fs::remove_file(&tmp_mp3);
                     let mp3_header =
@@ -1833,13 +1839,20 @@ async fn handle_studio_request(
                     resp.add_header(
                         Header::from_bytes(
                             &b"Access-Control-Expose-Headers"[..],
-                            &b"X-Audioticon-Acx-Unlocked, X-Audioticon-Tier, X-Audioticon-Ledger-Id, X-Audioticon-Lufs, X-Audioticon-Peak, X-Audioticon-Balance, X-Audioticon-Subtitles-Available"[..],
+                            &b"X-Audioticon-Acx-Unlocked, X-Audioticon-Tier, X-Audioticon-Ledger-Id, X-Audioticon-Lufs, X-Audioticon-Peak, X-Audioticon-Balance, X-Audioticon-Subtitles-Available, X-Audioticon-Waveform-Available"[..],
                         )
                         .unwrap(),
                     );
                     resp.add_header(
                         Header::from_bytes(
                             &b"X-Audioticon-Subtitles-Available"[..],
+                            &b"true"[..],
+                        )
+                        .unwrap(),
+                    );
+                    resp.add_header(
+                        Header::from_bytes(
+                            &b"X-Audioticon-Waveform-Available"[..],
                             &b"true"[..],
                         )
                         .unwrap(),
@@ -2098,6 +2111,12 @@ async fn handle_studio_request(
                     let _ = std::fs::write(cache_dir.join("latest_subtitles_karaoke.vtt"), subs.to_karaoke_vtt());
                 }
 
+                if let Some(ref wave) = render_res.waveform {
+                    if let Ok(wave_json) = serde_json::to_string(wave) {
+                        let _ = std::fs::write(cache_dir.join("latest_waveform.json"), wave_json);
+                    }
+                }
+
                 let safe_title = meta
                     .title
                     .as_deref()
@@ -2190,7 +2209,21 @@ async fn handle_studio_request(
                     resp.add_header(
                         Header::from_bytes(
                             &b"Access-Control-Expose-Headers"[..],
-                            &b"X-Audioticon-Acx-Unlocked, X-Audioticon-Tier, X-Audioticon-Ledger-Id, X-Audioticon-Lufs, X-Audioticon-Peak, X-Audioticon-Balance"[..],
+                            &b"X-Audioticon-Acx-Unlocked, X-Audioticon-Tier, X-Audioticon-Ledger-Id, X-Audioticon-Lufs, X-Audioticon-Peak, X-Audioticon-Balance, X-Audioticon-Subtitles-Available, X-Audioticon-Waveform-Available"[..],
+                        )
+                        .unwrap(),
+                    );
+                    resp.add_header(
+                        Header::from_bytes(
+                            &b"X-Audioticon-Subtitles-Available"[..],
+                            &b"true"[..],
+                        )
+                        .unwrap(),
+                    );
+                    resp.add_header(
+                        Header::from_bytes(
+                            &b"X-Audioticon-Waveform-Available"[..],
+                            &b"true"[..],
                         )
                         .unwrap(),
                     );
@@ -2392,6 +2425,286 @@ async fn handle_studio_request(
         }
         let _ = request.respond(resp);
         return;
+    }
+
+    // Route: GET /api/waveform/latest
+    if method == tiny_http::Method::Get
+        && (url == "/api/waveform/latest" || url.starts_with("/api/waveform/latest?"))
+    {
+        let cache_dir = get_default_cache_dir();
+        let target_file = cache_dir.join("latest_waveform.json");
+        if target_file.exists() {
+            if let Ok(content_bytes) = std::fs::read(&target_file) {
+                let len = content_bytes.len();
+                let mut resp = tiny_http::Response::from_data(content_bytes);
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Length"[..], len.to_string().as_bytes()).unwrap(),
+                );
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                        .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+        }
+        let mut resp = tiny_http::Response::from_string(
+            "{\"error\": \"Brak wygenerowanej fali dźwiękowej. Wyrenderuj najpierw audio w Studio.\", \"status\": \"not_found\"}",
+        );
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                .unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp.with_status_code(404));
+        return;
+    }
+
+    // Route: POST /api/waveform/analyze
+    if method == tiny_http::Method::Post && url == "/api/waveform/analyze" {
+        let mut body_bytes = Vec::new();
+        if request
+            .as_reader()
+            .take(50 * 1024 * 1024)
+            .read_to_end(&mut body_bytes)
+            .is_err()
+        {
+            let mut resp = tiny_http::Response::from_string("{\"error\": \"Błąd odczytu danych WAV\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        let wav_data: Vec<u8> = if body_bytes.starts_with(b"{") {
+            #[derive(serde::Deserialize)]
+            struct AnalyzeJsonReq {
+                audio_base64: String,
+            }
+            match serde_json::from_slice::<AnalyzeJsonReq>(&body_bytes) {
+                Ok(req_obj) => {
+                    let raw_b64 = if let Some(idx) = req_obj.audio_base64.find(";base64,") {
+                        &req_obj.audio_base64[idx + 8..]
+                    } else {
+                        &req_obj.audio_base64
+                    };
+                    base64_decode(raw_b64).unwrap_or_default()
+                }
+                Err(_) => body_bytes,
+            }
+        } else {
+            body_bytes
+        };
+
+        match audioticon_core::extract_waveform_from_wav_bytes(&wav_data, 512) {
+            Ok(wave) => {
+                let json_bytes = serde_json::to_vec(&wave).unwrap_or_default();
+                let len = json_bytes.len();
+                let mut resp = tiny_http::Response::from_data(json_bytes);
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Length"[..], len.to_string().as_bytes()).unwrap(),
+                );
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                        .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": format!("Błąd ekstrakcji fali dźwiękowej: {}", e)
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        }
+    }
+
+    // Route: POST /api/voicelab/punch-in/revert
+    if method == tiny_http::Method::Post && url == "/api/voicelab/punch-in/revert" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp = tiny_http::Response::from_string("{\"error\": \"Błąd odczytu żądania\"}");
+            if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct RevertReq {
+            segment_hash: String,
+        }
+
+        let parsed: RevertReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json = serde_json::json!({ "error": format!("Błąd JSON: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
+                if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let clean_hash = parsed.segment_hash.trim().replace(|c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '-', "");
+        let cache_dir = get_default_cache_dir();
+        let punch_wav = cache_dir.join(format!("recorded_{}.wav", clean_hash));
+        let punch_meta = cache_dir.join(format!("recorded_{}.meta.json", clean_hash));
+        let mut removed = false;
+        if punch_wav.exists() {
+            let _ = std::fs::remove_file(&punch_wav);
+            removed = true;
+        }
+        if punch_meta.exists() {
+            let _ = std::fs::remove_file(&punch_meta);
+        }
+
+        let resp_json = serde_json::json!({
+            "status": "ok",
+            "segment_hash": clean_hash,
+            "reverted": removed
+        });
+        let mut resp = tiny_http::Response::from_string(resp_json.to_string());
+        resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
+        if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: POST /api/segment/rerender
+    if method == tiny_http::Method::Post && url == "/api/segment/rerender" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(5 * 1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp = tiny_http::Response::from_string("{\"error\": \"Błąd odczytu żądania\"}");
+            if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct RerenderReq {
+            text: String,
+            #[serde(default = "default_voice_str")]
+            voice: String,
+            #[serde(default = "default_lang_str")]
+            lang: String,
+            #[serde(default)]
+            provider: Option<String>,
+            #[serde(default)]
+            rate: Option<f32>,
+            #[serde(default)]
+            pitch: Option<i32>,
+            segment_hash: String,
+        }
+
+        let parsed: RerenderReq = match serde_json::from_str(&body_str) {
+            Ok(p) => p,
+            Err(e) => {
+                let err_json = serde_json::json!({ "error": format!("Błąd JSON: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
+                if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let clean_hash = parsed.segment_hash.trim().replace(|c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '-', "");
+        let cache_dir = get_default_cache_dir();
+        let punch_wav = cache_dir.join(format!("recorded_{}.wav", clean_hash));
+        let punch_meta = cache_dir.join(format!("recorded_{}.meta.json", clean_hash));
+
+        let seg = audioticon_core::types::TextSegment {
+            text: parsed.text.clone(),
+            voice: Some(parsed.voice.clone()),
+            rate_mod: parsed.rate.map(|r| ((r - 1.0) * 100.0).round() as i32).unwrap_or(-6),
+            pitch_mod: parsed.pitch.unwrap_or(-4),
+            ..Default::default()
+        };
+
+        let prov = parsed.provider.as_deref().unwrap_or("piper").to_lowercase();
+        let clean_lang = parsed.lang.to_lowercase();
+        let synth_res = resolve_synthesizer(
+            &prov,
+            &parsed.voice,
+            None,
+            &clean_lang,
+            default_model.as_ref(),
+            &piper_cache,
+        ).await;
+
+        let synth = match synth_res {
+            Ok(s) => s,
+            Err(e) => {
+                let err_json = serde_json::json!({ "error": format!("Nie można zainicjalizować syntezatora: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
+                if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        match synth.synthesize(&seg, &punch_wav).await {
+            Ok(()) => {
+                let meta = serde_json::json!({
+                    "type": "ai_rerender_punch_in",
+                    "text": parsed.text,
+                    "voice": parsed.voice,
+                    "provider": prov,
+                    "timestamp": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
+                });
+                let _ = std::fs::write(&punch_meta, serde_json::to_string_pretty(&meta).unwrap_or_default());
+
+                let resp_json = serde_json::json!({
+                    "status": "ok",
+                    "segment_hash": clean_hash,
+                    "is_punch_in": true,
+                    "path": punch_wav.to_string_lossy()
+                });
+                let mut resp = tiny_http::Response::from_string(resp_json.to_string());
+                resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
+                if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err_json = serde_json::json!({ "error": format!("Błąd resyntezy segmentu: {}", e) });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
+                if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+                let _ = request.respond(resp.with_status_code(500));
+                return;
+            }
+        }
     }
 
     // Route: GET /api/voicelab/profiles
