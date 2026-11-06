@@ -1405,15 +1405,9 @@ async fn handle_studio_request(
             .map(|s| s.to_string());
 
         let book_res = if let Some(ref b64) = i_req.content_base64 {
-            match base64_decode(b64) {
-                Ok(bytes) => match ext.as_str() {
-                    "epub" => ImportedBook::from_epub_bytes(&bytes, title_hint.as_deref()),
-                    "docx" => ImportedBook::from_docx_bytes(&bytes, title_hint.as_deref()),
-                    _ => {
-                        let text = String::from_utf8_lossy(&bytes);
-                        Ok(ImportedBook::from_text_str(&text, title_hint.as_deref()))
-                    }
-                },
+            let clean_b64 = strip_data_url_prefix(b64);
+            match base64_decode(clean_b64) {
+                Ok(bytes) => ImportedBook::from_bytes(&bytes, &ext, title_hint.as_deref()),
                 Err(err) => Err(anyhow::anyhow!("Błąd dekodowania base64: {}", err)),
             }
         } else if let Some(ref txt) = i_req.text {

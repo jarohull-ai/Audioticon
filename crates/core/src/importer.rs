@@ -117,7 +117,7 @@ impl ImportedBook {
         script
     }
 
-    /// Importuje książkę z pliku na dysku na podstawie rozszerzenia (.epub, .docx, .txt, .md)
+    /// Importuje książkę z pliku na dysku na podstawie rozszerzenia (.epub, .pdf, .docx, .doc, .odt, .rtf, .txt, .md)
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let p = path.as_ref();
         let ext = p
@@ -132,16 +132,26 @@ impl ImportedBook {
             .and_then(|s| s.to_str())
             .map(|s| s.to_string());
 
-        match ext.as_str() {
-            "epub" => Self::from_epub_bytes(&bytes, filename_title.as_deref()),
-            "docx" => Self::from_docx_bytes(&bytes, filename_title.as_deref()),
-            "txt" | "md" | "text" => {
-                let text = String::from_utf8_lossy(&bytes);
-                Ok(Self::from_text_str(&text, filename_title.as_deref()))
+        Self::from_bytes(&bytes, &ext, filename_title.as_deref())
+    }
+
+    /// Uniwersalny importer z pamięci (obsługuje .epub, .pdf, .docx, .doc, .odt, .rtf, .txt, .md)
+    pub fn from_bytes(bytes: &[u8], ext: &str, title_hint: Option<&str>) -> Result<Self> {
+        let clean_ext = ext.trim().trim_start_matches('.').to_lowercase();
+        match clean_ext.as_str() {
+            "epub" => Self::from_epub_bytes(bytes, title_hint),
+            "docx" => Self::from_docx_bytes(bytes, title_hint),
+            "odt" => Self::from_odt_bytes(bytes, title_hint),
+            "pdf" => Self::from_pdf_bytes(bytes, title_hint),
+            "doc" => Self::from_doc_bytes(bytes, title_hint),
+            "rtf" => Self::from_rtf_bytes(bytes, title_hint),
+            "txt" | "md" | "markdown" | "text" => {
+                let text = String::from_utf8_lossy(bytes);
+                Ok(Self::from_text_str(&text, title_hint))
             }
             other => {
                 bail!(
-                    "Nieobsługiwany format pliku: '.{}'. Obsługiwane formaty: .epub, .docx, .txt, .md",
+                    "Nieobsługiwany format pliku: '.{}'. Obsługiwane formaty: .epub, .pdf, .docx, .doc, .odt, .rtf, .txt, .md",
                     other
                 );
             }
@@ -517,6 +527,338 @@ impl ImportedBook {
             chapters,
         })
     }
+
+    /// Importuje książkę z formatu OpenDocument Text (.odt — LibreOffice / OpenOffice)
+    pub fn from_odt_bytes(bytes: &[u8], title_hint: Option<&str>) -> Result<Self> {
+        let reader = Cursor::new(bytes);
+        let mut archive = ZipArchive::new(reader)
+            .context("Nie udało się otworzyć pliku ODT jako archiwum ZIP")?;
+
+        let mut content_file = archive
+            .by_name("content.xml")
+            .context("Brak content.xml wewnątrz archiwum ODT")?;
+
+        let mut xml_content = String::new();
+        content_file
+            .read_to_string(&mut xml_content)
+            .context("Błąd odczytu content.xml")?;
+
+        let block_re = Regex::new(r"(?s)<text:(?:p|h)\b[^>]*>(.*?)</text:(?:p|h)>")
+            .expect("Valid ODT regex");
+        let mut lines = Vec::new();
+        for cap in block_re.captures_iter(&xml_content) {
+            let inner = decode_html_entities(&strip_html_tags(&cap[1]));
+            let trimmed = inner.trim();
+            if !trimmed.is_empty() {
+                lines.push(trimmed.to_string());
+            }
+        }
+        let joined = lines.join("\n\n");
+        if joined.trim().is_empty() {
+            bail!("Nie znaleziono tekstu w dokumencie ODT");
+        }
+        Ok(Self::from_text_str(&joined, title_hint))
+    }
+
+    /// Importuje książkę z formatu PDF (.pdf) — używa `pdftotext` (jeśli dostępny) lub natywnego ekstraktora strumieni PDF
+    pub fn from_pdf_bytes(bytes: &[u8], title_hint: Option<&str>) -> Result<Self> {
+        // 1. Próba użycia systemowego pdftotext (Poppler) dla pełnej obsługi skompresowanych fontów CID
+        let tmp_dir = std::env::temp_dir();
+        let pid = std::process::id();
+        let tmp_pdf = tmp_dir.join(format!("audioticon_import_{}.pdf", pid));
+        if std::fs::write(&tmp_pdf, bytes).is_ok() {
+            let output = std::process::Command::new("pdftotext")
+                .arg("-enc")
+                .arg("UTF-8")
+                .arg(&tmp_pdf)
+                .arg("-")
+                .output();
+            let _ = std::fs::remove_file(&tmp_pdf);
+            if let Ok(out) = output {
+                if out.status.success() {
+                    let extracted = String::from_utf8_lossy(&out.stdout).to_string();
+                    if !extracted.trim().is_empty() {
+                        return Ok(Self::from_text_str(&extracted, title_hint));
+                    }
+                }
+            }
+        }
+
+        // 2. Natywny fallback w czystym Rust: ekstrakcja operatorów tekstowych Tj / TJ z pliku PDF
+        let extracted = extract_pdf_text_native(bytes);
+        if extracted.trim().is_empty() {
+            bail!("Nie udało się wyodrębnić warstwy tekstowej z pliku PDF (plik może być zeskanowanym obrazem bez OCR)");
+        }
+        Ok(Self::from_text_str(&extracted, title_hint))
+    }
+
+    /// Importuje książkę z klasycznego formatu Microsoft Word (.doc)
+    pub fn from_doc_bytes(bytes: &[u8], title_hint: Option<&str>) -> Result<Self> {
+        // Jeśli plik .doc to w rzeczywistości ZIP (.docx) lub RTF
+        if bytes.starts_with(b"PK\x03\x04") {
+            return Self::from_docx_bytes(bytes, title_hint);
+        }
+        if bytes.starts_with(b"{\\rtf") {
+            return Self::from_rtf_bytes(bytes, title_hint);
+        }
+
+        // Próba użycia `antiword` lub `catdoc`, jeśli zainstalowane w systemie
+        let tmp_dir = std::env::temp_dir();
+        let tmp_doc = tmp_dir.join(format!("audioticon_import_{}.doc", std::process::id()));
+        if std::fs::write(&tmp_doc, bytes).is_ok() {
+            for tool in ["antiword", "catdoc"] {
+                if let Ok(out) = std::process::Command::new(tool).arg(&tmp_doc).output() {
+                    if out.status.success() {
+                        let txt = String::from_utf8_lossy(&out.stdout).to_string();
+                        if txt.split_whitespace().count() >= 3 {
+                            let _ = std::fs::remove_file(&tmp_doc);
+                            return Ok(Self::from_text_str(&txt, title_hint));
+                        }
+                    }
+                }
+            }
+            let _ = std::fs::remove_file(&tmp_doc);
+        }
+
+        // Natywny ekstraktor strumienia tekstowego z binarnego pliku OLE2 Word (.doc)
+        let extracted = extract_legacy_doc_text(bytes);
+        if extracted.trim().is_empty() {
+            bail!("Nie znaleziono czytelnego tekstu w pliku .doc");
+        }
+        Ok(Self::from_text_str(&extracted, title_hint))
+    }
+
+    /// Importuje książkę z formatu Rich Text Format (.rtf)
+    pub fn from_rtf_bytes(bytes: &[u8], title_hint: Option<&str>) -> Result<Self> {
+        let raw = String::from_utf8_lossy(bytes);
+        let text = extract_rtf_text(&raw);
+        if text.trim().is_empty() {
+            bail!("Nie znaleziono czytelnego tekstu w pliku RTF");
+        }
+        Ok(Self::from_text_str(&text, title_hint))
+    }
+}
+
+/// Natywna ekstrakcja tekstu z PDF (obsługa operatorów `(tekst) Tj` oraz `[(tekst)] TJ`)
+fn extract_pdf_text_native(bytes: &[u8]) -> String {
+    let raw = String::from_utf8_lossy(bytes);
+    let mut paragraphs: Vec<String> = Vec::new();
+    let mut current_line = String::new();
+
+    // Dopasuj literały w nawiasach przed Tj / TJ lub wewnątrz tablic TJ
+    let literal_re = Regex::new(r"\(([^()\\]*(?:\\.[^()\\]*)*)\)").expect("Valid PDF regex");
+    let bt_et_re = Regex::new(r"(?s)\bBT\b(.*?)\bET\b").expect("Valid BT/ET regex");
+
+    let mut found_bt = false;
+    for block in bt_et_re.captures_iter(&raw) {
+        found_bt = true;
+        let inner = &block[1];
+        for cap in literal_re.captures_iter(inner) {
+            let s = unescape_pdf_string(&cap[1]);
+            if !s.is_empty() {
+                current_line.push_str(&s);
+            }
+        }
+        if !current_line.trim().is_empty() {
+            paragraphs.push(current_line.trim().to_string());
+            current_line.clear();
+        }
+    }
+
+    if !found_bt {
+        for cap in literal_re.captures_iter(&raw) {
+            let s = unescape_pdf_string(&cap[1]);
+            if s.chars().any(|c| c.is_alphabetic()) {
+                paragraphs.push(s.trim().to_string());
+            }
+        }
+    }
+
+    paragraphs.join("\n")
+}
+
+fn unescape_pdf_string(s: &str) -> String {
+    s.replace("\\n", "\n")
+        .replace("\\r", "\r")
+        .replace("\\t", "\t")
+        .replace("\\(", "(")
+        .replace("\\)", ")")
+        .replace("\\\\", "\\")
+}
+
+/// Natywna ekstrakcja tekstu z formatu RTF (z obsługą polskich znaków CP1250 `\'xx` oraz `\uNNNN`)
+fn extract_rtf_text(rtf: &str) -> String {
+    let mut out = String::new();
+    let chars: Vec<char> = rtf.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '{' || c == '}' {
+            i += 1;
+            continue;
+        }
+        if c == '\\' {
+            i += 1;
+            if i >= chars.len() {
+                break;
+            }
+            if chars[i] == '\'' && i + 2 < chars.len() {
+                let hex_str: String = chars[i + 1..=i + 2].iter().collect();
+                if let Ok(byte) = u8::from_str_radix(&hex_str, 16) {
+                    out.push(cp1250_byte_to_char(byte));
+                }
+                i += 3;
+                continue;
+            }
+            if chars[i] == '\\' || chars[i] == '{' || chars[i] == '}' {
+                out.push(chars[i]);
+                i += 1;
+                continue;
+            }
+            let mut word = String::new();
+            while i < chars.len() && chars[i].is_ascii_alphabetic() {
+                word.push(chars[i]);
+                i += 1;
+            }
+            let mut num = String::new();
+            if i < chars.len() && (chars[i] == '-' || chars[i].is_ascii_digit()) {
+                num.push(chars[i]);
+                i += 1;
+                while i < chars.len() && chars[i].is_ascii_digit() {
+                    num.push(chars[i]);
+                    i += 1;
+                }
+            }
+            if i < chars.len() && chars[i] == ' ' {
+                i += 1;
+            }
+            match word.as_str() {
+                "par" | "line" | "sect" => out.push('\n'),
+                "tab" => out.push('\t'),
+                "u" => {
+                    if let Ok(code) = num.parse::<i32>() {
+                        let ucode = if code < 0 {
+                            (code + 65536) as u32
+                        } else {
+                            code as u32
+                        };
+                        if let Some(ch) = char::from_u32(ucode) {
+                            out.push(ch);
+                        }
+                        if i < chars.len() && chars[i] == '?' {
+                            i += 1;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        } else if c != '\r' && c != '\n' {
+            out.push(c);
+            i += 1;
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+fn cp1250_byte_to_char(b: u8) -> char {
+    match b {
+        0xA5 => 'Ą',
+        0xB9 => 'ą',
+        0xC6 => 'Ć',
+        0xE6 => 'ć',
+        0xCA => 'Ę',
+        0xEA => 'ę',
+        0xA3 => 'Ł',
+        0xB3 => 'ł',
+        0xD1 => 'Ń',
+        0xF1 => 'ń',
+        0xD3 => 'Ó',
+        0xF3 => 'ó',
+        0x8C => 'Ś',
+        0x9C => 'ś',
+        0x8F => 'Ź',
+        0x9F => 'ź',
+        0xAF => 'Ż',
+        0xBF => 'ż',
+        0x84 => '„',
+        0x94 => '”',
+        0x96 => '–',
+        0x97 => '—',
+        other if other >= 0x20 => other as char,
+        _ => ' ',
+    }
+}
+
+/// Wyciąga ciągłe bloki tekstu UTF-16LE oraz UTF-8/CP1250 z binarnych plików MS Word (.doc)
+fn extract_legacy_doc_text(bytes: &[u8]) -> String {
+    // 1. Sprawdź czy to czysty tekst z rozszerzeniem .doc
+    if let Ok(utf8) = std::str::from_utf8(bytes) {
+        if !bytes.starts_with(b"\xD0\xCF\x11\xE0") {
+            return utf8.to_string();
+        }
+    }
+
+    // 2. Próba odczytu bloków UTF-16LE (standard w Word 97-2003 FIB)
+    let mut utf16_runs = Vec::new();
+    let mut current_u16 = String::new();
+    let mut i = 0;
+    while i + 1 < bytes.len() {
+        let code = u16::from_le_bytes([bytes[i], bytes[i + 1]]);
+        let ch_opt = char::from_u32(code as u32);
+        if let Some(ch) = ch_opt {
+            let valid = ch.is_alphabetic()
+                || ch.is_ascii_newline_or_punct()
+                || matches!(ch, ' ' | '—' | '–' | '„' | '”');
+            if valid {
+                current_u16.push(ch);
+                i += 2;
+                continue;
+            }
+        }
+        if current_u16.chars().filter(|c| c.is_alphabetic()).count() >= 12 {
+            utf16_runs.push(current_u16.trim().to_string());
+        }
+        current_u16.clear();
+        i += 2;
+    }
+    if current_u16.chars().filter(|c| c.is_alphabetic()).count() >= 12 {
+        utf16_runs.push(current_u16.trim().to_string());
+    }
+    if !utf16_runs.is_empty() {
+        return utf16_runs.join("\n\n");
+    }
+
+    // 3. Fallback na 8-bitowe ciągi znaków (ASCII / CP1250)
+    let mut runs = Vec::new();
+    let mut cur = String::new();
+    for &b in bytes {
+        if b == b'\n' || b == b'\r' || (0x20..=0x7E).contains(&b) {
+            cur.push(if b == b'\r' { '\n' } else { b as char });
+        } else {
+            if cur.chars().filter(|c| c.is_alphabetic()).count() >= 10 {
+                runs.push(cur.trim().to_string());
+            }
+            cur.clear();
+        }
+    }
+    if cur.chars().filter(|c| c.is_alphabetic()).count() >= 10 {
+        runs.push(cur.trim().to_string());
+    }
+    runs.join("\n\n")
+}
+
+trait CharDocExt {
+    fn is_ascii_newline_or_punct(&self) -> bool;
+}
+impl CharDocExt for char {
+    fn is_ascii_newline_or_punct(&self) -> bool {
+        *self == '\n'
+            || *self == '\r'
+            || self.is_ascii_digit()
+            || self.is_ascii_punctuation()
+    }
 }
 
 /// Dekoduje ciąg base64 do wektora bajtów
@@ -796,5 +1138,59 @@ Kapitan spojrzał na radar.
         // Dedykacja musi być pierwsza zgodnie ze spine, mimo że nazwa pliku z_dedication.xhtml jest alfabetycznie na końcu!
         assert_eq!(book.chapters[0].title, "Dedykacja");
         assert_eq!(book.chapters[1].title, "Rozdział 1");
+    }
+
+    #[test]
+    fn test_import_pdf_rtf_odt_and_doc() {
+        // 1. Test PDF native stream extraction
+        let fake_pdf = b"%PDF-1.4\n1 0 obj\n<< /Length 120 >>\nstream\nBT\n(Rozdzial 1: Tajemnica) Tj\nET\nBT\n(W ciemnym lesie slychac bylo szept wiatru.) Tj\nET\nendstream\nendobj\n%%EOF";
+        let pdf_book =
+            ImportedBook::from_bytes(fake_pdf, "pdf", Some("Tajemnica PDF")).expect("PDF import");
+        assert!(!pdf_book.chapters.is_empty());
+        assert!(pdf_book.to_script().contains("szept wiatru"));
+
+        // 2. Test RTF with Polish characters
+        let rtf_bytes = br#"{\rtf1\ansi\ansicpg1250
+Rozdzia\'b3 1: Powr\'f3t\par
+Za oknem pada\'b3 g\'easty deszcz.\par
+}"#;
+        let rtf_book =
+            ImportedBook::from_bytes(rtf_bytes, "rtf", Some("Książka RTF")).expect("RTF import");
+        assert_eq!(rtf_book.chapters[0].title, "Rozdział 1: Powrót");
+        assert!(rtf_book.chapters[0].content.contains("padał gęsty deszcz"));
+
+        // 3. Test ODT (OpenDocument Writer)
+        use std::io::Write;
+        use zip::write::SimpleFileOptions;
+        let mut odt_buf = Vec::new();
+        {
+            let mut zip = zip::ZipWriter::new(Cursor::new(&mut odt_buf));
+            let options = SimpleFileOptions::default();
+            zip.start_file("content.xml", options).unwrap();
+            let xml = r#"<office:document-content>
+                <office:body><office:text>
+                    <text:h>Rozdział 1: LibreOffice</text:h>
+                    <text:p>To jest treść rozdziału z dokumentu ODT.</text:p>
+                </office:text></office:body>
+            </office:document-content>"#;
+            zip.write_all(xml.as_bytes()).unwrap();
+            zip.finish().unwrap();
+        }
+        let odt_book =
+            ImportedBook::from_bytes(&odt_buf, "odt", Some("Test ODT")).expect("ODT import");
+        assert_eq!(odt_book.chapters[0].title, "Rozdział 1: LibreOffice");
+        assert!(odt_book.chapters[0].content.contains("dokumentu ODT"));
+
+        // 4. Test legacy .doc (UTF-16LE embedded stream in OLE2 container)
+        let mut doc_bytes = b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00".to_vec();
+        let sample_u16 = "Rozdział 1: Stary Word\nTo jest tekst zapisany w klasycznym formacie binarnego dokumentu Word.";
+        for u in sample_u16.encode_utf16() {
+            doc_bytes.extend_from_slice(&u.to_le_bytes());
+        }
+        doc_bytes.extend_from_slice(&[0u8; 16]);
+        let doc_book =
+            ImportedBook::from_bytes(&doc_bytes, "doc", Some("Stary Word")).expect("DOC import");
+        assert!(!doc_book.chapters.is_empty());
+        assert!(doc_book.to_script().contains("klasycznym formacie"));
     }
 }
