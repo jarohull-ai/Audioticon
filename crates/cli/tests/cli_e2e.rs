@@ -1760,3 +1760,14 @@ fn test_license_status_activation_and_soft_gates_e2e() {
     let _ = child.wait();
     let _ = std::fs::remove_dir_all(&tmp_dir);
 }
+
+#[test]
+fn test_cli_default_no_args_starts_studio() {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_audioticon"));
+    cmd.stdout(std::process::Stdio::null());
+    cmd.stderr(std::process::Stdio::null());
+    let mut child = cmd.spawn().expect("Spawn audioticon without args");
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    let _ = child.kill();
+    let _ = child.wait();
+}
