@@ -69,7 +69,9 @@ jobs:
           cp "target/${{ matrix.target }}/release/audioticon" "dist/${PKG_NAME}/audioticon"
           chmod +x "dist/${PKG_NAME}/audioticon"
           cp docs/INSTRUKCJA_OBSLUGI.md "dist/${PKG_NAME}/" 2>/dev/null || true
-          cp scripts/setup.sh "dist/${PKG_NAME}/" 2>/dev/null || true
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            cp scripts/setup.sh "dist/${PKG_NAME}/" 2>/dev/null || true
+          fi
           cp LICENSE-MIT LICENSE-APACHE THIRD_PARTY_NOTICES.md README.md "dist/${PKG_NAME}/" 2>/dev/null || true
           cd dist
           tar -czvf "${PKG_NAME}.tar.gz" "${PKG_NAME}"

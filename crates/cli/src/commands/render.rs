@@ -412,17 +412,17 @@ pub async fn run_render(
                 );
                 println!("  Suma SHA-256:     {}...", &cert.audio_sha256[..16]);
                 println!(
-                    "  Zapisano certyfikat: {:?}",
+                    "  Zapisano raport jakości ACX: {:?}",
                     output.with_extension("certificate.json")
                 );
                 println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             }
             Err(e) => {
-                eprintln!("⚠️ Nie udało się wygenerować certyfikatu ACX: {}", e);
+                eprintln!("⚠️ Nie udało się wygenerować raportu pomiarowego ACX: {}", e);
             }
         }
     } else {
-        println!("\n💡 Wskazówka: Odblokuj oficjalny Certyfikat Zgodności ACX/Storytel (Audio Ledger) w Pakiecie Pisarz!");
+        println!("\n💡 Wskazówka: Odblokuj pełny Raport Jakości ACX/Storytel (Audio Ledger) w Pakiecie Pisarz!");
         println!("   Wpisz w terminalu: audioticon wallet topup");
     }
 

@@ -88,13 +88,13 @@ Zaznacz dowolne słowo lub zdanie w edytorze — nad tekstem pojawi się podręc
 
 ### Piper ONNX (Domyślny, rekomendowany dla języka polskiego)
 - Działa w 100% lokalnie i generuje audio w ułamku sekundy.
-- **Dostępne głosy polskie:** `pl_PL-darkman-medium` (głęboki, męski narrator), `pl_PL-gosia-medium` (ciepły, kobiecy lektor), `pl_PL-mc_speech-medium`.
-- **Głosy angielskie:** `en_US-lessac-medium`.
+- **Dostępne głosy polskie:** `pl_PL-darkman-medium` (głęboki, męski narrator, licencja CC0), `pl_PL-gosia-medium` (ciepły, kobiecy lektor, licencja MIT), `pl_PL-mc_speech-medium`.
+- **Głosy angielskie:** `en_US-lessac-medium` *(Uwaga licencyjna: Lessac posiada ograniczenia badawczo-niekomercyjne Blizzard Challenge. Do komercyjnych audiobooków w języku angielskim rekomendowany jest model Kokoro-82M na licencji Apache 2.0)*.
 
 ### Kokoro-82M (Neuralny model wielojęzyczny)
 - Ultra-naturalna intonacja oparta na architekturze StyleTTS 2.
 - Obsługuje głosy amerykańskie (`af_bella`, `am_adam`, `af_sarah`) oraz brytyjskie (`bm_george`, `bf_emma`).
-- Natywna inferencja w czystym Rust przez bibliotekę ONNX Runtime (`ort`).
+- Natywna inferencja w czystym Rust przez bibliotekę ONNX Runtime (`ort`). Licencja Apache 2.0 (bezpieczna komercyjnie).
 
 ---
 
@@ -107,14 +107,14 @@ Po wygenerowaniu audio na dole ekranu pojawia się modularny panel osi czasu:
 
 ---
 
-## 7. Certyfikacja Jakości ACX / EBU R128
+## 7. Analiza i Raport Parametrów Jakości ACX / EBU R128
 
-W zakładce **Mastering ACX** sprawdzisz, czy Twój plik spełnia rygorystyczne normy wydawnicze (Audible, Amazon ACX, Storytel, Apple Books):
-- **Zintegrowana głośność (Integrated Loudness):** Wymóg ACX: od `-23.0 LUFS` do `-18.0 LUFS`.
+W zakładce **Mastering ACX** sprawdzisz dopasowanie parametrów audio do wytycznych technicznych platform audiobookowych (Audible, Amazon ACX, Storytel, Apple Books):
+- **Zintegrowana głośność (Integrated Loudness):** Wytyczne ACX: od `-23.0 LUFS` do `-18.0 LUFS`.
 - **Poziom szczytowy (True Peak):** Maksymalnie `-3.0 dBFS`.
 - **Poziom tła (Noise Floor):** Poniżej `-60 dBFS`.
 
-Kliknięcie **Pobierz Certyfikat ACX** generuje plik JSON/PDF z podpisem kryptograficznym potwierdzającym zgodność dla dystrybutora.
+Kliknięcie **Pobierz Raport ACX** generuje plik JSON z pomiarami telemetrycznymi i sumą kontrolną SHA-256 potwierdzającą zmierzone parametry techniczne pliku.
 
 ---
 

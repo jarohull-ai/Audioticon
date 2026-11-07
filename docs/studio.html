@@ -1126,7 +1126,7 @@
 
         <!-- ACX & EBU R128 Loudness Normalizer Dashboard Button -->
         <button class="btn" onclick="openAcxQcModal()" style="border-color:#10b981; color:#10b981; font-weight:700;" data-i18n-title="tipAcxQc">
-          <span>📊</span> <span data-i18n="btnAcxQc">ACX Normy & Certyfikat</span>
+          <span>📊</span> <span data-i18n="btnAcxQc">ACX Normy & Raport</span>
         </button>
 
         <!-- Emoji Sound Designer Button -->
@@ -1375,7 +1375,7 @@
             </div>
 
             <!-- ACX / EBU R128 Quick Strip -->
-            <div id="acxComplianceStrip" onclick="openAcxQcModal()" style="display:flex; justify-content:space-between; align-items:center; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:6px; padding:0.35rem 0.6rem; font-size:0.75rem; cursor:pointer;" data-i18n-title="tipAcxStrip" title="Kliknij, aby otworzyć pełny audyt ACX / EBU R128 i pobrać certyfikat">
+            <div id="acxComplianceStrip" onclick="openAcxQcModal()" style="display:flex; justify-content:space-between; align-items:center; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:6px; padding:0.35rem 0.6rem; font-size:0.75rem; cursor:pointer;" data-i18n-title="tipAcxStrip" title="Kliknij, aby otworzyć pełny audyt ACX / EBU R128 i pobrać raport pomiarowy">
               <div style="display:flex; align-items:center; gap:0.4rem;">
                 <span id="acxBadgeIcon">✅</span>
                 <span style="font-weight:700;">ACX Master:</span>
@@ -1383,7 +1383,7 @@
               </div>
               <div style="display:flex; align-items:center; gap:0.5rem;">
                 <span id="acxPeakValue" style="font-family:'Fira Code',monospace; font-size:0.7rem; color:var(--text-muted);">Peak: -3.2 dBFS</span>
-                <span style="font-size:0.68rem; color:#0284c7; text-decoration:underline; font-weight:600;" data-i18n="lblAcxReport">Raport & Certyfikat ➔</span>
+                <span style="font-size:0.68rem; color:#0284c7; text-decoration:underline; font-weight:600;" data-i18n="lblAcxReport">Raport Jakości ➔</span>
               </div>
             </div>
 
@@ -1580,7 +1580,7 @@
             <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:0.45rem; font-size:0.76rem; color:var(--text-muted);">
               <li>✅ Wszystkie funkcje Free (Notion, Waveform, MP3/WAV, Piper, Kokoro, Edge, ElevenLabs BYOK)</li>
               <li>✅ <b>Eksport kontenera M4B</b> z rozdziałami, metadanymi i okładką</li>
-              <li>✅ <b>Certyfikat ACX / EBU R128</b> z kryptograficznym podpisem SHA-256</li>
+              <li>✅ <b>Raport Jakości ACX / EBU R128</b> z sumą kontrolną SHA-256</li>
               <li>✅ <b>Vocal & AI Punch-In & Retake</b> bez przeliczania całego audiobooka</li>
               <li>✅ Praca w 100% offline po aktywacji</li>
             </ul>
@@ -2601,7 +2601,7 @@
           </div>
         </div>
         <div style="font-size:0.7rem; color:var(--text-dim); border-top:1px dashed var(--border); padding-top:0.5rem;">
-          🔒 Certyfikat jest weryfikowalny matematycznie i zabezpieczony przed manipulacją (zgodny z wymogami agregatorów dystrybucyjnych).
+          🔒 Raport jest weryfikowalny matematycznie i zawiera sumę kontrolną SHA-256 zmierzonego pliku audio.
         </div>
       </div>
 
@@ -2612,7 +2612,7 @@
         </button>
         <div style="display:flex; gap:0.5rem;">
           <button class="btn" id="btnDownloadAcxCert" onclick="downloadAcxCertificate()">
-            📥 Pobierz Certyfikat Jakości (.JSON)
+            📥 Pobierz Raport Jakości (.JSON)
           </button>
           <button class="btn btn-primary" onclick="closeAcxQcModal()">
             Zamknij
@@ -2926,8 +2926,8 @@
         tipTablet: "Connect with iPad or Android tablet over local Wi-Fi",
         btnSubtitles: "Subtitles (.SRT)",
         tipSubtitles: "Export subtitles and word timestamps (.SRT, .VTT, TikTok Karaoke)",
-        btnAcxQc: "ACX Compliance & QC",
-        tipAcxQc: "Open ACX / EBU R128 Normalizer Dashboard & Studio Certificate",
+        btnAcxQc: "ACX Standards & QC",
+        tipAcxQc: "Open ACX / EBU R128 Normalizer Dashboard & QC Report",
         btnEmojiDesigner: "Emoji Sounds",
         tipEmojiDesigner: "Design custom sounds, DSP filters, SFX, and voices for icons and emojis",
         btnTiles: "Tiles",
@@ -2992,8 +2992,8 @@
         tipRewind5: "Rewind 5 seconds",
         tipPlayMaster: "Play / Pause Master",
         tipForward5: "Forward 5 seconds",
-        tipAcxStrip: "Click to open full ACX / EBU R128 audit and download certificate",
-        lblAcxReport: "Report & Certificate ➔",
+        tipAcxStrip: "Click to open full ACX / EBU R128 audit and download QC report",
+        lblAcxReport: "QC Report ➔",
         karaokeDefault: "💬 <i>Subtitles and words will appear during playback...</i>",
 
         // Timeline
@@ -3052,8 +3052,8 @@
         tipTablet: "Połącz z iPadem lub tabletem z Androidem w domowym Wi-Fi",
         btnSubtitles: "Napisy (.SRT)",
         tipSubtitles: "Eksportuj napisy i znaczniki czasowe (.SRT, .VTT, TikTok Karaoke)",
-        btnAcxQc: "ACX Normy & Certyfikat",
-        tipAcxQc: "Otwórz Dashboard Normalizatora ACX / EBU R128 i Certyfikat Studyjny",
+        btnAcxQc: "ACX Normy & Raport",
+        tipAcxQc: "Otwórz Dashboard Normalizatora parametrów ACX / EBU R128 i Raport Jakości",
         btnEmojiDesigner: "Dźwięki pod Ikony",
         tipEmojiDesigner: "Projektuj własne dźwięki, filtry DSP, efekty SFX i głosy pod ikony i emotikony",
         btnTiles: "Kafelki",
@@ -3118,8 +3118,8 @@
         tipRewind5: "Cofnij o 5 sekund",
         tipPlayMaster: "Odtwórz / Wstrzymaj Master",
         tipForward5: "Przewiń o 5 sekund",
-        tipAcxStrip: "Kliknij, aby otworzyć pełny audyt ACX / EBU R128 i pobrać certyfikat",
-        lblAcxReport: "Raport & Certyfikat ➔",
+        tipAcxStrip: "Kliknij, aby otworzyć pełny audyt ACX / EBU R128 i pobrać raport pomiarowy",
+        lblAcxReport: "Raport Jakości ➔",
         karaokeDefault: "💬 <i>Napisy i słowa pojawią się podczas odtwarzania...</i>",
 
         // Timeline
@@ -6017,7 +6017,7 @@
     function downloadAcxCertificate() {
       if (!currentLicense.is_pro) {
         closeAcxQcModal();
-        openLicenseModal("Oficjalny Certyfikat Zgodności ACX / EBU R128 z kryptograficznym podpisem SHA-256 wymaga licencji Solo PRO ($45) lub Studio PRO ($99).");
+        openLicenseModal("Pobranie Raportu Jakości ACX / EBU R128 z sumą SHA-256 wymaga licencji Solo PRO ($45) lub Studio PRO ($99).");
         return;
       }
       const data = latestQcReportData || {

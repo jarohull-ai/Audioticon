@@ -2389,9 +2389,9 @@
           <div class="acx-badge-status">
             <span class="acx-badge-icon" id="acx-badge-icon">🔒</span>
             <div>
-              <div class="acx-badge-title" id="acx-badge-title">Audio Ledger — Certyfikat Zgodności ACX / Storytel</div>
+              <div class="acx-badge-title" id="acx-badge-title">Audio Ledger — Raport Jakości Parametrów ACX / Storytel</div>
               <div class="acx-badge-desc" id="acx-badge-desc">
-                Certyfikacja parametrów technicznych (-19.5 LUFS / -3.0 dBTP). Gwarancja bezproblemowej akceptacji na Audible i Storytel. Dostępne od Pakietu Pisarz.
+                Pomiar parametrów technicznych (-19.5 LUFS / -3.0 dBTP) ułatwiający dopasowanie do wymogów Audible i Storytel. Dostępne od Pakietu Pisarz.
               </div>
             </div>
           </div>
@@ -2438,7 +2438,7 @@
               <span>🪙</span> Portfel AudioCoin$ & Licencje
             </h2>
             <p style="font-size: 0.8rem; color: #94a3b8; margin-top: 0.2rem;">
-              100% Offline-First. Kredyty audio, doładowania i certyfikaty zgodności ACX / Storytel.
+              100% Offline-First. Kredyty audio, doładowania i raporty zgodności parametrów ACX / Storytel.
             </p>
           </div>
           <div style="text-align: right;">
@@ -2491,12 +2491,12 @@
               <div class="tier-card-price">119 zł</div>
               <ul class="tier-card-features">
                 <li><span>🪙</span> <strong>25,000 AudioCoin$</strong></li>
-                <li><span>🛡️</span> <strong>Audio Ledger ACX / Storytel</strong> (Gwarancja akceptacji)</li>
-                <li><span>📜</span> Kryptograficzny Certyfikat Zgodności (.json)</li>
+                <li><span>🛡️</span> <strong>Audio Ledger ACX / Storytel</strong> (Pomiar parametrów)</li>
+                <li><span>📜</span> Raport Zgodności Technicznej (.json)</li>
                 <li><span>🎙️</span> Klonowanie głosu (Voice Cloning)</li>
                 <li><span>💼</span> Komercyjna licencja wydawnicza</li>
               </ul>
-              <button class="btn-cert-unlock" style="width: 100%; padding: 0.5rem; font-size: 0.8rem;" onclick="alert('Pakiet Pisarz odblokowuje certyfikację ACX / Storytel oraz 25,000 AudioCoin$. Wpisz kod kuponu powyżej lub użyj terminala CLI.')">Wybierz Pakiet Pisarz (119 zł)</button>
+              <button class="btn-cert-unlock" style="width: 100%; padding: 0.5rem; font-size: 0.8rem;" onclick="alert('Pakiet Pisarz odblokowuje raport parametrów ACX / Storytel oraz 25,000 AudioCoin$. Wpisz kod kuponu powyżej lub użyj terminala CLI.')">Wybierz Pakiet Pisarz (119 zł)</button>
             </div>
 
             <!-- Pakiet Wydawca -->
@@ -2980,7 +2980,7 @@
       } else {
         alert(
           "🎚️ Format 24-bit FLAC (Master Lossless Studio):\n\n" +
-          "Generowanie pliku FLAC klasy studyjnej z certyfikatem ACX wymaga lokalnego silnika Audioticon i ffmpeg.\n\n" +
+          "Generowanie pliku FLAC klasy studyjnej z raportem pomiarowym ACX wymaga lokalnego silnika Audioticon i ffmpeg.\n\n" +
           "Uruchom w terminalu: audioticon studio"
         );
       }
@@ -6166,14 +6166,14 @@ C. PAUZY I ODDECHY DRAMATURGICZNE:
       if (acxUnlocked) {
         container.className = 'acx-ledger-bar unlocked';
         icon.textContent = '🛡️';
-        title.innerHTML = `Audio Ledger — Certyfikat Zgodności ACX & Storytel <span style="color: #34d399; font-weight: 800;">[ZGODNY]</span>`;
+        title.innerHTML = `Audio Ledger — Raport Zgodności Parametrów ACX & Storytel <span style="color: #34d399; font-weight: 800;">[ZMIERZONE]</span>`;
         desc.innerHTML = `Parametry: <strong>-19.5 LUFS</strong> | True Peak: <strong>-3.0 dBTP</strong> | 44.1 kHz | Ledger ID: <code style="color: #38bdf8; font-family: monospace;">${ledgerId || 'AUD-ACX-2026-OK'}</code>`;
         action.innerHTML = `<button class="btn-cert-action" onclick="downloadAcxCertificate()">📜 Pobierz audiobook_certificate.json</button>`;
       } else {
         container.className = 'acx-ledger-bar locked';
         icon.textContent = '🔒';
-        title.innerHTML = `Audio Ledger — Certyfikat Zgodności ACX / Storytel`;
-        desc.innerHTML = `Certyfikacja parametrów technicznych (-19.5 LUFS / -3.0 dBTP). Gwarancja bezproblemowej akceptacji na Audible i Storytel. Dostępne od Pakietu Pisarz.`;
+        title.innerHTML = `Audio Ledger — Raport Zgodności Parametrów ACX / Storytel`;
+        desc.innerHTML = `Pomiar parametrów technicznych (-19.5 LUFS / -3.0 dBTP) ułatwiający spełnienie wymagań Audible i Storytel. Dostępne od Pakietu Pisarz.`;
         action.innerHTML = `<button class="btn-cert-unlock" onclick="openWalletModal()">Odblokuj w Pakiecie Pisarz</button>`;
       }
     }

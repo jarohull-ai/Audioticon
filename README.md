@@ -103,7 +103,7 @@ Każdy wyeksportowany audiobook przechodzi przez łańcuch masteringu `loudnorm=
 ## 📦 Szybka instalacja (Quickstart)
 
 ### Automatyczny skrypt instalacyjny (Linux):
-Pobiera wymagane modele ONNX (polski `darkman` i angielski `lessac`), sprawdza zależności (`ffmpeg`, `python3`) i kompiluje silnik:
+Pobiera sprawdzony model ONNX (polski `pl_PL-darkman-medium` na otwartej licencji CC0-1.0), sprawdza zależności (`ffmpeg`, `python3`) i kompiluje silnik:
 ```bash
 git clone https://github.com/jarohull-ai/Audioticon.git
 cd Audioticon
@@ -135,7 +135,7 @@ Audioticon otwiera modularny interfejs **Studio Workbench** (`http://127.0.0.1:3
 - **Edytor reżyserski z paletą emotikonów:** wstawiaj znaczniki emocji, filtrów DSP, ról aktorskich i efektów SFX jednym kliknięciem lub skrótami `/`.
 - **Inspektor Cache SHA-256 i Dogrywki (Punch-In):** podgląd statusu każdego zdania w pamięci podręcznej z możliwością dogrania korekty własnym głosem przez mikrofon.
 - **VoiceLab & Model Hub:** nagrywaj próbki głosu z analizą SNR/RMS, pobieraj modele offline (Piper PL, Kokoro-82M) i konfiguruj klucze BYOK (ElevenLabs).
-- **Kalkulator kosztów i eksport 1-klik:** wyceniaj koszt przed syntezą i eksportuj gotowe książki do `.m4b`, `.flac` (24-bit) lub `.mp3` wraz z certyfikatem `.certificate.json`.
+- **Kalkulator kosztów i eksport 1-klik:** wyceniaj koszt przed syntezą i eksportuj gotowe książki do `.m4b`, `.flac` (24-bit) lub `.mp3` wraz z raportem pomiarowym parametrów `.certificate.json`.
 
 ### ⌨️ Kompletny przegląd poleceń CLI
 

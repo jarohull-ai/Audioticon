@@ -1059,7 +1059,7 @@ async fn handle_studio_request(
         let cert_path = cache_dir.join("latest_preview.certificate.json");
         if !cert_path.exists() {
             let err_json = serde_json::json!({
-                "error": "Brak wyrenderowanego nagrania do certyfikacji. Wyrenderuj najpierw podgląd lub audiobook, aby zmierzyć parametry LUFS i True Peak."
+                "error": "Brak wyrenderowanego nagrania do audytu parametrów. Wyrenderuj najpierw podgląd lub audiobook, aby zmierzyć parametry LUFS i True Peak."
             });
             let mut resp = tiny_http::Response::from_string(err_json.to_string());
             resp.add_header(

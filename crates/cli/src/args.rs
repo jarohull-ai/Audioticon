@@ -366,7 +366,7 @@ pub enum Commands {
 pub enum WalletAction {
     /// Wyświetla stan portfela AudioCoin$, odblokowane funkcje i historię transakcji
     Balance,
-    /// Aktywuje voucher VIP (np. pakiet Pisarza z certyfikatem ACX)
+    /// Aktywuje voucher VIP (np. pakiet Pisarza z raportem jakości ACX)
     Redeem {
         /// Kod vouchera (np. AUD-WRITER-20000-XXXXXXXXXXXX)
         code: String,
@@ -545,7 +545,7 @@ pub enum ProvidersAction {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ModelsAction {
-    /// Przeglądaj katalog Europe & Americas Neural Hub z certyfikatami licencji
+    /// Przeglądaj katalog Europe & Americas Neural Hub z licencjami i metadanymi modeli
     Hub,
     /// Akceptuj warunki licencji EULA modelu i zapisz kryptograficzny dowód
     Accept {
