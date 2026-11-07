@@ -80,37 +80,10 @@ echo ""
 EOF
 chmod +x "$PKG_DIR/Start_Audioticon.sh"
 
-# 5. Generowanie skryptu Start_Audioticon.bat dla Windows
-cat << 'EOF' > "$PKG_DIR/Start_Audioticon.bat"
-@echo off
-title Audioticon Studio
-cd /d "%~dp0"
-
-echo ============================================================
-echo  AUDIOTICON STUDIO
-echo  Twoj rezyser audiobookow z synteza glosu AI i DSP
-echo ============================================================
-echo.
-echo Uruchamianie serwera Studio...
-echo Za chwile otworzy sie Twoja domyslna przegladarka...
-echo Jesli przegladarka sie nie otworzy, wejdz na: http://localhost:3000
-echo.
-echo Aby zatrzymac Audioticon, nacisnij Ctrl + C w tym oknie.
-echo ============================================================
-echo.
-
-if exist audioticon.exe (
-    audioticon.exe serve
-) else (
-    echo Blad: Nie znaleziono pliku audioticon.exe.
-    pause
-)
-EOF
-
-# 6. Generowanie instrukcji szybkiego startu
+# 5. Generowanie instrukcji szybkiego startu (Linux)
 cat << EOF > "$PKG_DIR/INSTRUKCJA_SZYBKI_START.txt"
 ================================================================================
-                    🎧 AUDIOTICON STUDIO — SZYBKI START
+                    🎧 AUDIOTICON STUDIO — SZYBKI START (LINUX)
 ================================================================================
 
 Dziękujemy za zakup / pobranie Audioticon Studio!
@@ -135,8 +108,8 @@ Poniżej znajdziesz prostą instrukcję uruchomienia i aktywacji programu.
    Eksportu i kliknij "Aktywuj licencję").
 3. Wklej swój klucz licencyjny z e-maila potwierdzającego zakup z Gumroad
    i kliknij "Aktywuj licencję".
-4. Program połączy się z Gumroad, zweryfikuje klucz i zapisze bezpieczny,
-   szyfrowany token HMAC na Twoim komputerze.
+4. Program połączy się z Gumroad, zweryfikuje klucz i zapisze stan licencji
+   oraz lokalny podpis integralności portfela (HMAC) na Twoim komputerze.
 5. Od tego momentu możesz pracować w 100% OFFLINE — Audioticon nie wymaga
    stałego połączenia z Internetem!
 
@@ -155,18 +128,14 @@ poleceniem:
       sudo dnf install ffmpeg
   • Arch Linux:
       sudo pacman -S ffmpeg
-  • macOS:
-      brew install ffmpeg
-  • Windows:
-      winget install Gyan.FFmpeg
 
 --------------------------------------------------------------------------------
 4. MODELE GŁOSOWE (TTS)
 --------------------------------------------------------------------------------
 Audioticon korzysta z nowoczesnych, otwartych modeli Piper ONNX.
 Możesz zarządzać głosami bezpośrednio w zakładce "Katalog Głosów / VoiceLab":
-- Dostępne są głosy polskie (Darkman, Gosia, MC Speech) oraz angielskie (Lessac).
-- Modele pobierają się automatycznie jednym kliknięciem do folderu:
+- Domyślnie dostępny jest polski model Darkman (licencja CC0-1.0 Commercial Safe).
+- Dodatkowe modele pobierają się wedle potrzeb do folderu:
   ~/.local/share/audioticon/models/
 
 --------------------------------------------------------------------------------
@@ -181,7 +150,7 @@ Możesz zarządzać głosami bezpośrednio w zakładce "Katalog Głosów / Voice
    - 💥 Krzyk lub dynamiczna akcja
    - 📱 Rozmowa telefoniczna
 4. Kliknij "Generuj Audio" na dole ekranu.
-5. Sprawdź certyfikat jakości ACX / EBU R128 w zakładce "Mastering ACX".
+5. Sprawdź raport jakości parametrów ACX / EBU R128 w zakładce "Mastering ACX".
 6. Kliknij "Eksportuj Audiobook" -> wybierz format M4B z rozdziałami!
 
 --------------------------------------------------------------------------------
