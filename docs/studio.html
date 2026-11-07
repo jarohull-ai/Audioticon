@@ -1045,108 +1045,108 @@
 
         <!-- Presets -->
         <div class="workspace-presets">
-          <button class="preset-btn active" id="btnPresetDirector" onclick="applyPreset('director')">🎬 Reżyser</button>
-          <button class="preset-btn" id="btnPresetWriter" onclick="applyPreset('writer')">✍️ Pisarz Zen</button>
-          <button class="preset-btn" id="btnPresetDaw" onclick="applyPreset('daw')">🎛️ Studio DAW</button>
+          <button class="preset-btn active" id="btnPresetDirector" onclick="applyPreset('director')" data-i18n="presetDirector" data-i18n-title="tipPresetDirector">🎬 Reżyser</button>
+          <button class="preset-btn" id="btnPresetWriter" onclick="applyPreset('writer')" data-i18n="presetWriter" data-i18n-title="tipPresetWriter">✍️ Pisarz Zen</button>
+          <button class="preset-btn" id="btnPresetDaw" onclick="applyPreset('daw')" data-i18n="presetDaw" data-i18n-title="tipPresetDaw">🎛️ Studio DAW</button>
         </div>
       </div>
 
       <div class="header-right">
         <!-- FFmpeg Missing Warning Chip (only shown when missing) -->
-        <div id="ffmpegMissingChip" style="display:none; align-items:center; gap:0.35rem; padding:0.3rem 0.65rem; border-radius:9999px; background:rgba(239, 68, 68, 0.15); border:1px solid #ef4444; color:#f87171; font-size:0.72rem; font-weight:800; cursor:pointer;" onclick="openFfmpegHelpModal()" title="Kliknij, aby zobaczyć instrukcję instalacji ffmpeg">
+        <div id="ffmpegMissingChip" style="display:none; align-items:center; gap:0.35rem; padding:0.3rem 0.65rem; border-radius:9999px; background:rgba(239, 68, 68, 0.15); border:1px solid #ef4444; color:#f87171; font-size:0.72rem; font-weight:800; cursor:pointer;" onclick="openFfmpegHelpModal()" data-i18n-title="tipFfmpeg">
           <span>⚠️</span>
-          <span>Brak FFmpeg</span>
+          <span data-i18n="ffmpegMissing">Brak FFmpeg</span>
         </div>
 
         <!-- Update Available Chip (only shown when newer version exists) -->
-        <a id="updateAvailableChip" href="https://github.com/jarohull-ai/Audioticon/releases/latest" target="_blank" style="display:none; text-decoration:none; align-items:center; gap:0.35rem; padding:0.3rem 0.65rem; border-radius:9999px; background:rgba(56, 189, 248, 0.15); border:1px solid #38bdf8; color:#38bdf8; font-size:0.72rem; font-weight:800; cursor:pointer;" title="Dostępna jest nowa wersja Audioticon! Kliknij, aby przejść do pobierania.">
+        <a id="updateAvailableChip" href="https://github.com/jarohull-ai/Audioticon/releases/latest" target="_blank" style="display:none; text-decoration:none; align-items:center; gap:0.35rem; padding:0.3rem 0.65rem; border-radius:9999px; background:rgba(56, 189, 248, 0.15); border:1px solid #38bdf8; color:#38bdf8; font-size:0.72rem; font-weight:800; cursor:pointer;" data-i18n-title="tipUpdate">
           <span>🚀</span>
-          <span id="updateChipText">Nowa wersja</span>
+          <span id="updateChipText" data-i18n="updateAvailable">Nowa wersja</span>
         </a>
 
         <!-- License Tier Badge -->
-        <div class="license-badge free" id="licenseBadge" onclick="openLicenseModal()" title="Zarządzaj licencją Gumroad (Solo / Studio)">
+        <div class="license-badge free" id="licenseBadge" onclick="openLicenseModal()" data-i18n-title="tipLicense">
           <span id="licenseBadgeIcon">🛡️</span>
           <span id="licenseBadgeText">FREE</span>
         </div>
 
         <!-- AudioCoin$ Wallet Chip -->
-        <div class="wallet-chip" onclick="openWalletModal()">
+        <div class="wallet-chip" onclick="openWalletModal()" data-i18n-title="tipWallet">
           <span>🪙</span>
           <span id="walletBalance">1,250 ACX$</span>
         </div>
 
         <!-- Theme Picker -->
-        <select class="theme-selector" id="themePicker" onchange="changeTheme(this.value)">
+        <select class="theme-selector" id="themePicker" onchange="changeTheme(this.value)" data-i18n-title="tipTheme">
           <option value="ice-cyber">💎 Ice Cyber Glass</option>
           <option value="cyber-neon">🌌 Cyber Neon Dark</option>
           <option value="obsidian-daw">🌑 Obsidian Slate DAW</option>
         </select>
 
         <!-- UI Language Selector (EN / PL) -->
-        <select class="theme-selector" id="uiLangPicker" onchange="changeUiLanguage(this.value)" style="min-width:75px; font-weight:700;" title="Wybierz język interfejsu / Choose UI Language">
+        <select class="theme-selector" id="uiLangPicker" onchange="changeUiLanguage(this.value)" style="min-width:75px; font-weight:700;" data-i18n-title="tipUiLang">
           <option value="en">🇬🇧 EN</option>
           <option value="pl">🇵🇱 PL</option>
         </select>
 
         <!-- Quick Start / Help Button -->
-        <button class="btn" onclick="openQuickStartModal()" id="btnQuickStartHeader" style="border-color:#eab308; color:#facc15; font-weight:700;" title="Instrukcja: Jak zacząć w 60 sekund / Quick Start Guide">
-          <span>❓</span> <span id="lblQuickStartBtn">Szybki Start</span>
+        <button class="btn" onclick="openQuickStartModal()" id="btnQuickStartHeader" style="border-color:#eab308; color:#facc15; font-weight:700;" data-i18n-title="tipQuickStart">
+          <span>❓</span> <span id="lblQuickStartBtn" data-i18n="quickStartBtn">Szybki Start</span>
         </button>
 
         <!-- Import Book / Manuscript Button -->
-        <button class="btn" onclick="openImportBookModal()" style="border-color:#34d399; color:#34d399; font-weight:700;" title="Importuj manuskrypt (.epub, .pdf, .docx, .doc, .odt, .rtf, .md, .txt)">
-          <span>📂</span> Importuj Książkę
+        <button class="btn" onclick="openImportBookModal()" style="border-color:#34d399; color:#34d399; font-weight:700;" data-i18n-title="tipImportBook">
+          <span>📂</span> <span data-i18n="btnImportBook">Importuj Książkę</span>
         </button>
 
         <!-- Style Transfer Lab Button -->
-        <button class="btn" onclick="openStyleLabModal()" style="border-color:var(--accent); color:var(--accent); font-weight:700;">
-          <span>🧬</span> Kreator Ekspresji
+        <button class="btn" onclick="openStyleLabModal()" style="border-color:var(--accent); color:var(--accent); font-weight:700;" data-i18n-title="tipStyleLab">
+          <span>🧬</span> <span data-i18n="btnStyleLab">Kreator Ekspresji</span>
         </button>
 
         <!-- Bielik Annotation-Only Director Button -->
-        <button class="btn" onclick="openDirectorModal()" style="border-color:var(--accent-secondary); color:var(--accent-secondary); font-weight:700;">
-          <span>🎬</span> Reżyser AI (Bielik)
+        <button class="btn" onclick="openDirectorModal()" style="border-color:var(--accent-secondary); color:var(--accent-secondary); font-weight:700;" data-i18n-title="tipDirector">
+          <span>🎬</span> <span data-i18n="btnDirector">Reżyser AI (Bielik)</span>
         </button>
 
         <!-- Multi-Voice Dialog Master Button -->
-        <button class="btn" onclick="openDialogMasterModal()" style="border-color:#a855f7; color:#c084fc; font-weight:700;" title="Automatycznie wykryj postacie i przypisz im głosy (Multi-Voice Casting)">
-          <span>🎭</span> Dialog Master
+        <button class="btn" onclick="openDialogMasterModal()" style="border-color:#a855f7; color:#c084fc; font-weight:700;" data-i18n-title="tipDialogMaster">
+          <span>🎭</span> <span data-i18n="btnDialogMaster">Dialog Master</span>
         </button>
 
         <!-- Tablet & Mobile Connect Button -->
-        <button class="btn" onclick="openTabletConnectModal()" style="border-color:#8b5cf6; color:#c084fc; font-weight:700;" title="Połącz z iPadem lub tabletem z Androidem w domowym Wi-Fi">
-          <span>📱</span> Tablet / Telefon
+        <button class="btn" onclick="openTabletConnectModal()" style="border-color:#8b5cf6; color:#c084fc; font-weight:700;" data-i18n-title="tipTablet">
+          <span>📱</span> <span data-i18n="btnTablet">Tablet / Telefon</span>
         </button>
 
         <!-- Subtitles & TikTok Karaoke Button -->
-        <button class="btn" onclick="openSubtitlesModal()" style="border-color:#38bdf8; color:#38bdf8; font-weight:700;" title="Eksportuj napisy i znaczniki czasowe (.SRT, .VTT, TikTok Karaoke)">
-          <span>💬</span> Napisy (.SRT)
+        <button class="btn" onclick="openSubtitlesModal()" style="border-color:#38bdf8; color:#38bdf8; font-weight:700;" data-i18n-title="tipSubtitles">
+          <span>💬</span> <span data-i18n="btnSubtitles">Napisy (.SRT)</span>
         </button>
 
         <!-- ACX & EBU R128 Loudness Normalizer Dashboard Button -->
-        <button class="btn" onclick="openAcxQcModal()" style="border-color:#10b981; color:#10b981; font-weight:700;" title="Otwórz Dashboard Normalizatora ACX / EBU R128 i Certyfikat Studyjny">
-          <span>📊</span> ACX Normy & Certyfikat
+        <button class="btn" onclick="openAcxQcModal()" style="border-color:#10b981; color:#10b981; font-weight:700;" data-i18n-title="tipAcxQc">
+          <span>📊</span> <span data-i18n="btnAcxQc">ACX Normy & Certyfikat</span>
         </button>
 
         <!-- Emoji Sound Designer Button -->
-        <button class="btn" onclick="openEmojiDesignerModal()" style="border-color:#ec4899; color:#ec4899; font-weight:700;" title="Projektuj własne dźwięki, filtry DSP, efekty SFX i głosy pod ikony i emotikony">
-          <span>🎨</span> Dźwięki pod Ikony
+        <button class="btn" onclick="openEmojiDesignerModal()" style="border-color:#ec4899; color:#ec4899; font-weight:700;" data-i18n-title="tipEmojiDesigner">
+          <span>🎨</span> <span data-i18n="btnEmojiDesigner">Dźwięki pod Ikony</span>
         </button>
 
         <!-- Tile Toggle Menu -->
-        <button class="btn" onclick="toggleTilePalette()">
-          <span>🪟</span> Kafelki
+        <button class="btn" onclick="toggleTilePalette()" data-i18n-title="tipTiles">
+          <span>🪟</span> <span data-i18n="btnTiles">Kafelki</span>
         </button>
 
         <!-- Render All / Preview -->
-        <button class="btn btn-primary" id="btnRenderAll" onclick="renderAllAudio()">
-          <span>⚡</span> Renderuj Audio
+        <button class="btn btn-primary" id="btnRenderAll" onclick="renderAllAudio()" data-i18n-title="tipRenderAll">
+          <span>⚡</span> <span data-i18n="btnRenderAll">Renderuj Audio</span>
         </button>
 
         <!-- Export Audiobook Modal Button -->
-        <button class="btn" onclick="openExportModal()" style="border-color:#f59e0b; color:#f59e0b; font-weight:700;" title="Eksportuj gotowy plik audiobooka (.m4b, .mp3, .wav)">
-          <span>📦</span> Eksportuj Audiobook
+        <button class="btn" onclick="openExportModal()" style="border-color:#f59e0b; color:#f59e0b; font-weight:700;" data-i18n-title="tipExport">
+          <span>📦</span> <span data-i18n="btnExportModal">Eksportuj Audiobook</span>
         </button>
       </div>
     </header>
@@ -1159,40 +1159,40 @@
         <!-- Visual Drag & Drop Overlay -->
         <div id="editorDropOverlay" style="display:none; position:absolute; inset:0; z-index:99; background:rgba(16, 185, 129, 0.15); backdrop-filter:blur(6px); border:3px dashed #10b981; border-radius:12px; pointer-events:none; align-items:center; justify-content:center; flex-direction:column; gap:0.5rem; text-shadow:0 2px 8px rgba(0,0,0,0.3);">
           <div style="font-size:2.8rem;">📥</div>
-          <div style="font-size:1.15rem; font-weight:800; color:#10b981;">Upuść plik książki lub manuskrypt tutaj!</div>
+          <div style="font-size:1.15rem; font-weight:800; color:#10b981;" data-i18n="dropOverlayTitle">Upuść plik książki lub manuskrypt tutaj!</div>
           <div style="font-size:0.82rem; color:var(--text); font-weight:500;">.epub · .pdf · .docx · .doc · .odt · .rtf · .md · .txt</div>
         </div>
         <div class="tile-header" onmousedown="initTileDrag(event, 'tile-editor')">
           <div class="tile-title" id="tileTitleManuscript">
             <span class="tile-icon">📝</span>
-            <span id="lblTileTitleManuscript">Edytor Blokowy (Notion)</span>
+            <span id="lblTileTitleManuscript" data-i18n="manuscriptTitle">Edytor Blokowy (Notion)</span>
             <span id="activeBookChapterBadge" style="font-size:0.68rem; color:#34d399; background:rgba(52,211,153,0.12); padding:0.12rem 0.45rem; border-radius:4px; margin-left:0.4rem; display:none;"></span>
           </div>
           <div class="tile-actions">
-            <button class="tile-btn" title="Importuj plik książki (.epub, .pdf, .docx, .doc, .odt, .rtf, .md, .txt)" onclick="openImportBookModal()" style="width:auto; padding:0 0.5rem; font-size:0.7rem; color:#34d399; border:1px solid rgba(52,211,153,0.35);">📂 Wgraj plik</button>
-            <button class="tile-btn" title="Zwiń/Rozwiń" onclick="minimizeTile('tile-editor')">━</button>
-            <button class="tile-btn" title="Maksymalizuj" onclick="maximizeTile('tile-editor')">⤢</button>
+            <button class="tile-btn" data-i18n-title="tipUploadFile" onclick="openImportBookModal()" style="width:auto; padding:0 0.5rem; font-size:0.7rem; color:#34d399; border:1px solid rgba(52,211,153,0.35);"><span data-i18n="lblUploadFile">📂 Wgraj plik</span></button>
+            <button class="tile-btn" data-i18n-title="tipMinimize" onclick="minimizeTile('tile-editor')">━</button>
+            <button class="tile-btn" data-i18n-title="tipMaximize" onclick="maximizeTile('tile-editor')">⤢</button>
           </div>
         </div>
         <div class="tile-body">
           <div class="block-editor-toolbar">
             <div class="emoji-pill-bar" id="emojiPillBar">
-              <span class="emoji-pill" onclick="insertEmojiIntoActive('🤫')">🤫 Szept</span>
-              <span class="emoji-pill" onclick="insertEmojiIntoActive('🪖')">🪖 Szept Akcji</span>
-              <span class="emoji-pill" onclick="insertEmojiIntoActive('💋')">💋 Do Ucha</span>
-              <span class="emoji-pill" onclick="insertEmojiIntoActive('[rozkaz]')">💥 Krzyk/Rozkaz</span>
-              <span class="emoji-pill" onclick="insertEmojiIntoActive('[wolanie]')">📢 Wołanie</span>
-              <span class="emoji-pill" onclick="insertEmojiIntoActive('🎵')">🎵 Śpiew</span>
-              <span class="emoji-pill" onclick="insertEmojiIntoActive('📞')">📞 Telefon</span>
-              <span class="emoji-pill" onclick="insertEmojiIntoActive('🏛️')">🏛️ Katedra</span>
-              <span class="emoji-pill" onclick="insertEmojiIntoActive('🛑')">🛑 Pauza 0.8s</span>
-              <span class="emoji-pill" onclick="insertEmojiIntoActive('🌧️')">🌧️ Deszcz</span>
-              <span class="emoji-pill" onclick="openStyleLabModal()" style="border-color:var(--accent); color:var(--accent); font-weight:700;">+ 🧬 Własny Wzorzec</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('🤫')" data-i18n="pillWhisper" data-i18n-title="tipWhisper">🤫 Szept</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('🪖')" data-i18n="pillActionWhisper" data-i18n-title="tipActionWhisper">🪖 Szept Akcji</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('💋')" data-i18n="pillInEar" data-i18n-title="tipInEar">💋 Do Ucha</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('[rozkaz]')" data-i18n="pillShout" data-i18n-title="tipShout">💥 Krzyk/Rozkaz</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('[wolanie]')" data-i18n="pillCalling" data-i18n-title="tipCalling">📢 Wołanie</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('🎵')" data-i18n="pillSinging" data-i18n-title="tipSinging">🎵 Śpiew</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('📞')" data-i18n="pillPhone" data-i18n-title="tipPhone">📞 Telefon</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('🏛️')" data-i18n="pillCathedral" data-i18n-title="tipCathedral">🏛️ Katedra</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('🛑')" data-i18n="pillPause" data-i18n-title="tipPause">🛑 Pauza 0.8s</span>
+              <span class="emoji-pill" onclick="insertEmojiIntoActive('🌧️')" data-i18n="pillRain" data-i18n-title="tipRain">🌧️ Deszcz</span>
+              <span class="emoji-pill" onclick="openStyleLabModal()" style="border-color:var(--accent); color:var(--accent); font-weight:700;" data-i18n="pillCustomPreset" data-i18n-title="tipStyleLab">+ 🧬 Własny Wzorzec</span>
               <span id="customEmojiPillsSlot" style="display:contents;"></span>
-              <span class="emoji-pill" onclick="openEmojiDesignerModal()" style="border-color:#ec4899; color:#ec4899; font-weight:700;" title="Zaprojektuj nowy dźwięk pod ikonę lub emotikonę">+ 🎨 Projektuj Dźwięk Ikony</span>
+              <span class="emoji-pill" onclick="openEmojiDesignerModal()" style="border-color:#ec4899; color:#ec4899; font-weight:700;" data-i18n="pillSoundDesign" data-i18n-title="tipDesignerPill">+ 🎨 Projektuj Dźwięk Ikony</span>
             </div>
             <div style="font-size:0.75rem; color:var(--text-muted);">
-              Słowa: <b id="wordCount">38</b> | Czas: <b id="estDuration">0:14s</b>
+              <span data-i18n="lblWords">Słowa:</span> <b id="wordCount">38</b> | <span data-i18n="lblDuration">Czas:</span> <b id="estDuration">0:14s</b>
             </div>
           </div>
 
@@ -1205,14 +1205,14 @@
                 </div>
                 <div class="block-meta">#1 · 18 słów</div>
               </div>
-              <textarea class="block-content" onfocus="selectBlock(1)" oninput="onBlockInput(1)">W ciemnym zaułku Nowego Światu deszcz bębnił o blaszany dach. 🌧️ Jan zatrzymał się gwałtownie i spojrzał w mrok.</textarea>
+              <textarea class="block-content" data-i18n-placeholder="blockPlaceholder" placeholder="Wpisz treść akapitu lub dialogu..." onfocus="selectBlock(1)" oninput="onBlockInput(1)">W ciemnym zaułku Nowego Światu deszcz bębnił o blaszany dach. 🌧️ Jan zatrzymał się gwałtownie i spojrzał w mrok.</textarea>
               <div class="block-footer">
                 <span class="block-dsp-tag">DSP: Czysty · Głos: pl_PL-darkman-medium (Piper)</span>
                 <div class="block-actions">
-                  <button class="btn-icon-xs btn-preview-block" title="Odtwórz ten blok" onclick="previewBlock(1)">▶</button>
-                  <button class="btn-icon-xs btn-punchin-block" title="Dograj lektora / AI Retake (Punch-In)" onclick="openPunchInModal(1)">🔴</button>
-                  <button class="btn-icon-xs" title="Duplikuj" onclick="duplicateBlock(1)">📋</button>
-                  <button class="btn-icon-xs" title="Usuń" onclick="deleteBlock(1)">🗑️</button>
+                  <button class="btn-icon-xs btn-preview-block" data-i18n-title="tipPlayBlock" title="Odtwórz ten blok" onclick="previewBlock(1)">▶</button>
+                  <button class="btn-icon-xs btn-punchin-block" data-i18n-title="tipPunchIn" title="Dograj lektora / AI Retake (Punch-In)" onclick="openPunchInModal(1)">🔴</button>
+                  <button class="btn-icon-xs" data-i18n-title="tipDuplicate" title="Duplikuj blok" onclick="duplicateBlock(1)">📋</button>
+                  <button class="btn-icon-xs" data-i18n-title="tipDelete" title="Usuń blok" onclick="deleteBlock(1)">🗑️</button>
                 </div>
               </div>
             </div>
@@ -1225,14 +1225,14 @@
                 </div>
                 <div class="block-meta">#2 · 12 słów</div>
               </div>
-              <textarea class="block-content" onfocus="selectBlock(2)" oninput="onBlockInput(2)">🤫 Nie ruszaj się! — wyszeptała przez słuchawkę. 📞 — Oni już tu są.</textarea>
+              <textarea class="block-content" data-i18n-placeholder="blockPlaceholder" placeholder="Wpisz treść akapitu lub dialogu..." onfocus="selectBlock(2)" oninput="onBlockInput(2)">🤫 Nie ruszaj się! — wyszeptała przez słuchawkę. 📞 — Oni już tu są.</textarea>
               <div class="block-footer">
                 <span class="block-dsp-tag">DSP: 📞 Telefon + 🤫 Szept · Głos: pl_PL-gosia-medium (Piper)</span>
                 <div class="block-actions">
-                  <button class="btn-icon-xs btn-preview-block" title="Odtwórz ten blok" onclick="previewBlock(2)">▶</button>
-                  <button class="btn-icon-xs btn-punchin-block" title="Dograj lektora / AI Retake (Punch-In)" onclick="openPunchInModal(2)">🔴</button>
-                  <button class="btn-icon-xs" title="Duplikuj" onclick="duplicateBlock(2)">📋</button>
-                  <button class="btn-icon-xs" title="Usuń" onclick="deleteBlock(2)">🗑️</button>
+                  <button class="btn-icon-xs btn-preview-block" data-i18n-title="tipPlayBlock" title="Odtwórz ten blok" onclick="previewBlock(2)">▶</button>
+                  <button class="btn-icon-xs btn-punchin-block" data-i18n-title="tipPunchIn" title="Dograj lektora / AI Retake (Punch-In)" onclick="openPunchInModal(2)">🔴</button>
+                  <button class="btn-icon-xs" data-i18n-title="tipDuplicate" title="Duplikuj blok" onclick="duplicateBlock(2)">📋</button>
+                  <button class="btn-icon-xs" data-i18n-title="tipDelete" title="Usuń blok" onclick="deleteBlock(2)">🗑️</button>
                 </div>
               </div>
             </div>
@@ -1245,20 +1245,20 @@
                 </div>
                 <div class="block-meta">#3 · 8 słów</div>
               </div>
-              <textarea class="block-content" onfocus="selectBlock(3)" oninput="onBlockInput(3)">💥 Za późno! — krzyknął, zatrzaskując pancerne drzwi krypty. 🏛️</textarea>
+              <textarea class="block-content" data-i18n-placeholder="blockPlaceholder" placeholder="Wpisz treść akapitu lub dialogu..." onfocus="selectBlock(3)" oninput="onBlockInput(3)">💥 Za późno! — krzyknął, zatrzaskując pancerne drzwi krypty. 🏛️</textarea>
               <div class="block-footer">
                 <span class="block-dsp-tag">DSP: 🏛️ Katedra Reverb · Głos: Antoni (EdgeTTS)</span>
                 <div class="block-actions">
-                  <button class="btn-icon-xs btn-preview-block" title="Odtwórz ten blok" onclick="previewBlock(3)">▶</button>
-                  <button class="btn-icon-xs btn-punchin-block" title="Dograj lektora / AI Retake (Punch-In)" onclick="openPunchInModal(3)">🔴</button>
-                  <button class="btn-icon-xs" title="Duplikuj" onclick="duplicateBlock(3)">📋</button>
-                  <button class="btn-icon-xs" title="Usuń" onclick="deleteBlock(3)">🗑️</button>
+                  <button class="btn-icon-xs btn-preview-block" data-i18n-title="tipPlayBlock" title="Odtwórz ten blok" onclick="previewBlock(3)">▶</button>
+                  <button class="btn-icon-xs btn-punchin-block" data-i18n-title="tipPunchIn" title="Dograj lektora / AI Retake (Punch-In)" onclick="openPunchInModal(3)">🔴</button>
+                  <button class="btn-icon-xs" data-i18n-title="tipDuplicate" title="Duplikuj blok" onclick="duplicateBlock(3)">📋</button>
+                  <button class="btn-icon-xs" data-i18n-title="tipDelete" title="Usuń blok" onclick="deleteBlock(3)">🗑️</button>
                 </div>
               </div>
             </div>
           </div>
 
-          <button class="add-block-btn" onclick="addNewBlock()" style="margin-top:0.75rem;">
+          <button class="add-block-btn" onclick="addNewBlock()" style="margin-top:0.75rem;" data-i18n="addBlockBtn">
             + Dodaj nowy blok narracyjny lub dialog
           </button>
         </div>
@@ -1270,16 +1270,16 @@
         <div class="tile-header" onmousedown="initTileDrag(event, 'tile-inspector')">
           <div class="tile-title">
             <span class="tile-icon">🎛️</span>
-            <span>Inspektor Bloku</span>
+            <span data-i18n="inspectorTitle">Inspektor Bloku</span>
           </div>
           <div class="tile-actions">
-            <button class="tile-btn" title="Zwiń/Rozwiń" onclick="minimizeTile('tile-inspector')">━</button>
+            <button class="tile-btn" data-i18n-title="tipMinimize" title="Zwiń / Rozwiń" onclick="minimizeTile('tile-inspector')">━</button>
           </div>
         </div>
         <div class="tile-body">
           <div class="inspector-group">
             <div class="inspector-label">
-              <span>Lektor / Silnik</span>
+              <span data-i18n="lblVoiceEngine">Lektor / Silnik</span>
               <span style="color:var(--accent);">Piper ONNX & Kokoro-82M</span>
             </div>
             <select class="inspector-select" id="insVoice" onchange="updateSelectedBlock()">
@@ -1305,7 +1305,7 @@
 
           <div class="inspector-group">
             <div class="inspector-label">
-              <span>Efekt DSP / Styl Ekspresji</span>
+              <span data-i18n="lblDspEffect">Efekt DSP / Styl Ekspresji</span>
               <span id="dspLabel">Czysty wokal</span>
             </div>
             <select class="inspector-select" id="insDsp" onchange="updateSelectedBlock()">
@@ -1328,7 +1328,7 @@
 
           <div class="inspector-group">
             <div class="inspector-label">
-              <span>Tempo (Rate)</span>
+              <span data-i18n="lblRate">Tempo (Rate)</span>
               <span class="slider-val" id="rateVal">1.00x</span>
             </div>
             <div class="slider-row">
@@ -1344,18 +1344,18 @@
         <div class="tile-header" onmousedown="initTileDrag(event, 'tile-transport')">
           <div class="tile-title">
             <span class="tile-icon">🔊</span>
-            <span>Master & Odsłuch</span>
+            <span data-i18n="transportTitle">Master & Odsłuch</span>
           </div>
           <div class="tile-actions">
-            <button class="tile-btn" title="Zwiń/Rozwiń" onclick="minimizeTile('tile-transport')">━</button>
+            <button class="tile-btn" data-i18n-title="tipMinimize" title="Zwiń / Rozwiń" onclick="minimizeTile('tile-transport')">━</button>
           </div>
         </div>
         <div class="tile-body">
           <div class="transport-controls-grid">
             <div class="transport-btn-row">
-              <button class="btn" onclick="seekOffset(-5)">⏪ -5s</button>
-              <button class="transport-btn-large" id="playMasterBtn" onclick="toggleMasterPlay()">▶</button>
-              <button class="btn" onclick="seekOffset(5)">+5s ⏩</button>
+              <button class="btn" data-i18n-title="tipRewind5" onclick="seekOffset(-5)">⏪ -5s</button>
+              <button class="transport-btn-large" id="playMasterBtn" data-i18n-title="tipPlayMaster" onclick="toggleMasterPlay()">▶</button>
+              <button class="btn" data-i18n-title="tipForward5" onclick="seekOffset(5)">+5s ⏩</button>
             </div>
 
             <!-- Dual Stereo VU Meter -->
@@ -1375,7 +1375,7 @@
             </div>
 
             <!-- ACX / EBU R128 Quick Strip -->
-            <div id="acxComplianceStrip" onclick="openAcxQcModal()" style="display:flex; justify-content:space-between; align-items:center; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:6px; padding:0.35rem 0.6rem; font-size:0.75rem; cursor:pointer;" title="Kliknij, aby otworzyć pełny audyt ACX / EBU R128 i pobrać certyfikat">
+            <div id="acxComplianceStrip" onclick="openAcxQcModal()" style="display:flex; justify-content:space-between; align-items:center; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:6px; padding:0.35rem 0.6rem; font-size:0.75rem; cursor:pointer;" data-i18n-title="tipAcxStrip" title="Kliknij, aby otworzyć pełny audyt ACX / EBU R128 i pobrać certyfikat">
               <div style="display:flex; align-items:center; gap:0.4rem;">
                 <span id="acxBadgeIcon">✅</span>
                 <span style="font-weight:700;">ACX Master:</span>
@@ -1383,13 +1383,13 @@
               </div>
               <div style="display:flex; align-items:center; gap:0.5rem;">
                 <span id="acxPeakValue" style="font-family:'Fira Code',monospace; font-size:0.7rem; color:var(--text-muted);">Peak: -3.2 dBFS</span>
-                <span style="font-size:0.68rem; color:#0284c7; text-decoration:underline; font-weight:600;">Raport & Certyfikat ➔</span>
+                <span style="font-size:0.68rem; color:#0284c7; text-decoration:underline; font-weight:600;" data-i18n="lblAcxReport">Raport & Certyfikat ➔</span>
               </div>
             </div>
 
             <!-- Live Word-Level Karaoke Prompter -->
             <div id="karaokePromptBox" style="margin-top:0.4rem; padding:0.45rem 0.65rem; border-radius:6px; background:var(--surface-elev); border:1px solid var(--border); font-size:0.74rem; text-align:center; min-height:2.2rem; display:flex; align-items:center; justify-content:center; color:var(--text-main); line-height:1.4;">
-              <span id="karaokeCurrentText">💬 <i>Napisy i słowa pojawią się podczas odtwarzania...</i></span>
+              <span id="karaokeCurrentText" data-i18n="karaokeDefault">💬 <i>Napisy i słowa pojawią się podczas odtwarzania...</i></span>
             </div>
           </div>
         </div>
@@ -1401,14 +1401,14 @@
         <div class="tile-header" onmousedown="initTileDrag(event, 'tile-timeline')">
           <div class="tile-title">
             <span class="tile-icon">🎞️</span>
-            <span>Wielościeżkowa Oś Czasu (Waveform & Punch-In)</span>
+            <span id="lblTileTitleTimeline" data-i18n="timelineTitle">Wielościeżkowa Oś Czasu (Waveform & Punch-In)</span>
           </div>
           <div class="tile-actions">
             <div class="timecode-display" id="timecodeDisplay">00:00:00.000 / 00:00:14.800</div>
-            <button class="tile-btn" title="Odsłuchaj tylko ten fragment" onclick="playCurrentSegmentSolo()">🎯 Solo</button>
-            <button class="tile-btn" title="Odśwież falę dźwiękową z serwera" onclick="fetchLatestWaveformData()">🌊 Fala</button>
-            <button class="tile-btn" title="Zwiń/Rozwiń" onclick="minimizeTile('tile-timeline')">━</button>
-            <button class="tile-btn" title="Maksymalizuj" onclick="maximizeTile('tile-timeline')">⤢</button>
+            <button class="tile-btn" data-i18n-title="tipPlaySolo" title="Odsłuchaj tylko ten fragment" onclick="playCurrentSegmentSolo()"><span data-i18n="lblSolo">🎯 Solo</span></button>
+            <button class="tile-btn" data-i18n-title="tipWaveform" title="Odśwież falę dźwiękową z serwera" onclick="fetchLatestWaveformData()"><span data-i18n="lblWaveform">🌊 Fala</span></button>
+            <button class="tile-btn" data-i18n-title="tipMinimize" title="Zwiń / Rozwiń" onclick="minimizeTile('tile-timeline')">━</button>
+            <button class="tile-btn" data-i18n-title="tipMaximize" title="Maksymalizuj" onclick="maximizeTile('tile-timeline')">⤢</button>
           </div>
         </div>
         <div class="tile-body" style="padding:0.5rem;">
@@ -1429,7 +1429,7 @@
               <!-- Track 1: Voice / Lektor with Dynamic Waveform Canvas -->
               <div class="track-row track-voice">
                 <div class="track-label">
-                  <span>🎙️ Lektor</span>
+                  <span data-i18n="trackVoice">🎙️ Lektor</span>
                 </div>
                 <div class="track-lane track-lane-voice" id="trackLaneVoice" onclick="onTimelineClick(event)">
                   <canvas id="timelineWaveformCanvas" class="waveform-canvas"></canvas>
@@ -1450,7 +1450,7 @@
               <!-- Track 2: SFX / Foley -->
               <div class="track-row">
                 <div class="track-label">
-                  <span>🔊 SFX Foley</span>
+                  <span data-i18n="trackSfx">🔊 SFX Foley</span>
                 </div>
                 <div class="track-lane" onclick="onTimelineClick(event)">
                   <div class="audio-clip clip-sfx" style="left: 180px; width: 60px;">
@@ -1465,7 +1465,7 @@
               <!-- Track 3: Ambience -->
               <div class="track-row">
                 <div class="track-label">
-                  <span>🌊 Tło Ambient</span>
+                  <span data-i18n="trackAmbient">🌊 Tło Ambient</span>
                 </div>
                 <div class="track-lane" onclick="onTimelineClick(event)">
                   <div class="audio-clip clip-ambient" style="left: 10px; width: 730px;">
@@ -2893,10 +2893,120 @@
     // ==========================================
     const I18N = {
       en: {
+        // Presets & Modes
         presetDirector: "🎬 Director",
         presetWriter: "✍️ Zen Writer",
         presetDaw: "🎛️ DAW Studio",
+        tipPresetDirector: "Director Mode: Full block editor, multi-voice dialogs, and audio timeline",
+        tipPresetWriter: "Zen Writer Mode: Distraction-free manuscript focus",
+        tipPresetDaw: "DAW Studio Mode: Waveform analysis, DSP effects, and multi-track mastering",
+
+        // Chips & Badges
+        ffmpegMissing: "Missing FFmpeg",
+        tipFfmpeg: "Click to view FFmpeg installation instructions",
+        updateAvailable: "New Version",
+        tipUpdate: "A new version of Audioticon is available! Click to download.",
+        tipLicense: "Manage Gumroad license (Solo / Studio)",
+        tipWallet: "AudioCoin$ Production Balance",
+        tipTheme: "Choose interface color theme",
+        tipUiLang: "Choose UI Language / Wybierz język interfejsu",
+
+        // Header Action Buttons
         quickStartBtn: "Quick Start",
+        tipQuickStart: "Quick Start in 60 seconds guide",
+        btnImportBook: "Import Manuscript",
+        tipImportBook: "Import manuscript (.epub, .pdf, .docx, .doc, .odt, .rtf, .md, .txt)",
+        btnStyleLab: "Expression Lab",
+        tipStyleLab: "Voice laboratory, cloning and style transfer",
+        btnDirector: "AI Director (Bielik)",
+        tipDirector: "Automated emotion direction with Polish Bielik LLM",
+        btnDialogMaster: "Dialog Master",
+        tipDialogMaster: "Auto-detect characters and assign distinct voices (Multi-Voice Casting)",
+        btnTablet: "Tablet / Mobile",
+        tipTablet: "Connect with iPad or Android tablet over local Wi-Fi",
+        btnSubtitles: "Subtitles (.SRT)",
+        tipSubtitles: "Export subtitles and word timestamps (.SRT, .VTT, TikTok Karaoke)",
+        btnAcxQc: "ACX Compliance & QC",
+        tipAcxQc: "Open ACX / EBU R128 Normalizer Dashboard & Studio Certificate",
+        btnEmojiDesigner: "Emoji Sounds",
+        tipEmojiDesigner: "Design custom sounds, DSP filters, SFX, and voices for icons and emojis",
+        btnTiles: "Tiles",
+        tipTiles: "Toggle panels and tile visibility",
+        btnRenderAll: "Render Audio",
+        tipRenderAll: "Render and refresh entire timeline",
+        btnExportModal: "Export Audiobook",
+        tipExport: "Export finished audiobook file (.m4b, .mp3, .wav, .flac)",
+
+        // Manuscript Editor
+        dropOverlayTitle: "Drop manuscript or book file here!",
+        manuscriptTitle: "Notion Block Manuscript",
+        lblUploadFile: "📂 Upload File",
+        tipUploadFile: "Import book file (.epub, .pdf, .docx, .doc, .odt, .rtf, .md, .txt)",
+        tipMinimize: "Minimize / Expand",
+        tipMaximize: "Maximize",
+        lblWords: "Words:",
+        lblDuration: "Duration:",
+        addBlockBtn: "+ Add new narrative or dialogue block",
+        blockPlaceholder: "Type paragraph or dialogue text...",
+
+        // Emoji Bar Pills & Tooltips
+        pillWhisper: "🤫 Whisper",
+        tipWhisper: "Insert narrative whisper",
+        pillActionWhisper: "🪖 Action Whisper",
+        tipActionWhisper: "Insert tense action whisper",
+        pillInEar: "💋 In Ear",
+        tipInEar: "Insert intimate whisper",
+        pillShout: "💥 Shout/Order",
+        tipShout: "Insert shout or command",
+        pillCalling: "📢 Calling",
+        tipCalling: "Insert distant call",
+        pillSinging: "🎵 Singing",
+        tipSinging: "Insert singing voice tone",
+        pillPhone: "📞 Phone",
+        tipPhone: "Insert telephone bandpass filter",
+        pillCathedral: "🏛️ Cathedral",
+        tipCathedral: "Insert cathedral reverberation",
+        pillPause: "🛑 Pause 0.8s",
+        tipPause: "Insert 0.8s breath pause",
+        pillRain: "🌧️ Rain",
+        tipRain: "Insert background rain sound",
+        pillCustomPreset: "+ 🧬 Custom Preset",
+        pillSoundDesign: "+ 🎨 Design Sound",
+        tipDesignerPill: "Design a new sound for an icon or emoji",
+
+        // Block Action Buttons Tooltips
+        tipPlayBlock: "Play this block",
+        tipPunchIn: "Record voiceover / AI Retake (Punch-In)",
+        tipDuplicate: "Duplicate block",
+        tipDelete: "Delete block",
+
+        // Inspector
+        inspectorTitle: "Block Inspector",
+        lblVoiceEngine: "Voice / Engine",
+        lblDspEffect: "DSP Effect / Expression Style",
+        lblCleanVocal: "Clean vocal",
+        lblRate: "Speed (Rate)",
+
+        // Master Transport & VU Meter
+        transportTitle: "Master & Audio Monitoring",
+        tipRewind5: "Rewind 5 seconds",
+        tipPlayMaster: "Play / Pause Master",
+        tipForward5: "Forward 5 seconds",
+        tipAcxStrip: "Click to open full ACX / EBU R128 audit and download certificate",
+        lblAcxReport: "Report & Certificate ➔",
+        karaokeDefault: "💬 <i>Subtitles and words will appear during playback...</i>",
+
+        // Timeline
+        timelineTitle: "Multi-Track Timeline (Waveform & Punch-In)",
+        lblSolo: "🎯 Solo",
+        tipPlaySolo: "Play only this fragment",
+        lblWaveform: "🌊 Waveform",
+        tipWaveform: "Refresh waveform from server",
+        trackVoice: "🎙️ Voiceover",
+        trackSfx: "🔊 SFX Foley",
+        trackAmbient: "🌊 Ambient Track",
+
+        // Quick Start Modal
         qsTitle: "Welcome to Audioticon Studio — Quick Start in 60s",
         qsSubtitle: "Audioticon is a lightweight, local audio drama and audiobook workstation. Direct with simple emojis without subscriptions and without cloud leaks.",
         qsStep1Title: "1. Write or Import Manuscript",
@@ -2906,39 +3016,167 @@
         qsStep3Title: "3. Master & Export (Audible ACX / EBU R128)",
         qsStep3Desc: "Click <strong>▶</strong> on any block to preview. When ready, click <strong>Export</strong> to create an M4B with chapters and cover art, or a 24-bit lossless FLAC master.",
         qsDontShow: "Don't show on startup",
-        qsBtnStart: "Got it, let's create! 🚀",
-        manuscriptTitle: "Notion Block Manuscript",
-        addBlockBtn: "➕ Add Block",
-        renderAllBtn: "<span>⚡</span> Render Timeline",
-        inspectorTitle: "Voice & DSP Inspector",
-        timelineTitle: "Multi-Track Timeline (Waveform & Punch-In)",
-        transportTitle: "Master & Audio Monitoring"
+        qsBtnStart: "Got it, let's create! 🚀"
       },
       pl: {
+        // Presets & Modes
         presetDirector: "🎬 Reżyser",
         presetWriter: "✍️ Pisarz Zen",
         presetDaw: "🎛️ Studio DAW",
+        tipPresetDirector: "Tryb Reżysera: Pełny edytor blokowy, obsada postaci i oś czasu audio",
+        tipPresetWriter: "Tryb Pisarza Zen: Skupienie na tekście i narracji bez rozpraszaczy",
+        tipPresetDaw: "Tryb Studio DAW: Analiza spektrogramu, efekty DSP i mastering wielościeżkowy",
+
+        // Chips & Badges
+        ffmpegMissing: "Brak FFmpeg",
+        tipFfmpeg: "Kliknij, aby zobaczyć instrukcję instalacji ffmpeg",
+        updateAvailable: "Nowa wersja",
+        tipUpdate: "Dostępna jest nowa wersja Audioticon! Kliknij, aby przejść do pobierania.",
+        tipLicense: "Zarządzaj licencją Gumroad (Solo / Studio)",
+        tipWallet: "Stan konta produkcyjnego AudioCoin$",
+        tipTheme: "Wybierz motyw kolorystyczny interfejsu",
+        tipUiLang: "Wybierz język interfejsu / Choose UI Language",
+
+        // Header Action Buttons
         quickStartBtn: "Szybki Start",
+        tipQuickStart: "Instrukcja: Jak zacząć w 60 sekund",
+        btnImportBook: "Importuj Książkę",
+        tipImportBook: "Importuj manuskrypt (.epub, .pdf, .docx, .doc, .odt, .rtf, .md, .txt)",
+        btnStyleLab: "Kreator Ekspresji",
+        tipStyleLab: "Laboratorium głosu, klonowanie i transfer stylu ekspresji",
+        btnDirector: "Reżyser AI (Bielik)",
+        tipDirector: "Automatyczna reżyseria emocji polskim modelem LLM Bielik",
+        btnDialogMaster: "Dialog Master",
+        tipDialogMaster: "Automatycznie wykryj postacie i przypisz im głosy (Multi-Voice Casting)",
+        btnTablet: "Tablet / Telefon",
+        tipTablet: "Połącz z iPadem lub tabletem z Androidem w domowym Wi-Fi",
+        btnSubtitles: "Napisy (.SRT)",
+        tipSubtitles: "Eksportuj napisy i znaczniki czasowe (.SRT, .VTT, TikTok Karaoke)",
+        btnAcxQc: "ACX Normy & Certyfikat",
+        tipAcxQc: "Otwórz Dashboard Normalizatora ACX / EBU R128 i Certyfikat Studyjny",
+        btnEmojiDesigner: "Dźwięki pod Ikony",
+        tipEmojiDesigner: "Projektuj własne dźwięki, filtry DSP, efekty SFX i głosy pod ikony i emotikony",
+        btnTiles: "Kafelki",
+        tipTiles: "Przełącz widoczność paneli i kafelków",
+        btnRenderAll: "Renderuj Audio",
+        tipRenderAll: "Renderuj i odśwież całą oś czasu",
+        btnExportModal: "Eksportuj Audiobook",
+        tipExport: "Eksportuj gotowy plik audiobooka (.m4b, .mp3, .wav, .flac)",
+
+        // Manuscript Editor
+        dropOverlayTitle: "Upuść plik książki lub manuskrypt tutaj!",
+        manuscriptTitle: "Edytor Blokowy (Notion)",
+        lblUploadFile: "📂 Wgraj plik",
+        tipUploadFile: "Importuj plik książki (.epub, .pdf, .docx, .doc, .odt, .rtf, .md, .txt)",
+        tipMinimize: "Zwiń / Rozwiń",
+        tipMaximize: "Maksymalizuj",
+        lblWords: "Słowa:",
+        lblDuration: "Czas:",
+        addBlockBtn: "+ Dodaj nowy blok narracyjny lub dialog",
+        blockPlaceholder: "Wpisz treść akapitu lub dialogu...",
+
+        // Emoji Bar Pills & Tooltips
+        pillWhisper: "🤫 Szept",
+        tipWhisper: "Wstaw szept lektorski narracyjny",
+        pillActionWhisper: "🪖 Szept Akcji",
+        tipActionWhisper: "Wstaw dynamiczny szept akcji",
+        pillInEar: "💋 Do Ucha",
+        tipInEar: "Wstaw intymny szept do ucha",
+        pillShout: "💥 Krzyk/Rozkaz",
+        tipShout: "Wstaw krzyk lub rozkaz",
+        pillCalling: "📢 Wołanie",
+        tipCalling: "Wstaw wołanie z oddali",
+        pillSinging: "🎵 Śpiew",
+        tipSinging: "Wstaw śpiewny ton głosu",
+        pillPhone: "📞 Telefon",
+        tipPhone: "Wstaw filtr pasmowy telefonu",
+        pillCathedral: "🏛️ Katedra",
+        tipCathedral: "Wstaw duży pogłos katedralny",
+        pillPause: "🛑 Pauza 0.8s",
+        tipPause: "Wstaw pauzę oddechową 0.8s",
+        pillRain: "🌧️ Deszcz",
+        tipRain: "Wstaw deszcz w tle",
+        pillCustomPreset: "+ 🧬 Własny Wzorzec",
+        pillSoundDesign: "+ 🎨 Projektuj Dźwięk Ikony",
+        tipDesignerPill: "Zaprojektuj nowy dźwięk pod ikonę lub emotikonę",
+
+        // Block Action Buttons Tooltips
+        tipPlayBlock: "Odtwórz ten blok",
+        tipPunchIn: "Dograj lektora / AI Retake (Punch-In)",
+        tipDuplicate: "Duplikuj blok",
+        tipDelete: "Usuń blok",
+
+        // Inspector
+        inspectorTitle: "Inspektor Bloku",
+        lblVoiceEngine: "Lektor / Silnik",
+        lblDspEffect: "Efekt DSP / Styl Ekspresji",
+        lblCleanVocal: "Czysty wokal",
+        lblRate: "Tempo (Rate)",
+
+        // Master Transport & VU Meter
+        transportTitle: "Master & Odsłuch",
+        tipRewind5: "Cofnij o 5 sekund",
+        tipPlayMaster: "Odtwórz / Wstrzymaj Master",
+        tipForward5: "Przewiń o 5 sekund",
+        tipAcxStrip: "Kliknij, aby otworzyć pełny audyt ACX / EBU R128 i pobrać certyfikat",
+        lblAcxReport: "Raport & Certyfikat ➔",
+        karaokeDefault: "💬 <i>Napisy i słowa pojawią się podczas odtwarzania...</i>",
+
+        // Timeline
+        timelineTitle: "Wielościeżkowa Oś Czasu (Waveform & Punch-In)",
+        lblSolo: "🎯 Solo",
+        tipPlaySolo: "Odsłuchaj tylko ten fragment",
+        lblWaveform: "🌊 Fala",
+        tipWaveform: "Odśwież falę dźwiękową z serwera",
+        trackVoice: "🎙️ Lektor",
+        trackSfx: "🔊 SFX Foley",
+        trackAmbient: "🌊 Tło Ambient",
+
+        // Quick Start Modal
         qsTitle: "Witaj w Audioticon Studio — Jak zacząć w 60 sekund",
         qsSubtitle: "Audioticon to lekka, lokalna stacja robocza do reżyserii i produkcji audiobooków. Przekształcaj tekst w słuchowiska za pomocą prostych emotikonów, bez abonamentu i bez chmury.",
         qsStep1Title: "1. Pisz lub Wgraj książkę",
-        qsStep1Desc: "Pisz bezpośrednio w blokach jak w Notion, albo kliknij <strong>Importuj Książkę</strong> i przeciągnij plik manuskryptu (obsługujemy .epub, .pdf, .docx, .odt, .txt).",
+        qsStep1Desc: "Pisz bezpośrednio w blokach jak w Notion, albo kliknij <strong>Importuj Książkę</strong> i przeciągnij plik manuskryptu (obsługujemy formaty <code>.epub</code>, <code>.pdf</code>, <code>.docx</code>, <code>.odt</code>, <code>.txt</code>).",
         qsStep2Title: "2. Reżyseruj emotikonami i Dialog Masterem",
-        qsStep2Desc: "Wstawiaj emotikony prosto w tekst: <strong>🤫</strong> dla szeptu, <strong>💥</strong> dla krzyku, <strong>📞</strong> dla telefonu. Kliknij <strong>Dialog Master</strong>, a program sam obsadzi postaci głosami!",
+        qsStep2Desc: "Zamiast skomplikowanych suwaków DAW, wstawiaj emotikony prosto w tekst: <strong>🤫</strong> dla szeptu, <strong>💥</strong> dla krzyku, <strong>📞</strong> dla telefonu. Kliknij <strong>Dialog Master</strong>, a program sam rozpozna postacie i obsadzi je różnymi głosami!",
         qsStep3Title: "3. Odsłuchaj i Eksportuj (Mastering ACX & EBU R128)",
-        qsStep3Desc: "Kliknij <strong>▶</strong> na bloku, aby odsłuchać fragment. Gotowy audiobook wyeksportujesz jednym kliknięciem jako plik <strong>M4B z rozdziałami i okładką</strong> lub studyjny <strong>FLAC 24-bit</strong>.",
+        qsStep3Desc: "Kliknij <strong>▶</strong> na bloku, aby odsłuchać fragment. Gotowy audiobook wyeksportujesz jednym kliknięciem (<strong>Eksportuj</strong>) jako plik <strong>M4B z rozdziałami i okładką</strong> lub studyjny <strong>FLAC 24-bit</strong> spełniający normy Audible/ACX.",
         qsDontShow: "Nie pokazuj przy uruchomieniu",
-        qsBtnStart: "Zrozumiałem, zaczynamy! 🚀",
-        manuscriptTitle: "Edytor Blokowy (Notion)",
-        addBlockBtn: "➕ Dodaj Blok",
-        renderAllBtn: "<span>⚡</span> Renderuj Oś Czasu",
-        inspectorTitle: "Inspektor Bloku",
-        timelineTitle: "Wielościeżkowa Oś Czasu (Waveform & Punch-In)",
-        transportTitle: "Master & Odsłuch"
+        qsBtnStart: "Zrozumiałem, zaczynamy! 🚀"
       }
     };
 
     let currentUiLang = 'en';
+
+    function t(key) {
+      const langObj = I18N[currentUiLang] || I18N['en'];
+      return langObj && langObj[key] !== undefined ? langObj[key] : (I18N['en'][key] !== undefined ? I18N['en'][key] : key);
+    }
+
+    function applyI18n() {
+      const langObj = I18N[currentUiLang] || I18N['en'];
+      // 1. HTML / Text Elements
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (langObj && langObj[key] !== undefined) {
+          el.innerHTML = langObj[key];
+        }
+      });
+      // 2. Tooltips (title attribute)
+      document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        const key = el.getAttribute('data-i18n-title');
+        if (langObj && langObj[key] !== undefined) {
+          el.setAttribute('title', langObj[key]);
+        }
+      });
+      // 3. Placeholders
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (langObj && langObj[key] !== undefined) {
+          el.setAttribute('placeholder', langObj[key]);
+        }
+      });
+    }
 
     function changeUiLanguage(lang, persist = true) {
       if (!I18N[lang]) lang = 'en';
@@ -2948,43 +3186,31 @@
       const picker = document.getElementById('uiLangPicker');
       if (picker) picker.value = lang;
 
-      const t = I18N[lang];
-      const btnDirector = document.getElementById('btnPresetDirector');
-      if (btnDirector) btnDirector.innerText = t.presetDirector;
-      const btnWriter = document.getElementById('btnPresetWriter');
-      if (btnWriter) btnWriter.innerText = t.presetWriter;
-      const btnDaw = document.getElementById('btnPresetDaw');
-      if (btnDaw) btnDaw.innerText = t.presetDaw;
-      const lblQs = document.getElementById('lblQuickStartBtn');
-      if (lblQs) lblQs.innerText = t.quickStartBtn;
+      // Apply universal DOM translation
+      applyI18n();
 
-      // Quick start modal
+      // Legacy specific IDs
+      const tObj = I18N[lang];
       const qsTitle = document.getElementById('qsModalTitle');
-      if (qsTitle) qsTitle.innerText = t.qsTitle;
+      if (qsTitle) qsTitle.innerText = tObj.qsTitle;
       const qsSub = document.getElementById('qsModalSubtitle');
-      if (qsSub) qsSub.innerText = t.qsSubtitle;
+      if (qsSub) qsSub.innerText = tObj.qsSubtitle;
       const s1t = document.getElementById('qsStep1Title');
-      if (s1t) s1t.innerText = t.qsStep1Title;
+      if (s1t) s1t.innerText = tObj.qsStep1Title;
       const s1d = document.getElementById('qsStep1Desc');
-      if (s1d) s1d.innerHTML = t.qsStep1Desc;
+      if (s1d) s1d.innerHTML = tObj.qsStep1Desc;
       const s2t = document.getElementById('qsStep2Title');
-      if (s2t) s2t.innerText = t.qsStep2Title;
+      if (s2t) s2t.innerText = tObj.qsStep2Title;
       const s2d = document.getElementById('qsStep2Desc');
-      if (s2d) s2d.innerHTML = t.qsStep2Desc;
+      if (s2d) s2d.innerHTML = tObj.qsStep2Desc;
       const s3t = document.getElementById('qsStep3Title');
-      if (s3t) s3t.innerText = t.qsStep3Title;
+      if (s3t) s3t.innerText = tObj.qsStep3Title;
       const s3d = document.getElementById('qsStep3Desc');
-      if (s3d) s3d.innerHTML = t.qsStep3Desc;
+      if (s3d) s3d.innerHTML = tObj.qsStep3Desc;
       const qsDs = document.getElementById('qsDontShowText');
-      if (qsDs) qsDs.innerText = t.qsDontShow;
+      if (qsDs) qsDs.innerText = tObj.qsDontShow;
       const qsBtn = document.getElementById('qsBtnStart');
-      if (qsBtn) qsBtn.innerText = t.qsBtnStart;
-
-      // Workspace titles
-      const manTitle = document.getElementById('lblTileTitleManuscript');
-      if (manTitle) manTitle.innerText = t.manuscriptTitle;
-      const timeTitle = document.getElementById('lblTileTitleTimeline');
-      if (timeTitle) timeTitle.innerText = t.timelineTitle;
+      if (qsBtn) qsBtn.innerText = tObj.qsBtnStart;
     }
 
     function openQuickStartModal() {
@@ -3192,6 +3418,11 @@
       const div = document.createElement('div');
       div.className = 'script-block';
       div.setAttribute('data-id', blockCount);
+      const ph = t('blockPlaceholder');
+      const tipPlay = t('tipPlayBlock');
+      const tipPunch = t('tipPunchIn');
+      const tipDup = t('tipDuplicate');
+      const tipDel = t('tipDelete');
       div.innerHTML = `
         <div class="block-header">
           <div class="actor-tag-selector" onclick="switchBlockActor(${blockCount})">
@@ -3199,14 +3430,14 @@
           </div>
           <div class="block-meta">#${blockCount} · 0 słów</div>
         </div>
-        <textarea class="block-content" placeholder="Wpisz treść akapitu lub dialogu..." onfocus="selectBlock(${blockCount})" oninput="onBlockInput(${blockCount})"></textarea>
+        <textarea class="block-content" data-i18n-placeholder="blockPlaceholder" placeholder="${ph}" onfocus="selectBlock(${blockCount})" oninput="onBlockInput(${blockCount})"></textarea>
         <div class="block-footer">
-          <span class="block-dsp-tag">DSP: Czysty · Głos: Bzipek (Piper)</span>
+          <span class="block-dsp-tag">DSP: Czysty · Głos: pl_PL-darkman-medium (Piper)</span>
           <div class="block-actions">
-            <button class="btn-icon-xs btn-preview-block" title="Odtwórz" onclick="previewBlock(${blockCount})">▶</button>
-            <button class="btn-icon-xs btn-punchin-block" title="Dograj lektora / AI Retake (Punch-In)" onclick="openPunchInModal(${blockCount})">🔴</button>
-            <button class="btn-icon-xs" title="Duplikuj" onclick="duplicateBlock(${blockCount})">📋</button>
-            <button class="btn-icon-xs" title="Usuń" onclick="deleteBlock(${blockCount})">🗑️</button>
+            <button class="btn-icon-xs btn-preview-block" data-i18n-title="tipPlayBlock" title="${tipPlay}" onclick="previewBlock(${blockCount})">▶</button>
+            <button class="btn-icon-xs btn-punchin-block" data-i18n-title="tipPunchIn" title="${tipPunch}" onclick="openPunchInModal(${blockCount})">🔴</button>
+            <button class="btn-icon-xs" data-i18n-title="tipDuplicate" title="${tipDup}" onclick="duplicateBlock(${blockCount})">📋</button>
+            <button class="btn-icon-xs" data-i18n-title="tipDelete" title="${tipDel}" onclick="deleteBlock(${blockCount})">🗑️</button>
           </div>
         </div>
       `;
