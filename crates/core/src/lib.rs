@@ -4,6 +4,7 @@ pub mod batch_pipeline;
 pub mod cache;
 pub mod cadence;
 pub mod credentials;
+pub mod dialog_master;
 pub mod estimator;
 pub mod importer;
 pub mod kokoro;
@@ -19,6 +20,7 @@ pub mod studio_leveler;
 pub mod style_transfer;
 pub mod subtitles;
 pub mod types;
+pub mod updater;
 pub mod verbalizer;
 pub mod voice_design;
 pub mod voicelab;
@@ -57,6 +59,10 @@ pub use credentials::{
     credentials_path, get_api_key, get_masked_key, load_credentials, mask_api_key, remove_api_key,
     save_credentials, set_api_key, verify_elevenlabs_key, CredentialsConfig, ElevenLabsAccountInfo,
     ProviderCredentials,
+};
+pub use dialog_master::{
+    analyze_dialogue, apply_dialogue_casting, infer_character_gender, ApplyCastingRequest,
+    CharacterProfile, DialogAnalysisResult,
 };
 pub use estimator::{estimate_cost, CostEstimate};
 pub use importer::{
@@ -97,6 +103,9 @@ pub use types::{
     ActorTag, AudiobookMetadata, AudioticonProject, BreathIntensity, ChapterMark, DirectedItem,
     DirectedScript, EmojiAction, ProductionStyle, ProjectChapter, ProjectMasteringConfig,
     ProjectSettings, RenderResult, TextSegment,
+};
+pub use updater::{
+    check_for_updates, is_newer_version, parse_semver, UpdateCheckResponse,
 };
 pub use verbalizer::normalize_polish_text;
 pub use voice_design::{

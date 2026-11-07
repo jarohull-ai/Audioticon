@@ -237,6 +237,36 @@ fn test_api_server_endpoints_e2e() {
     assert!(h_str.contains("\"ffmpeg\""));
     assert!(h_str.contains("\"installed_models_count\""));
 
+    // 1c. GET /api/system/update-check should return 200 with semver details
+    let (u_status, u_headers, u_body) =
+        http_roundtrip(port, "GET", "/api/system/update-check", None);
+    assert_eq!(u_status, 200);
+    assert!(u_headers.contains("application/json"));
+    let u_str = String::from_utf8_lossy(&u_body);
+    assert!(u_str.contains("\"current_version\""));
+    assert!(u_str.contains("\"latest_version\""));
+    assert!(u_str.contains("\"update_available\""));
+
+    // 1d. POST /api/dialog/analyze should detect characters and speech lines
+    let dialog_req =
+        "{\"text\": \"Jan: Cześć Anno.\\nAnna: Cześć Janie.\\nI poszli dalej.\", \"lang\": \"pl\"}";
+    let (d_status, _, d_body) =
+        http_roundtrip(port, "POST", "/api/dialog/analyze", Some(dialog_req));
+    assert_eq!(d_status, 200);
+    let d_str = String::from_utf8_lossy(&d_body);
+    assert!(d_str.contains("\"name\":\"Jan\""));
+    assert!(d_str.contains("\"name\":\"Anna\""));
+    assert!(d_str.contains("\"name\":\"Narrator\""));
+
+    // 1e. POST /api/dialog/apply should return script with voice tags
+    let apply_req = "{\"text\": \"Jan: Cześć.\\nAnna: Hej.\", \"casting\": {\"Jan\": \"pl_PL-darkman-medium\", \"Anna\": \"pl_PL-gosia-medium\"}}";
+    let (a_status, _, a_body) =
+        http_roundtrip(port, "POST", "/api/dialog/apply", Some(apply_req));
+    assert_eq!(a_status, 200);
+    let a_str = String::from_utf8_lossy(&a_body);
+    assert!(a_str.contains("[głos:pl_PL-darkman-medium] Cześć."));
+    assert!(a_str.contains("[głos:pl_PL-gosia-medium] Hej."));
+
     // 2. GET /api/export with empty text should return 400 Bad Request
     let (status, _, body) = http_roundtrip(port, "GET", "/api/export", None);
     assert_eq!(status, 400);

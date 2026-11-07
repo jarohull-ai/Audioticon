@@ -1052,6 +1052,12 @@
           <span>Brak FFmpeg</span>
         </div>
 
+        <!-- Update Available Chip (only shown when newer version exists) -->
+        <a id="updateAvailableChip" href="https://github.com/jarohull-ai/Audioticon/releases/latest" target="_blank" style="display:none; text-decoration:none; align-items:center; gap:0.35rem; padding:0.3rem 0.65rem; border-radius:9999px; background:rgba(56, 189, 248, 0.15); border:1px solid #38bdf8; color:#38bdf8; font-size:0.72rem; font-weight:800; cursor:pointer;" title="Dostępna jest nowa wersja Audioticon! Kliknij, aby przejść do pobierania.">
+          <span>🚀</span>
+          <span id="updateChipText">Nowa wersja</span>
+        </a>
+
         <!-- License Tier Badge -->
         <div class="license-badge free" id="licenseBadge" onclick="openLicenseModal()" title="Zarządzaj licencją Gumroad (Solo / Studio)">
           <span id="licenseBadgeIcon">🛡️</span>
@@ -1084,6 +1090,11 @@
         <!-- Bielik Annotation-Only Director Button -->
         <button class="btn" onclick="openDirectorModal()" style="border-color:var(--accent-secondary); color:var(--accent-secondary); font-weight:700;">
           <span>🎬</span> Reżyser AI (Bielik)
+        </button>
+
+        <!-- Multi-Voice Dialog Master Button -->
+        <button class="btn" onclick="openDialogMasterModal()" style="border-color:#a855f7; color:#c084fc; font-weight:700;" title="Automatycznie wykryj postacie i przypisz im głosy (Multi-Voice Casting)">
+          <span>🎭</span> Dialog Master
         </button>
 
         <!-- Subtitles & TikTok Karaoke Button -->
@@ -1675,6 +1686,58 @@
       </div>
       <div style="display:flex; justify-content:flex-end; margin-top:1rem;">
         <button class="btn" onclick="closeFfmpegHelpModal()">Rozumiem, zainstaluję</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: 🎭 WIELOGŁOSOWY DIALOG MASTER (AUTO-CASTING) -->
+  <div class="modal-overlay" id="dialogMasterModal" onclick="if(event.target===this) closeDialogMasterModal()">
+    <div class="modal-card" style="width:850px; max-width:96vw; max-height:92vh; overflow-y:auto;">
+      <div class="modal-title">
+        <span style="display:flex; align-items:center; gap:0.4rem; color:#c084fc;">
+          <span>🎭</span> Wielogłosowy Dialog Master (Auto-Casting)
+        </span>
+        <button class="btn-icon-xs" onclick="closeDialogMasterModal()">✕</button>
+      </div>
+
+      <div style="font-size:0.82rem; color:var(--text-muted); line-height:1.45; margin-bottom:1rem;">
+        Automatycznie analizuje dialogi w Twojej książce (obsługuje formaty <code>Imię:</code>, myślniki <code>— powiedział Jan</code> oraz cudzysłowy), wykrywa płeć postaci i przypisuje im odpowiednie głosy lektorskie.
+      </div>
+
+      <div style="display:flex; gap:0.6rem; align-items:center; margin-bottom:1rem; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="analyzeCurrentDialogues()" id="btnAnalyzeDialogues">
+          <span>🔍</span> Przeanalizuj tekst z edytora
+        </button>
+        <span id="dialogAnalysisStats" style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-mono);"></span>
+      </div>
+
+      <!-- Tabela Obsady Postaci -->
+      <div id="dialogCastingTableContainer" style="background:var(--track-bg); border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:1.2rem;">
+        <table style="width:100%; border-collapse:collapse; font-size:0.78rem; text-align:left;">
+          <thead>
+            <tr style="background:var(--surface-elev); border-bottom:1px solid var(--border); color:var(--text-dim);">
+              <th style="padding:0.6rem 0.8rem;">Postać / Rola</th>
+              <th style="padding:0.6rem 0.8rem;">Płeć / Typ</th>
+              <th style="padding:0.6rem 0.8rem;">Kwestie / Słowa</th>
+              <th style="padding:0.6rem 0.8rem;">Przypisany Głos</th>
+              <th style="padding:0.6rem 0.8rem;">Próbka tekstu</th>
+            </tr>
+          </thead>
+          <tbody id="dialogCastingTbody">
+            <tr>
+              <td colspan="5" style="padding:1.5rem; text-align:center; color:var(--text-muted);">
+                Kliknij „Przeanalizuj tekst z edytora”, aby automatycznie wyodrębnić postacie i dialogi.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border); padding-top:0.8rem; margin-top:1rem;">
+        <button class="btn" onclick="closeDialogMasterModal()">Anuluj</button>
+        <button class="btn btn-primary" id="btnApplyDialogCasting" onclick="applyDialogCastingToEditor()" style="padding:0.6rem 1.4rem; font-weight:800; border-color:#a855f7; background:linear-gradient(135deg, #9333ea, #7e22ce);" disabled>
+          <span>✨</span> Zastosuj Obsadę do Edytora
+        </button>
       </div>
     </div>
   </div>
@@ -5676,6 +5739,145 @@
       document.getElementById('ffmpegHelpModal').style.display = 'none';
     }
 
+    let currentDialogAnalysis = null;
+
+    function openDialogMasterModal() {
+      document.getElementById('dialogMasterModal').style.display = 'flex';
+      analyzeCurrentDialogues();
+    }
+
+    function closeDialogMasterModal() {
+      document.getElementById('dialogMasterModal').style.display = 'none';
+    }
+
+    async function analyzeCurrentDialogues() {
+      const text = document.getElementById('manuscriptInput').value;
+      const lang = document.getElementById('langSelect') ? document.getElementById('langSelect').value : 'pl';
+      const statsEl = document.getElementById('dialogAnalysisStats');
+      const tbody = document.getElementById('dialogCastingTbody');
+      const applyBtn = document.getElementById('btnApplyDialogCasting');
+
+      if (!text.trim()) {
+        if (statsEl) statsEl.innerText = "Wpisz lub wgraj tekst do edytora.";
+        return;
+      }
+
+      if (statsEl) statsEl.innerText = "⏳ Analizowanie kwestii i postaci...";
+      try {
+        const res = await fetch('/api/dialog/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, lang })
+        });
+
+        if (!res.ok) {
+          if (statsEl) statsEl.innerText = "Błąd analizy dialogów.";
+          return;
+        }
+
+        const data = await res.json();
+        currentDialogAnalysis = data;
+        renderDialogCastingTable(data);
+        if (statsEl) {
+          statsEl.innerText = `✅ Wykryto ${data.characters.length} postaci (${data.total_dialogue_lines} kwestii dialogowych, ${data.total_narrator_lines} opisów narracyjnych)`;
+        }
+        if (data.characters.length > 0 && applyBtn) {
+          applyBtn.disabled = false;
+        }
+      } catch (e) {
+        console.error("Dialog analysis error:", e);
+        if (statsEl) statsEl.innerText = "Błąd połączenia z serwerem.";
+      }
+    }
+
+    function renderDialogCastingTable(data) {
+      const tbody = document.getElementById('dialogCastingTbody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      if (!data.characters || data.characters.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:1.5rem; text-align:center; color:var(--text-muted);">Nie wykryto wyraźnych kwestii dialogowych w tekście.</td></tr>';
+        return;
+      }
+
+      const availableVoices = [
+        { id: "pl_PL-darkman-medium", label: "pl_PL: Darkman (Męski - Narrator)", gender: "male" },
+        { id: "pl_PL-gosia-medium", label: "pl_PL: Gosia (Żeński)", gender: "female" },
+        { id: "pl_PL-mc_speech-medium", label: "pl_PL: MC Speech (Lektor)", gender: "narrator" },
+        { id: "af_bella", label: "Kokoro: Bella (Żeński EN)", gender: "female" },
+        { id: "am_adam", label: "Kokoro: Adam (Męski EN)", gender: "male" },
+        { id: "bm_george", label: "Kokoro: George (Narrator Brytyjski)", gender: "narrator" },
+        { id: "en_US-lessac-medium", label: "en_US: Lessac (Lektor EN)", gender: "narrator" }
+      ];
+
+      data.characters.forEach((char, idx) => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--border)';
+        
+        let genderBadge = '';
+        if (char.suggested_gender === 'female') {
+          genderBadge = '<span style="color:#f472b6; font-weight:700;">👩 Żeński</span>';
+        } else if (char.suggested_gender === 'male') {
+          genderBadge = '<span style="color:#60a5fa; font-weight:700;">👨 Męski</span>';
+        } else {
+          genderBadge = '<span style="color:#34d399; font-weight:700;">📖 Narrator</span>';
+        }
+
+        const sample = char.sample_lines && char.sample_lines.length > 0
+          ? `"${char.sample_lines[0].replace(/"/g, '&quot;')}"`
+          : '—';
+
+        let selectHtml = `<select class="inspector-input" id="charVoiceSelect_${idx}" style="font-size:0.75rem; padding:0.3rem 0.5rem; max-width:210px;">`;
+        availableVoices.forEach(v => {
+          const selected = (v.id === char.assigned_voice) ? 'selected' : '';
+          selectHtml += `<option value="${v.id}" ${selected}>${v.label}</option>`;
+        });
+        selectHtml += `</select>`;
+
+        tr.innerHTML = `
+          <td style="padding:0.6rem 0.8rem; font-weight:700; color:var(--text-bright);">${char.name}</td>
+          <td style="padding:0.6rem 0.8rem;">${genderBadge}</td>
+          <td style="padding:0.6rem 0.8rem; font-family:var(--font-mono);">${char.line_count} kw. / ${char.word_count} sł.</td>
+          <td style="padding:0.6rem 0.8rem;">${selectHtml}</td>
+          <td style="padding:0.6rem 0.8rem; color:var(--text-dim); max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${sample}">${sample}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function applyDialogCastingToEditor() {
+      if (!currentDialogAnalysis) return;
+
+      const casting = {};
+      currentDialogAnalysis.characters.forEach((char, idx) => {
+        const sel = document.getElementById(`charVoiceSelect_${idx}`);
+        if (sel) {
+          casting[char.name] = sel.value;
+        }
+      });
+
+      const text = document.getElementById('manuscriptInput').value;
+      try {
+        const res = await fetch('/api/dialog/apply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, casting })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.formatted_text) {
+            document.getElementById('manuscriptInput').value = data.formatted_text;
+            recalcWordCount();
+            closeDialogMasterModal();
+            alert("✅ Pomyślnie zastosowano wielogłosową obsadę do tekstu w edytorze!");
+          }
+        }
+      } catch (e) {
+        alert("Błąd podczas aplikowania obsady: " + e.message);
+      }
+    }
+
     async function checkSystemHealth() {
       try {
         const res = await fetch('/api/system/health');
@@ -5691,9 +5893,28 @@
       }
     }
 
+    async function checkForUpdates() {
+      try {
+        const res = await fetch('/api/system/update-check');
+        if (res.ok) {
+          const update = await res.json();
+          const chip = document.getElementById('updateAvailableChip');
+          const chipText = document.getElementById('updateChipText');
+          if (chip && update.update_available) {
+            if (chipText) chipText.innerText = `Nowa wersja v${update.latest_version}`;
+            if (update.release_url) chip.href = update.release_url;
+            chip.style.display = 'inline-flex';
+          }
+        }
+      } catch (e) {
+        console.warn('Update check offline/fallback:', e);
+      }
+    }
+
     // Init
     window.addEventListener('DOMContentLoaded', () => {
       checkSystemHealth();
+      checkForUpdates();
       refreshLicenseStatus();
       loadSavedLayout();
       recalcWordCount();

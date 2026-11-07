@@ -703,6 +703,130 @@ async fn handle_studio_request(
         return;
     }
 
+    // Route: GET /api/system/update-check
+    if method == tiny_http::Method::Get && url == "/api/system/update-check" {
+        let update_info = tokio::task::spawn_blocking(audioticon_core::check_for_updates)
+            .await
+            .unwrap_or_default();
+        let json = serde_json::to_string(&update_info).unwrap_or_else(|_| "{}".to_string());
+        let mut resp = tiny_http::Response::from_string(json);
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: POST /api/dialog/analyze
+    if method == tiny_http::Method::Post && url == "/api/dialog/analyze" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(1024 * 1024)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać treści zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct DialogAnalyzeReq {
+            #[serde(default)]
+            text: String,
+            #[serde(default = "default_lang_str")]
+            lang: String,
+        }
+
+        let req_data: DialogAnalyzeReq = match serde_json::from_str(&body_str) {
+            Ok(d) => d,
+            Err(_) => {
+                let mut resp =
+                    tiny_http::Response::from_string("{\"error\": \"Niepoprawny format JSON zapytania\"}");
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let result = audioticon_core::analyze_dialogue(&req_data.text, &req_data.lang);
+        let json = serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string());
+        let mut resp = tiny_http::Response::from_string(json);
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: POST /api/dialog/apply
+    if method == tiny_http::Method::Post && url == "/api/dialog/apply" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(1024 * 1024 * 2)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać treści zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct DialogApplyReq {
+            #[serde(default)]
+            text: String,
+            #[serde(default)]
+            casting: HashMap<String, String>,
+        }
+
+        let req_data: DialogApplyReq = match serde_json::from_str(&body_str) {
+            Ok(d) => d,
+            Err(_) => {
+                let mut resp =
+                    tiny_http::Response::from_string("{\"error\": \"Niepoprawny format JSON zapytania\"}");
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let formatted = audioticon_core::apply_dialogue_casting(&req_data.text, &req_data.casting);
+        let json = serde_json::json!({
+            "status": "ok",
+            "formatted_text": formatted
+        });
+        let mut resp = tiny_http::Response::from_string(json.to_string());
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
     // Route: POST /api/license/activate
     if method == tiny_http::Method::Post && url == "/api/license/activate" {
         let mut body_str = String::new();
