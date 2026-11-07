@@ -465,7 +465,7 @@ mod tests {
             &entry.id,
             &entry.terms_fingerprint,
             true,
-            "0.2.8",
+            env!("CARGO_PKG_VERSION"),
         );
         assert!(store.verify_receipt(&receipt));
 
@@ -484,7 +484,7 @@ mod tests {
             &entry.id,
             &entry.terms_fingerprint,
             false,
-            "0.2.8",
+            env!("CARGO_PKG_VERSION"),
         );
         assert!(store.verify_receipt(&receipt));
 

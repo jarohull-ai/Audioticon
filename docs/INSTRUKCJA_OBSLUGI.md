@@ -1,23 +1,28 @@
-# 🎧 Audioticon Studio — Kompletny Podręcznik Użytkownika
+# 🎧 Audioticon Studio v1.0.0 — Kompletny Podręcznik Użytkownika
 
-Witaj w **Audioticon Studio** — modularnym środowisku produkcyjnym do reżyserii audiobooków, słuchowisk i treści głosowych AI. Program łączy prostotę edytora tekstu z precyzją cyfrowej stacji roboczej (DAW), umożliwiając tworzenie profesjonalnych produkcji zgodnych ze standardami **Audible / ACX / Storytel** w 100% lokalnie i bez subskrypcji chmurowych.
+Witaj w **Audioticon Studio** — lekkiej stacji roboczej do reżyserii i produkcji audiobooków oraz słuchowisk. Program łączy prostotę edytora blokowego z precyzją cyfrowej stacji roboczej (DAW), umożliwiając tworzenie profesjonalnych produkcji zgodnych ze standardami **Audible / ACX / Storytel / EBU R128**.
+
+Przy wyborze silników **Piper** lub neuralnego **Kokoro-82M** synteza mowy oraz efekty DSP działają **w pełni lokalnie na Twoim komputerze, bez abonamentu i bez wysyłania manuskryptu do chmury**. Granularny cache zdań oszczędza czas przy korektach, a wbudowany normalizator ACX / EBU R128 gwarantuje studyjną głośność gotowego pliku M4B i FLAC. Dla użytkowników potrzebujących komercyjnych głosów dostępna jest także opcjonalna integracja chmurowa (Edge TTS oraz ElevenLabs).
 
 ---
 
 ## 1. Wymagania i Pierwsze Uruchomienie
 
-Audioticon Studio jest aplikacją w pełni autonomiczną. Cały interfejs graficzny jest skompilowany bezpośrednio w pliku wykonywalnym.
+Audioticon Studio jest aplikacją w pełni autonomiczną (silnik waży około 10 MB). Cały interfejs graficzny jest skompilowany bezpośrednio w pliku wykonywalnym.
 
 ### Uruchomienie programu
-1. **Linux / macOS:**
-   - Wypakuj paczkę `audioticon-v0.2.8-...`.
-   - Kliknij dwukrotnie plik `Start_Audioticon.sh` lub wpisz w terminalu:
-     ```bash
-     ./Start_Audioticon.sh
-     ```
-2. **Windows:**
-   - Kliknij dwukrotnie plik `Start_Audioticon.bat`.
+1. **Windows:**
+   - Wypakuj archiwum `Audioticon-v1.0.0-windows-x86_64.zip`.
+   - Kliknij dwukrotnie plik **`Audioticon.exe`** (z fioletową ikoną).
+2. **macOS / Linux:**
+   - Wypakuj archiwum `Audioticon-v1.0.0-...tar.gz`.
+   - Kliknij dwukrotnie plik wykonywalny `audioticon`.
 3. Program automatycznie uruchomi lokalny serwer i otworzy Studio w Twojej domyślnej przeglądarce pod adresem **`http://localhost:3000`**.
+
+### Praca na tablecie (iPad / Android):
+- Kliknij przycisk **`📱 Tablet / Telefon`** w pasku górnym Studio.
+- Zeskanuj aparat tabletu wyświetlony kod QR (działa w 100% offline w domowym Wi-Fi).
+- Wybierz w przeglądarce tabletu opcję *„Do ekranu początkowego”* (Safari) lub *„Zainstaluj aplikację”* (Chrome) — na pulpicie pojawi się fioletowa ikona Audioticon, działająca na pełnym ekranie.
 
 ### Wymagania dotyczące FFmpeg
 Do masteringu EBU R128, bezstratnego eksportu plików **M4B (z rozdziałami)** oraz **FLAC** wymagany jest program `ffmpeg`:

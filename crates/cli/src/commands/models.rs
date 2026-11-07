@@ -71,7 +71,7 @@ pub fn run_models(action: Option<ModelsAction>) -> Result<()> {
                 println!("---------------------------------------------------------------------------------------------------------");
 
                 let mut store = audioticon_core::ReceiptStore::load_or_default();
-                let receipt = store.record_acceptance(&m.id, &m.terms_fingerprint, true, "audioticon-cli/0.2.8");
+                let receipt = store.record_acceptance(&m.id, &m.terms_fingerprint, true, concat!("audioticon-cli/", env!("CARGO_PKG_VERSION")));
                 store.save()?;
 
                 println!("✅ Licencja została zaakceptowana!");

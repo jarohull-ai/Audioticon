@@ -1684,7 +1684,7 @@ async fn handle_studio_request(
         let res = (|| -> anyhow::Result<audioticon_core::LicenseReceipt> {
             let entry = entry_opt.ok_or_else(|| anyhow::anyhow!("Nie znaleziono modelu '{}' w Hubie", a_req.model_id))?;
             let mut store = audioticon_core::ReceiptStore::load_or_default();
-            let client_tag = format!("audioticon-server/0.2.8 ({})", a_req.user_id.as_deref().unwrap_or("studio_user"));
+            let client_tag = format!("audioticon-server/{} ({})", env!("CARGO_PKG_VERSION"), a_req.user_id.as_deref().unwrap_or("studio_user"));
             let receipt = store.record_acceptance(&entry.id, &entry.terms_fingerprint, true, &client_tag);
             store.save()?;
             Ok(receipt)

@@ -12,7 +12,7 @@ cd "$ROOT_DIR"
 # 1. Odczyt wersji z Cargo.toml
 VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
 if [ -z "$VERSION" ]; then
-    VERSION="0.2.8"
+    VERSION="1.0.0"
 fi
 
 ARCH=$(uname -m)
