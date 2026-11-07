@@ -1083,6 +1083,17 @@
           <option value="obsidian-daw">🌑 Obsidian Slate DAW</option>
         </select>
 
+        <!-- UI Language Selector (EN / PL) -->
+        <select class="theme-selector" id="uiLangPicker" onchange="changeUiLanguage(this.value)" style="min-width:75px; font-weight:700;" title="Wybierz język interfejsu / Choose UI Language">
+          <option value="en">🇬🇧 EN</option>
+          <option value="pl">🇵🇱 PL</option>
+        </select>
+
+        <!-- Quick Start / Help Button -->
+        <button class="btn" onclick="openQuickStartModal()" id="btnQuickStartHeader" style="border-color:#eab308; color:#facc15; font-weight:700;" title="Instrukcja: Jak zacząć w 60 sekund / Quick Start Guide">
+          <span>❓</span> <span id="lblQuickStartBtn">Szybki Start</span>
+        </button>
+
         <!-- Import Book / Manuscript Button -->
         <button class="btn" onclick="openImportBookModal()" style="border-color:#34d399; color:#34d399; font-weight:700;" title="Importuj manuskrypt (.epub, .pdf, .docx, .doc, .odt, .rtf, .md, .txt)">
           <span>📂</span> Importuj Książkę
@@ -1152,9 +1163,9 @@
           <div style="font-size:0.82rem; color:var(--text); font-weight:500;">.epub · .pdf · .docx · .doc · .odt · .rtf · .md · .txt</div>
         </div>
         <div class="tile-header" onmousedown="initTileDrag(event, 'tile-editor')">
-          <div class="tile-title">
+          <div class="tile-title" id="tileTitleManuscript">
             <span class="tile-icon">📝</span>
-            <span>Edytor Blokowy (Notion)</span>
+            <span id="lblTileTitleManuscript">Edytor Blokowy (Notion)</span>
             <span id="activeBookChapterBadge" style="font-size:0.68rem; color:#34d399; background:rgba(52,211,153,0.12); padding:0.12rem 0.45rem; border-radius:4px; margin-left:0.4rem; display:none;"></span>
           </div>
           <div class="tile-actions">
@@ -1196,7 +1207,7 @@
               </div>
               <textarea class="block-content" onfocus="selectBlock(1)" oninput="onBlockInput(1)">W ciemnym zaułku Nowego Światu deszcz bębnił o blaszany dach. 🌧️ Jan zatrzymał się gwałtownie i spojrzał w mrok.</textarea>
               <div class="block-footer">
-                <span class="block-dsp-tag">DSP: Czysty · Głos: Bzipek (Piper)</span>
+                <span class="block-dsp-tag">DSP: Czysty · Głos: pl_PL-darkman-medium (Piper)</span>
                 <div class="block-actions">
                   <button class="btn-icon-xs btn-preview-block" title="Odtwórz ten blok" onclick="previewBlock(1)">▶</button>
                   <button class="btn-icon-xs btn-punchin-block" title="Dograj lektora / AI Retake (Punch-In)" onclick="openPunchInModal(1)">🔴</button>
@@ -1216,7 +1227,7 @@
               </div>
               <textarea class="block-content" onfocus="selectBlock(2)" oninput="onBlockInput(2)">🤫 Nie ruszaj się! — wyszeptała przez słuchawkę. 📞 — Oni już tu są.</textarea>
               <div class="block-footer">
-                <span class="block-dsp-tag">DSP: 📞 Telefon + 🤫 Szept · Głos: Dorota (ElevenLabs)</span>
+                <span class="block-dsp-tag">DSP: 📞 Telefon + 🤫 Szept · Głos: pl_PL-gosia-medium (Piper)</span>
                 <div class="block-actions">
                   <button class="btn-icon-xs btn-preview-block" title="Odtwórz ten blok" onclick="previewBlock(2)">▶</button>
                   <button class="btn-icon-xs btn-punchin-block" title="Dograj lektora / AI Retake (Punch-In)" onclick="openPunchInModal(2)">🔴</button>
@@ -1723,6 +1734,81 @@
       </div>
       <div style="display:flex; justify-content:flex-end; margin-top:1rem;">
         <button class="btn" onclick="closeFfmpegHelpModal()">Rozumiem, zainstaluję</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: 🚀 SZYBKI START / QUICK START GUIDE (ONBOARDING) -->
+  <div class="modal-overlay" id="quickStartModal" onclick="if(event.target===this) closeQuickStartModal()">
+    <div class="modal-card" style="width:780px; max-width:96vw; max-height:92vh; overflow-y:auto;">
+      <div class="modal-title">
+        <span style="display:flex; align-items:center; gap:0.5rem; color:#eab308;">
+          <span>🚀</span> <span id="qsModalTitle">Witaj w Audioticon Studio — Jak zacząć w 60 sekund</span>
+        </span>
+        <button class="btn-icon-xs" onclick="closeQuickStartModal()">✕</button>
+      </div>
+
+      <div style="font-size:0.86rem; color:var(--text-muted); line-height:1.5; margin-bottom:1.2rem;" id="qsModalSubtitle">
+        Audioticon to lekka, lokalna stacja robocza do reżyserii i produkcji audiobooków. Przekształcaj tekst w słuchowiska za pomocą prostych emotikonów, bez abonamentu i bez wysyłania manuskryptu do chmury.
+      </div>
+
+      <!-- 3 KROKI SZYBKIEGO STARTU -->
+      <div style="display:flex; flex-direction:column; gap:1rem; margin-bottom:1.5rem;">
+        <!-- Krok 1 -->
+        <div style="display:flex; gap:1rem; align-items:flex-start; background:var(--track-bg); border:1px solid var(--border); border-radius:10px; padding:1rem;">
+          <div style="font-size:1.6rem; background:rgba(52,211,153,0.15); border:1px solid #34d399; border-radius:10px; width:48px; height:48px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            📂
+          </div>
+          <div>
+            <div style="font-weight:700; color:var(--text-bright); font-size:0.95rem; margin-bottom:0.25rem;" id="qsStep1Title">
+              1. Pisz lub Wgraj książkę
+            </div>
+            <div style="font-size:0.82rem; color:var(--text-muted); line-height:1.45;" id="qsStep1Desc">
+              Pisz bezpośrednio w blokach jak w Notion, albo kliknij <strong>Importuj Książkę</strong> i przeciągnij plik manuskryptu (obsługujemy formaty <code>.epub</code>, <code>.pdf</code>, <code>.docx</code>, <code>.odt</code>, <code>.txt</code>).
+            </div>
+          </div>
+        </div>
+
+        <!-- Krok 2 -->
+        <div style="display:flex; gap:1rem; align-items:flex-start; background:var(--track-bg); border:1px solid var(--border); border-radius:10px; padding:1rem;">
+          <div style="font-size:1.6rem; background:rgba(192,132,252,0.15); border:1px solid #c084fc; border-radius:10px; width:48px; height:48px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            🎭
+          </div>
+          <div>
+            <div style="font-weight:700; color:var(--text-bright); font-size:0.95rem; margin-bottom:0.25rem;" id="qsStep2Title">
+              2. Reżyseruj emotikonami i Dialog Masterem
+            </div>
+            <div style="font-size:0.82rem; color:var(--text-muted); line-height:1.45;" id="qsStep2Desc">
+              Zamiast skomplikowanych suwaków DAW, wstawiaj emotikony prosto w tekst: <strong>🤫</strong> dla szeptu, <strong>💥</strong> dla krzyku, <strong>📞</strong> dla telefonu. Kliknij <strong>Dialog Master</strong>, a program sam rozpozna postacie i obsadzi je różnymi głosami!
+            </div>
+          </div>
+        </div>
+
+        <!-- Krok 3 -->
+        <div style="display:flex; gap:1rem; align-items:flex-start; background:var(--track-bg); border:1px solid var(--border); border-radius:10px; padding:1rem;">
+          <div style="font-size:1.6rem; background:rgba(56,189,248,0.15); border:1px solid #38bdf8; border-radius:10px; width:48px; height:48px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+            📦
+          </div>
+          <div>
+            <div style="font-weight:700; color:var(--text-bright); font-size:0.95rem; margin-bottom:0.25rem;" id="qsStep3Title">
+              3. Odsłuchaj i Eksportuj (Mastering ACX & EBU R128)
+            </div>
+            <div style="font-size:0.82rem; color:var(--text-muted); line-height:1.45;" id="qsStep3Desc">
+              Kliknij <strong>▶</strong> na bloku, aby odsłuchać fragment. Gotowy audiobook wyeksportujesz jednym kliknięciem (<strong>Eksportuj</strong>) jako plik <strong>M4B z rozdziałami i okładką</strong> lub studyjny <strong>FLAC 24-bit</strong> spełniający normy Audible/ACX.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stopka modalu -->
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.8rem; border-top:1px solid var(--border); padding-top:1rem;">
+        <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.8rem; color:var(--text-dim); cursor:pointer;">
+          <input type="checkbox" id="chkDontShowQuickStart" onchange="toggleDontShowQuickStart(this.checked)">
+          <span id="qsDontShowText">Nie pokazuj przy uruchomieniu</span>
+        </label>
+        <button class="btn btn-primary" onclick="closeQuickStartModal()" style="padding:0.5rem 1.4rem; font-weight:700;" id="qsBtnStart">
+          Zrozumiałem, zaczynamy! 🚀
+        </button>
       </div>
     </div>
   </div>
@@ -2801,6 +2887,123 @@
     const savedTheme = localStorage.getItem('audioticon_theme') || 'ice-cyber';
     document.documentElement.setAttribute('data-theme', savedTheme);
     document.getElementById('themePicker').value = savedTheme;
+
+    // ==========================================
+    // I18N MULTILINGUAL SYSTEM (EN & PL)
+    // ==========================================
+    const I18N = {
+      en: {
+        presetDirector: "🎬 Director",
+        presetWriter: "✍️ Zen Writer",
+        presetDaw: "🎛️ DAW Studio",
+        quickStartBtn: "Quick Start",
+        qsTitle: "Welcome to Audioticon Studio — Quick Start in 60s",
+        qsSubtitle: "Audioticon is a lightweight, local audio drama and audiobook workstation. Direct with simple emojis without subscriptions and without cloud leaks.",
+        qsStep1Title: "1. Write or Import Manuscript",
+        qsStep1Desc: "Type directly in Notion-style blocks, or click <strong>Import Book</strong> to drag & drop an EPUB, PDF, DOCX, ODT or TXT file.",
+        qsStep2Title: "2. Direct with Emojis & Dialog Master",
+        qsStep2Desc: "Use <strong>🤫</strong> for whisper, <strong>💥</strong> for shout, <strong>📞</strong> for phone. Click <strong>Dialog Master</strong> to auto-detect characters and assign distinct voices!",
+        qsStep3Title: "3. Master & Export (Audible ACX / EBU R128)",
+        qsStep3Desc: "Click <strong>▶</strong> on any block to preview. When ready, click <strong>Export</strong> to create an M4B with chapters and cover art, or a 24-bit lossless FLAC master.",
+        qsDontShow: "Don't show on startup",
+        qsBtnStart: "Got it, let's create! 🚀",
+        manuscriptTitle: "Notion Block Manuscript",
+        addBlockBtn: "➕ Add Block",
+        renderAllBtn: "<span>⚡</span> Render Timeline",
+        inspectorTitle: "Voice & DSP Inspector",
+        timelineTitle: "Multi-Track Timeline (Waveform & Punch-In)",
+        transportTitle: "Master & Audio Monitoring"
+      },
+      pl: {
+        presetDirector: "🎬 Reżyser",
+        presetWriter: "✍️ Pisarz Zen",
+        presetDaw: "🎛️ Studio DAW",
+        quickStartBtn: "Szybki Start",
+        qsTitle: "Witaj w Audioticon Studio — Jak zacząć w 60 sekund",
+        qsSubtitle: "Audioticon to lekka, lokalna stacja robocza do reżyserii i produkcji audiobooków. Przekształcaj tekst w słuchowiska za pomocą prostych emotikonów, bez abonamentu i bez chmury.",
+        qsStep1Title: "1. Pisz lub Wgraj książkę",
+        qsStep1Desc: "Pisz bezpośrednio w blokach jak w Notion, albo kliknij <strong>Importuj Książkę</strong> i przeciągnij plik manuskryptu (obsługujemy .epub, .pdf, .docx, .odt, .txt).",
+        qsStep2Title: "2. Reżyseruj emotikonami i Dialog Masterem",
+        qsStep2Desc: "Wstawiaj emotikony prosto w tekst: <strong>🤫</strong> dla szeptu, <strong>💥</strong> dla krzyku, <strong>📞</strong> dla telefonu. Kliknij <strong>Dialog Master</strong>, a program sam obsadzi postaci głosami!",
+        qsStep3Title: "3. Odsłuchaj i Eksportuj (Mastering ACX & EBU R128)",
+        qsStep3Desc: "Kliknij <strong>▶</strong> na bloku, aby odsłuchać fragment. Gotowy audiobook wyeksportujesz jednym kliknięciem jako plik <strong>M4B z rozdziałami i okładką</strong> lub studyjny <strong>FLAC 24-bit</strong>.",
+        qsDontShow: "Nie pokazuj przy uruchomieniu",
+        qsBtnStart: "Zrozumiałem, zaczynamy! 🚀",
+        manuscriptTitle: "Edytor Blokowy (Notion)",
+        addBlockBtn: "➕ Dodaj Blok",
+        renderAllBtn: "<span>⚡</span> Renderuj Oś Czasu",
+        inspectorTitle: "Inspektor Bloku",
+        timelineTitle: "Wielościeżkowa Oś Czasu (Waveform & Punch-In)",
+        transportTitle: "Master & Odsłuch"
+      }
+    };
+
+    let currentUiLang = 'en';
+
+    function changeUiLanguage(lang, persist = true) {
+      if (!I18N[lang]) lang = 'en';
+      currentUiLang = lang;
+      if (persist) localStorage.setItem('audioticon_ui_lang', lang);
+      document.documentElement.lang = lang;
+      const picker = document.getElementById('uiLangPicker');
+      if (picker) picker.value = lang;
+
+      const t = I18N[lang];
+      const btnDirector = document.getElementById('btnPresetDirector');
+      if (btnDirector) btnDirector.innerText = t.presetDirector;
+      const btnWriter = document.getElementById('btnPresetWriter');
+      if (btnWriter) btnWriter.innerText = t.presetWriter;
+      const btnDaw = document.getElementById('btnPresetDaw');
+      if (btnDaw) btnDaw.innerText = t.presetDaw;
+      const lblQs = document.getElementById('lblQuickStartBtn');
+      if (lblQs) lblQs.innerText = t.quickStartBtn;
+
+      // Quick start modal
+      const qsTitle = document.getElementById('qsModalTitle');
+      if (qsTitle) qsTitle.innerText = t.qsTitle;
+      const qsSub = document.getElementById('qsModalSubtitle');
+      if (qsSub) qsSub.innerText = t.qsSubtitle;
+      const s1t = document.getElementById('qsStep1Title');
+      if (s1t) s1t.innerText = t.qsStep1Title;
+      const s1d = document.getElementById('qsStep1Desc');
+      if (s1d) s1d.innerHTML = t.qsStep1Desc;
+      const s2t = document.getElementById('qsStep2Title');
+      if (s2t) s2t.innerText = t.qsStep2Title;
+      const s2d = document.getElementById('qsStep2Desc');
+      if (s2d) s2d.innerHTML = t.qsStep2Desc;
+      const s3t = document.getElementById('qsStep3Title');
+      if (s3t) s3t.innerText = t.qsStep3Title;
+      const s3d = document.getElementById('qsStep3Desc');
+      if (s3d) s3d.innerHTML = t.qsStep3Desc;
+      const qsDs = document.getElementById('qsDontShowText');
+      if (qsDs) qsDs.innerText = t.qsDontShow;
+      const qsBtn = document.getElementById('qsBtnStart');
+      if (qsBtn) qsBtn.innerText = t.qsBtnStart;
+
+      // Workspace titles
+      const manTitle = document.getElementById('lblTileTitleManuscript');
+      if (manTitle) manTitle.innerText = t.manuscriptTitle;
+      const timeTitle = document.getElementById('lblTileTitleTimeline');
+      if (timeTitle) timeTitle.innerText = t.timelineTitle;
+    }
+
+    function openQuickStartModal() {
+      const modal = document.getElementById('quickStartModal');
+      if (modal) modal.style.display = 'flex';
+    }
+
+    function closeQuickStartModal() {
+      const modal = document.getElementById('quickStartModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function toggleDontShowQuickStart(isChecked) {
+      if (isChecked) {
+        localStorage.setItem('audioticon_quickstart_dismissed', 'true');
+      } else {
+        localStorage.removeItem('audioticon_quickstart_dismissed');
+      }
+    }
 
     // Presets
     function applyPreset(preset) {
@@ -6191,6 +6394,10 @@
 
     // Init
     window.addEventListener('DOMContentLoaded', () => {
+      const savedLang = localStorage.getItem('audioticon_ui_lang');
+      const defaultLang = savedLang || (navigator.language && navigator.language.startsWith('pl') ? 'pl' : 'en');
+      changeUiLanguage(defaultLang, false);
+
       checkSystemHealth();
       checkForUpdates();
       refreshLicenseStatus();
@@ -6200,6 +6407,10 @@
       fetchLatestWaveformData();
       fetchLatestQcReport();
       fetchCustomEmojis();
+
+      if (!localStorage.getItem('audioticon_quickstart_dismissed')) {
+        setTimeout(openQuickStartModal, 450);
+      }
     });
 
     window.addEventListener('resize', () => {
