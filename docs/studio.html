@@ -979,15 +979,20 @@
     /* ==========================================================================
        MODAL STYLES (Custom Emojis, Wallet, Palette)
        ========================================================================== */
-    .modal-overlay {
+    .modal-overlay,
+    .modal-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.5);
+      background: rgba(0, 0, 0, 0.65);
       backdrop-filter: blur(8px);
       display: none;
       align-items: center;
       justify-content: center;
       z-index: 5000;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
     }
 
     .modal-card {
