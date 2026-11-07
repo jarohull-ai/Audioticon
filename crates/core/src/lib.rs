@@ -29,10 +29,10 @@ pub mod whisper_dsp;
 pub mod wsola;
 
 pub use audio::{
-    create_ambient_track, create_breath_wav, create_breath_wav_with_gain, create_sfx_wav,
-    create_silence_wav, export_to_flac, export_to_m4b, export_to_mp3, mix_dialogue_with_ambience,
-    stitch_wav_files, AudioDirectorEngine, EdgeTtsBridge, ElevenLabsBridge, PiperBridge,
-    SpeechSynthesizer, DEFAULT_SAMPLE_RATE,
+    check_ffmpeg_installed, create_ambient_track, create_breath_wav, create_breath_wav_with_gain,
+    create_sfx_wav, create_silence_wav, export_to_flac, export_to_m4b, export_to_mp3,
+    ffmpeg_missing_instructions, mix_dialogue_with_ambience, stitch_wav_files, AudioDirectorEngine,
+    EdgeTtsBridge, ElevenLabsBridge, PiperBridge, SpeechSynthesizer, DEFAULT_SAMPLE_RATE,
 };
 pub use auto_director::{
     approve_proposal_envelope, auto_direct_text, build_annotation_only_proposal,

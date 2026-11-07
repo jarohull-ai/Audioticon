@@ -1046,6 +1046,12 @@
       </div>
 
       <div class="header-right">
+        <!-- FFmpeg Missing Warning Chip (only shown when missing) -->
+        <div id="ffmpegMissingChip" style="display:none; align-items:center; gap:0.35rem; padding:0.3rem 0.65rem; border-radius:9999px; background:rgba(239, 68, 68, 0.15); border:1px solid #ef4444; color:#f87171; font-size:0.72rem; font-weight:800; cursor:pointer;" onclick="openFfmpegHelpModal()" title="Kliknij, aby zobaczyć instrukcję instalacji ffmpeg">
+          <span>⚠️</span>
+          <span>Brak FFmpeg</span>
+        </div>
+
         <!-- License Tier Badge -->
         <div class="license-badge free" id="licenseBadge" onclick="openLicenseModal()" title="Zarządzaj licencją Gumroad (Solo / Studio)">
           <span id="licenseBadgeIcon">🛡️</span>
@@ -1648,6 +1654,27 @@
         <button class="btn btn-primary" id="btnConfirmExport" onclick="executeExportAudiobook()" style="padding:0.6rem 1.4rem; font-weight:800;">
           📦 Rozpocznij Eksport
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: FFMPEG MISSING HELP -->
+  <div class="modal-overlay" id="ffmpegHelpModal" onclick="if(event.target===this) closeFfmpegHelpModal()">
+    <div class="modal-card" style="width:580px; max-width:95vw;">
+      <div class="modal-title">
+        <span style="color:#f87171; display:flex; align-items:center; gap:0.4rem;">⚠️ Program FFmpeg nie został wykryty</span>
+        <button class="btn-icon-xs" onclick="closeFfmpegHelpModal()">✕</button>
+      </div>
+      <div style="font-size:0.82rem; color:var(--text-muted); line-height:1.4; margin-bottom:0.8rem;">
+        Audioticon wykorzystuje <b>FFmpeg</b> do łączenia rozdziałów, eksportu M4B/FLAC oraz precyzyjnych pomiarów głośności EBU R128 i ACX.
+      </div>
+      <div style="background:var(--track-bg); padding:0.85rem; border-radius:8px; border:1px solid var(--border); font-family:var(--font-mono); font-size:0.75rem; display:flex; flex-direction:column; gap:0.6rem;">
+        <div><b>🐧 Ubuntu / Debian / Linux Mint:</b><br><code style="color:#34d399;">sudo apt update && sudo apt install -y ffmpeg</code></div>
+        <div><b>🍏 macOS (Homebrew):</b><br><code style="color:#38bdf8;">brew install ffmpeg</code></div>
+        <div><b>🪟 Windows (Terminal / PowerShell):</b><br><code style="color:#f59e0b;">winget install Gyan.FFmpeg</code></div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; margin-top:1rem;">
+        <button class="btn" onclick="closeFfmpegHelpModal()">Rozumiem, zainstaluję</button>
       </div>
     </div>
   </div>
@@ -5642,8 +5669,31 @@
       }
     }
 
+    function openFfmpegHelpModal() {
+      document.getElementById('ffmpegHelpModal').style.display = 'flex';
+    }
+    function closeFfmpegHelpModal() {
+      document.getElementById('ffmpegHelpModal').style.display = 'none';
+    }
+
+    async function checkSystemHealth() {
+      try {
+        const res = await fetch('/api/system/health');
+        if (res.ok) {
+          const health = await res.json();
+          const chip = document.getElementById('ffmpegMissingChip');
+          if (chip) {
+            chip.style.display = health.ffmpeg ? 'none' : 'inline-flex';
+          }
+        }
+      } catch (e) {
+        console.warn('System health check fallback:', e);
+      }
+    }
+
     // Init
     window.addEventListener('DOMContentLoaded', () => {
+      checkSystemHealth();
       refreshLicenseStatus();
       loadSavedLayout();
       recalcWordCount();

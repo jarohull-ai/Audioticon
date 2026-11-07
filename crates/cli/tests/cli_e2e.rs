@@ -228,6 +228,15 @@ fn test_api_server_endpoints_e2e() {
     let body_str = String::from_utf8_lossy(&body);
     assert!(body_str.contains("pl_PL-darkman-medium"));
 
+    // 1b. GET /api/system/health should return 200 with system diagnostics
+    let (h_status, h_headers, h_body) = http_roundtrip(port, "GET", "/api/system/health", None);
+    assert_eq!(h_status, 200);
+    assert!(h_headers.contains("application/json"));
+    let h_str = String::from_utf8_lossy(&h_body);
+    assert!(h_str.contains("\"status\""));
+    assert!(h_str.contains("\"ffmpeg\""));
+    assert!(h_str.contains("\"installed_models_count\""));
+
     // 2. GET /api/export with empty text should return 400 Bad Request
     let (status, _, body) = http_roundtrip(port, "GET", "/api/export", None);
     assert_eq!(status, 400);

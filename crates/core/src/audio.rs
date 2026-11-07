@@ -13,6 +13,26 @@ use tokio::sync::{Mutex, Semaphore};
 
 pub const DEFAULT_SAMPLE_RATE: u32 = 44100;
 
+/// Checks if `ffmpeg` binary is available on the system PATH and executable
+pub fn check_ffmpeg_installed() -> bool {
+    std::process::Command::new("ffmpeg")
+        .arg("-version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Returns a helpful Polish installation guide if ffmpeg is missing
+pub fn ffmpeg_missing_instructions() -> &'static str {
+    "Program 'ffmpeg' nie został wykryty w Twoim systemie.\n\
+    Audioticon wykorzystuje ffmpeg do masteringu EBU R128, eksportu M4B/FLAC i precyzyjnych pomiarów głośności.\n\n\
+    Instalacja w 1 krok:\n\
+    • Ubuntu/Debian/Mint:  sudo apt install ffmpeg\n\
+    • macOS (Homebrew):    brew install ffmpeg\n\
+    • Windows (winget):    winget install Gyan.FFmpeg\n\
+    • Windows (ręcznie):   pobierz z https://ffmpeg.org/download.html i dodaj do PATH"
+}
+
 /// Fast XorShift64 PRNG for deterministic procedural audio noise
 struct SimpleNoiseRng(u64);
 
@@ -2016,6 +2036,10 @@ pub async fn export_to_m4b(
     chapters: &[ChapterMark],
     metadata: &AudiobookMetadata,
 ) -> Result<()> {
+    if !check_ffmpeg_installed() {
+        anyhow::bail!("Błąd eksportu M4B: {}", ffmpeg_missing_instructions());
+    }
+
     let meta_file = m4b_path.with_extension("ffmeta.txt");
     let mut meta_content = String::from(";FFMETADATA1\n");
     if let Some(ref title) = metadata.title {
@@ -2105,6 +2129,10 @@ pub async fn export_to_mp3(
     chapters: &[ChapterMark],
     metadata: &AudiobookMetadata,
 ) -> Result<()> {
+    if !check_ffmpeg_installed() {
+        anyhow::bail!("Błąd eksportu MP3: {}", ffmpeg_missing_instructions());
+    }
+
     let meta_file = mp3_path.with_extension("ffmeta.txt");
     let mut meta_content = String::from(";FFMETADATA1\n");
     if let Some(ref title) = metadata.title {
@@ -2182,6 +2210,10 @@ pub async fn export_to_flac(
     metadata: &AudiobookMetadata,
     bit_depth: u32,
 ) -> Result<()> {
+    if !check_ffmpeg_installed() {
+        anyhow::bail!("Błąd eksportu FLAC: {}", ffmpeg_missing_instructions());
+    }
+
     let meta_file = flac_path.with_extension("ffmeta.txt");
     let mut meta_content = String::from(";FFMETADATA1\n");
     if let Some(ref title) = metadata.title {

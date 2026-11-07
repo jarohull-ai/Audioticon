@@ -679,6 +679,30 @@ async fn handle_studio_request(
         return;
     }
 
+    // Route: GET /api/system/health
+    if method == tiny_http::Method::Get && url == "/api/system/health" {
+        let ffmpeg_ok = audioticon_core::check_ffmpeg_installed();
+        let models = audioticon_core::models::list_models();
+        let installed_count = models.iter().filter(|m| m.installed).count();
+        let json = serde_json::json!({
+            "status": if ffmpeg_ok { "healthy" } else { "warning" },
+            "ffmpeg": ffmpeg_ok,
+            "installed_models_count": installed_count,
+            "os": std::env::consts::OS,
+            "arch": std::env::consts::ARCH,
+            "instructions": if !ffmpeg_ok { Some(audioticon_core::ffmpeg_missing_instructions()) } else { None }
+        });
+        let mut resp = tiny_http::Response::from_string(json.to_string());
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
     // Route: POST /api/license/activate
     if method == tiny_http::Method::Post && url == "/api/license/activate" {
         let mut body_str = String::new();
@@ -4930,6 +4954,18 @@ pub async fn run_studio_server(
     println!("🎛️  Interfejs:          Modularny Studio Workbench (Cosmic + CapCut + Notion)");
     println!("⚙️  Domyślny silnik:     {:?}", default_provider);
     println!("🗣️  Domyślny język:      {}", default_lang);
+
+    let ffmpeg_ok = audioticon_core::check_ffmpeg_installed();
+    if ffmpeg_ok {
+        println!("🎬 Silnik DSP & FFmpeg:  Dostępny (Mastering EBU R128 & M4B/FLAC aktywne)");
+    } else {
+        println!("⚠️  OSTRZEŻENIE:         Program 'ffmpeg' nie został wykryty w PATH!");
+        println!("   Eksport M4B/FLAC wymaga instalacji ffmpeg:");
+        println!("   • Ubuntu/Debian: sudo apt install ffmpeg");
+        println!("   • macOS: brew install ffmpeg");
+        println!("   • Windows: winget install Gyan.FFmpeg");
+    }
+
     println!("💡 Klasyczny widok dostępny pod: http://{}/classic", addr);
     println!("Naciśnij Ctrl+C, aby zatrzymać serwer.");
     println!("============================================================");
