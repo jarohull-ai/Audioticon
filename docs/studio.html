@@ -216,24 +216,37 @@
     .header-right {
       display: flex;
       align-items: center;
-      gap: 0.6rem;
+      gap: 0.45rem;
+      max-width: 100%;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      padding: 0.2rem 0;
+    }
+    .header-right::-webkit-scrollbar {
+      display: none;
     }
 
     .btn {
       display: inline-flex;
       align-items: center;
-      gap: 0.4rem;
+      justify-content: center;
+      gap: 0.35rem;
       height: 32px;
-      padding: 0 0.85rem;
+      padding: 0 0.65rem;
       background: var(--surface-elev);
       border: 1px solid var(--border);
       box-shadow: var(--inner-glow);
       color: var(--text);
       border-radius: 7px;
-      font-size: 0.78rem;
+      font-size: 0.76rem;
       font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
       cursor: pointer;
       transition: all 0.15s ease;
+      line-height: 1;
+      box-sizing: border-box;
     }
 
     .btn:hover {
@@ -422,18 +435,22 @@
     }
 
     .tile-btn {
-      width: 24px;
+      min-width: 24px;
+      width: auto;
       height: 24px;
-      display: flex;
+      padding: 0 0.45rem;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
       border: none;
       background: transparent;
       color: var(--text-muted);
       border-radius: 4px;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
+      white-space: nowrap;
       cursor: pointer;
       transition: all 0.15s;
+      box-sizing: border-box;
     }
 
     .tile-btn:hover {
@@ -1101,42 +1118,42 @@
 
         <!-- Import Book / Manuscript Button -->
         <button class="btn" onclick="openImportBookModal()" style="border-color:#34d399; color:#34d399; font-weight:700;" data-i18n-title="tipImportBook">
-          <span>📂</span> <span data-i18n="btnImportBook">Importuj Książkę</span>
+          <span>📂</span> <span data-i18n="btnImportBook">Import Książki</span>
         </button>
 
         <!-- Style Transfer Lab Button -->
         <button class="btn" onclick="openStyleLabModal()" style="border-color:var(--accent); color:var(--accent); font-weight:700;" data-i18n-title="tipStyleLab">
-          <span>🧬</span> <span data-i18n="btnStyleLab">Kreator Ekspresji</span>
+          <span>🧬</span> <span data-i18n="btnStyleLab">Ekspresja</span>
         </button>
 
         <!-- Bielik Annotation-Only Director Button -->
         <button class="btn" onclick="openDirectorModal()" style="border-color:var(--accent-secondary); color:var(--accent-secondary); font-weight:700;" data-i18n-title="tipDirector">
-          <span>🎬</span> <span data-i18n="btnDirector">Reżyser AI (Bielik)</span>
+          <span>🎬</span> <span data-i18n="btnDirector">Reżyser AI</span>
         </button>
 
         <!-- Multi-Voice Dialog Master Button -->
         <button class="btn" onclick="openDialogMasterModal()" style="border-color:#a855f7; color:#c084fc; font-weight:700;" data-i18n-title="tipDialogMaster">
-          <span>🎭</span> <span data-i18n="btnDialogMaster">Dialog Master</span>
+          <span>🎭</span> <span data-i18n="btnDialogMaster">Dialogi</span>
         </button>
 
         <!-- Tablet & Mobile Connect Button -->
         <button class="btn" onclick="openTabletConnectModal()" style="border-color:#8b5cf6; color:#c084fc; font-weight:700;" data-i18n-title="tipTablet">
-          <span>📱</span> <span data-i18n="btnTablet">Tablet / Telefon</span>
+          <span>📱</span> <span data-i18n="btnTablet">Tablet</span>
         </button>
 
         <!-- Subtitles & TikTok Karaoke Button -->
         <button class="btn" onclick="openSubtitlesModal()" style="border-color:#38bdf8; color:#38bdf8; font-weight:700;" data-i18n-title="tipSubtitles">
-          <span>💬</span> <span data-i18n="btnSubtitles">Napisy (.SRT)</span>
+          <span>💬</span> <span data-i18n="btnSubtitles">Napisy</span>
         </button>
 
         <!-- ACX & EBU R128 Loudness Normalizer Dashboard Button -->
         <button class="btn" onclick="openAcxQcModal()" style="border-color:#10b981; color:#10b981; font-weight:700;" data-i18n-title="tipAcxQc">
-          <span>📊</span> <span data-i18n="btnAcxQc">ACX Normy & Raport</span>
+          <span>📊</span> <span data-i18n="btnAcxQc">Normy ACX</span>
         </button>
 
         <!-- Emoji Sound Designer Button -->
         <button class="btn" onclick="openEmojiDesignerModal()" style="border-color:#ec4899; color:#ec4899; font-weight:700;" data-i18n-title="tipEmojiDesigner">
-          <span>🎨</span> <span data-i18n="btnEmojiDesigner">Dźwięki pod Ikony</span>
+          <span>🎨</span> <span data-i18n="btnEmojiDesigner">Dźwięki Emoji</span>
         </button>
 
         <!-- Tile Toggle Menu -->
@@ -2919,19 +2936,19 @@
         // Header Action Buttons
         quickStartBtn: "Quick Start",
         tipQuickStart: "Quick Start in 60 seconds guide",
-        btnImportBook: "Import Manuscript",
+        btnImportBook: "Import Book",
         tipImportBook: "Import manuscript (.epub, .pdf, .docx, .doc, .odt, .rtf, .md, .txt)",
-        btnStyleLab: "Expression Lab",
+        btnStyleLab: "Expression",
         tipStyleLab: "Voice laboratory, cloning and style transfer",
-        btnDirector: "AI Director (Bielik)",
+        btnDirector: "AI Director",
         tipDirector: "Automated emotion direction with Polish Bielik LLM",
-        btnDialogMaster: "Dialog Master",
+        btnDialogMaster: "Dialogs",
         tipDialogMaster: "Auto-detect characters and assign distinct voices (Multi-Voice Casting)",
-        btnTablet: "Tablet / Mobile",
+        btnTablet: "Tablet",
         tipTablet: "Connect with iPad or Android tablet over local Wi-Fi",
-        btnSubtitles: "Subtitles (.SRT)",
+        btnSubtitles: "Subtitles",
         tipSubtitles: "Export subtitles and word timestamps (.SRT, .VTT, TikTok Karaoke)",
-        btnAcxQc: "ACX Standards & QC",
+        btnAcxQc: "ACX Standards",
         tipAcxQc: "Open ACX / EBU R128 Normalizer Dashboard & QC Report",
         btnEmojiDesigner: "Emoji Sounds",
         tipEmojiDesigner: "Design custom sounds, DSP filters, SFX, and voices for icons and emojis",
@@ -3045,21 +3062,21 @@
         // Header Action Buttons
         quickStartBtn: "Szybki Start",
         tipQuickStart: "Instrukcja: Jak zacząć w 60 sekund",
-        btnImportBook: "Importuj Książkę",
+        btnImportBook: "Import Książki",
         tipImportBook: "Importuj manuskrypt (.epub, .pdf, .docx, .doc, .odt, .rtf, .md, .txt)",
-        btnStyleLab: "Kreator Ekspresji",
+        btnStyleLab: "Ekspresja",
         tipStyleLab: "Laboratorium głosu, klonowanie i transfer stylu ekspresji",
-        btnDirector: "Reżyser AI (Bielik)",
+        btnDirector: "Reżyser AI",
         tipDirector: "Automatyczna reżyseria emocji polskim modelem LLM Bielik",
-        btnDialogMaster: "Dialog Master",
+        btnDialogMaster: "Dialogi",
         tipDialogMaster: "Automatycznie wykryj postacie i przypisz im głosy (Multi-Voice Casting)",
-        btnTablet: "Tablet / Telefon",
+        btnTablet: "Tablet",
         tipTablet: "Połącz z iPadem lub tabletem z Androidem w domowym Wi-Fi",
-        btnSubtitles: "Napisy (.SRT)",
+        btnSubtitles: "Napisy",
         tipSubtitles: "Eksportuj napisy i znaczniki czasowe (.SRT, .VTT, TikTok Karaoke)",
-        btnAcxQc: "ACX Normy & Raport",
+        btnAcxQc: "Normy ACX",
         tipAcxQc: "Otwórz Dashboard Normalizatora parametrów ACX / EBU R128 i Raport Jakości",
-        btnEmojiDesigner: "Dźwięki pod Ikony",
+        btnEmojiDesigner: "Dźwięki Emoji",
         tipEmojiDesigner: "Projektuj własne dźwięki, filtry DSP, efekty SFX i głosy pod ikony i emotikony",
         btnTiles: "Kafelki",
         tipTiles: "Przełącz widoczność paneli i kafelków",
