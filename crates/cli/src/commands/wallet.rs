@@ -76,32 +76,28 @@ pub fn run_wallet(action: Option<WalletAction>) -> Result<()> {
             }
         }
         WalletAction::Topup => {
-            println!("🛒 PAKIETY LICENCJI AUDIOTICON STUDIO & AUDIOCOIN$");
+            println!("🛒 PAKIETY LICENCJI AUDIOTICON STUDIO (GUMROAD SECURE CHECKOUT)");
             println!(
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             );
-            println!("1. 🥉 PAKIET DEBIUTANT — 39 zł");
-            println!("   • 5 000 AudioCoin$ (limity produkcyjne BYOK / reżyseria AI)");
-            println!("   • Dostęp do studyjnych bibliotek SFX & Ambient");
-            println!("   • Eksport M4B z rozdziałami i masteringiem EBU R128");
+            println!("1. 🌟 SOLO PRO (PAKIET PISARZ) — $45 USD (Licencja wieczysta v1.x)");
+            println!("   • Wszystkie funkcje Free (Notion editor, Waveform, MP3/WAV, Piper/Kokoro/Edge/ElevenLabs BYOK)");
+            println!("   • Eksport kontenera M4B z rozdziałami i okładką");
+            println!("   • 🌟 OFICJALNY CERTYFIKAT ZGODNOŚCI ACX / EBU R128 (-24 do -14 LUFS)");
+            println!("   • Vocal & AI Punch-In / Retake bez przeliczania całej książki");
+            println!("   • Kup online: https://gumroad.com/l/audioticon-solo");
             println!();
-            println!("2. 🥈 PAKIET PISARZ (NAJPOPULARNIEJSZY) — 119 zł");
-            println!("   • 20 000 AudioCoin$ (pełna produkcja wielogłosowa & integracja BYOK ElevenLabs)");
-            println!("   • 🌟 OFICJALNY CERTYFIKAT ZGODNOŚCI ACX / STORYTEL (Audio Ledger)");
-            println!("   • Rzeczywisty pomiar LUFS / True Peak i eksport bezstratny 24-bit FLAC");
-            println!("   • Pełna kadencja oddechowa i foley");
-            println!();
-            println!("3. 🥇 PAKIET WYDAWCA / STUDIO — 249 zł");
-            println!("   • 50 000 AudioCoin$ (VoiceLab + eksport paczek LJSpeech/XTTS + Multi-Voice)");
-            println!("   • Nielimitowane certyfikaty ACX / Storytel z podpisem kryptograficznym");
-            println!("   • Prawa do komercyjnej produkcji słuchowisk (B2B)");
+            println!("2. 🚀 STUDIO PRO (PAKIET WYDAWCA) — $99 USD (Licencja wieczysta v1.x)");
+            println!("   • Wszystkie funkcje Solo PRO");
+            println!("   • Multi-book Batch Pipeline (przetwarzanie całych serii wydawniczych z crash-resume)");
+            println!("   • Eksport datasetów VoiceLab ZIP dla trenowania własnych modeli neuralnych");
+            println!("   • Kup online: https://gumroad.com/l/audioticon-studio");
             println!(
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             );
-            println!("ℹ️  Uwaga: Silniki lokalne (Piper PL, Kokoro-82M) oraz Edge TTS działają w 100% za darmo.");
-            println!("   Integracja z chmurą ElevenLabs działa w modelu BYOK (własny klucz API użytkownika).");
-            println!("💳 Kup licencję / voucher online przez BLIK / Kartę / Apple Pay:");
-            println!("   https://audioticon.io/pricing  (lub wpisz kod: audioticon wallet redeem <KOD>)");
+            println!("ℹ️  Podatek VAT / Sales Tax jest automatycznie rozliczany przez Gumroad (Merchant of Record).");
+            println!("   Po zakupie otrzymasz klucz licencyjny. Wpisz go w aplikacji lub uruchom:");
+            println!("   audioticon wallet redeem <KLUCZ_LUB_VOUCHER>");
         }
     }
 

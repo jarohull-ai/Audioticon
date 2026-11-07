@@ -249,9 +249,26 @@ fn test_api_server_endpoints_e2e() {
     assert!(body_str.contains("total_speech_segments"));
     assert!(body_str.contains("short_hash"));
 
-    // 5. POST /api/export with format=m4b: tests full M4B generation if model is present,
-    // or validates proper 400 model guidance when running in CI without offline models.
+    // 5a. Soft-gate check on M4B export before redeeming voucher (Free tier returns 402)
     let export_req = "{\"text\": \"📖 Rozdział 1: Test E2E 🛑 Krótkie zdanie testowe.\", \"format\": \"m4b\", \"title\": \"Test E2E Audiobook\", \"author\": \"Jarosław Kuchta\", \"provider\": \"piper\"}";
+    let (s_gate, _, b_gate) = http_roundtrip(port, "POST", "/api/export", Some(export_req));
+    assert_eq!(s_gate, 402, "M4B export on free tier must return 402 Payment Required");
+    let gate_str = String::from_utf8_lossy(&b_gate);
+    assert!(gate_str.contains("m4b_requires_pro"));
+
+    // 5b. POST /api/wallet/redeem: valid cryptographic voucher unlocks Writer Tier (Pisarz)
+    let valid_voucher =
+        audioticon_core::generate_voucher_code(audioticon_core::WalletTier::Writer, 25000, "VIP2026");
+    let redeem_payload = format!("{{\"code\": \"{}\"}}", valid_voucher);
+    let (v_status, _, v_body) =
+        http_roundtrip(port, "POST", "/api/wallet/redeem", Some(&redeem_payload));
+    assert_eq!(v_status, 200);
+    let v_str = String::from_utf8_lossy(&v_body);
+    assert!(v_str.contains("\"success\":true"));
+    assert!(v_str.contains("\"tier\":\"Pisarz\""));
+    assert!(v_str.contains("\"acx_certificate_unlocked\":true"));
+
+    // 5c. POST /api/export with format=m4b now proceeds with unlocked Writer Tier
     let (status, headers, body) = http_roundtrip(port, "POST", "/api/export", Some(export_req));
     let body_str = String::from_utf8_lossy(&body);
     if status == 200 {
@@ -308,17 +325,12 @@ fn test_api_server_endpoints_e2e() {
     let r_str = String::from_utf8_lossy(&r_body);
     assert!(r_str.contains("Błąd"));
 
-    // 9. POST /api/wallet/redeem: valid cryptographic voucher should unlock Writer Tier
-    let valid_voucher =
-        audioticon_core::generate_voucher_code(audioticon_core::WalletTier::Writer, 25000, "VIP2026");
-    let redeem_payload = format!("{{\"code\": \"{}\"}}", valid_voucher);
-    let (v_status, _, v_body) =
+    // 9. POST /api/wallet/redeem: attempting to redeem already redeemed voucher must fail (replay attack)
+    let (v_dup_status, _, v_dup_body) =
         http_roundtrip(port, "POST", "/api/wallet/redeem", Some(&redeem_payload));
-    assert_eq!(v_status, 200);
-    let v_str = String::from_utf8_lossy(&v_body);
-    assert!(v_str.contains("\"success\":true"));
-    assert!(v_str.contains("\"tier\":\"Pisarz\""));
-    assert!(v_str.contains("\"acx_certificate_unlocked\":true"));
+    assert_eq!(v_dup_status, 400);
+    let v_dup_str = String::from_utf8_lossy(&v_dup_body);
+    assert!(v_dup_str.contains("został już wcześniej wykorzystany") || v_dup_str.contains("aktywowana"));
 
     // 10. GET /api/ledger/certificate: with Writer tier unlocked, certificate must be returned
     let (cert_status, cert_headers, cert_body) =
@@ -810,6 +822,7 @@ fn test_api_voicelab_dataset_download_e2e() {
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
         .env("AUDIOTICON_VOICES_DIR", &tmp_voices)
+        .env("AUDIOTICON_MOCK_WALLET_TIER", "STUDIO")
         .args(["serve", "--port", &port.to_string(), "--no-browser"])
         .spawn()
         .expect("Failed to start audioticon serve");
@@ -1361,6 +1374,7 @@ fn test_api_subtitles_export_e2e() {
     let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
         .args(["serve", "--port", &port.to_string(), "--no-browser"])
         .env("AUDIOTICON_CACHE_DIR", tmp_dir.to_str().unwrap())
+        .env("AUDIOTICON_MOCK_WALLET_TIER", "STUDIO")
         .spawn()
         .expect("Start studio server");
 
@@ -1426,6 +1440,7 @@ fn test_api_waveform_and_punch_in_lifecycle_e2e() {
     let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
         .args(["serve", "--port", &port.to_string(), "--no-browser"])
         .env("AUDIOTICON_CACHE_DIR", tmp_dir.to_str().unwrap())
+        .env("AUDIOTICON_MOCK_WALLET_TIER", "STUDIO")
         .spawn()
         .expect("Start studio server");
 
@@ -1504,6 +1519,7 @@ fn test_api_qc_latest_and_audit_e2e() {
     let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
         .args(["serve", "--port", &port.to_string(), "--no-browser"])
         .env("AUDIOTICON_CACHE_DIR", tmp_dir.to_str().unwrap())
+        .env("AUDIOTICON_MOCK_WALLET_TIER", "STUDIO")
         .spawn()
         .expect("Start studio server");
 
@@ -1614,6 +1630,91 @@ fn test_api_custom_emojis_sound_design_e2e() {
     assert_eq!(s_rem, 200);
     let rem_json: serde_json::Value = serde_json::from_slice(&b_rem).expect("Parse rem");
     assert!(rem_json["emojis"]["🧙‍♂️"].is_null());
+
+    // Clean up
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+}
+
+#[test]
+fn test_license_status_activation_and_soft_gates_e2e() {
+    let port = get_free_port();
+    let tmp_dir = std::env::temp_dir().join(format!(
+        "test_license_e2e_{}_{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = std::fs::create_dir_all(&tmp_dir);
+    let wallet_path = tmp_dir.join("wallet.json");
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_audioticon"))
+        .args(["serve", "--port", &port.to_string(), "--no-browser"])
+        .env("AUDIOTICON_CACHE_DIR", tmp_dir.to_str().unwrap())
+        .env("AUDIOTICON_WALLET_PATH", wallet_path.to_str().unwrap())
+        .env("AUDIOTICON_MOCK_GUMROAD_TIER", "SOLO")
+        .spawn()
+        .expect("Start studio server");
+
+    let mut connected = false;
+    for _ in 0..30 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        if std::net::TcpStream::connect(format!("127.0.0.1:{}", port)).is_ok() {
+            connected = true;
+            break;
+        }
+    }
+    assert!(connected, "Server failed to start on port {}", port);
+
+    // 1. Initial status: Free tier
+    let (s_stat, _, b_stat) = http_roundtrip(port, "GET", "/api/license/status", None);
+    assert_eq!(s_stat, 200);
+    let stat_json: serde_json::Value = serde_json::from_slice(&b_stat).expect("Parse license status");
+    assert_eq!(stat_json["tier"], "Free");
+    assert_eq!(stat_json["is_pro"], false);
+    assert_eq!(stat_json["features"]["m4b"], false);
+    assert_eq!(stat_json["features"]["punch_in"], false);
+
+    // 2. Soft-gate check on /api/export with format=m4b in Free tier
+    let export_m4b_req = serde_json::json!({
+        "text": "Próba eksportu M4B w darmowej wersji.",
+        "format": "m4b",
+        "provider": "piper",
+        "lang": "pl",
+        "voice": "pl_PL-gosia-medium"
+    }).to_string();
+    let (s_exp, _, b_exp) = http_roundtrip(port, "POST", "/api/export", Some(&export_m4b_req));
+    assert_eq!(s_exp, 402, "M4B export on Free tier must return 402 Payment Required");
+    let exp_json: serde_json::Value = serde_json::from_slice(&b_exp).expect("Parse export soft-gate");
+    assert_eq!(exp_json["error"], "m4b_requires_pro");
+
+    // 3. Activate Solo license via /api/license/activate
+    let act_req = serde_json::json!({
+        "key": "SOLO-XYZ-999"
+    }).to_string();
+    let (s_act, _, b_act) = http_roundtrip(port, "POST", "/api/license/activate", Some(&act_req));
+    if s_act != 200 {
+        panic!("Activation failed: {}", String::from_utf8_lossy(&b_act));
+    }
+    assert_eq!(s_act, 200);
+    let act_json: serde_json::Value = serde_json::from_slice(&b_act).expect("Parse activation response");
+    assert_eq!(act_json["success"], true);
+    assert_eq!(act_json["tier"], "Solo PRO");
+    assert_eq!(act_json["is_pro"], true);
+    assert_eq!(act_json["features"]["m4b"], true);
+    assert_eq!(act_json["features"]["punch_in"], true);
+    assert_eq!(act_json["features"]["batch"], false);
+
+    // 4. Verify GET /api/license/status reflects updated tier
+    let (s_stat2, _, b_stat2) = http_roundtrip(port, "GET", "/api/license/status", None);
+    assert_eq!(s_stat2, 200);
+    let stat2_json: serde_json::Value = serde_json::from_slice(&b_stat2).expect("Parse updated license status");
+    assert_eq!(stat2_json["tier"], "Solo PRO");
+    assert_eq!(stat2_json["is_pro"], true);
+    assert_eq!(stat2_json["features"]["m4b"], true);
 
     // Clean up
     let _ = child.kill();

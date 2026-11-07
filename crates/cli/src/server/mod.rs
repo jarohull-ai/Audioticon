@@ -426,7 +426,8 @@ async fn handle_studio_request(
             || url.starts_with("/api/custom-emojis")
             || url.starts_with("/api/auto-direct")
             || url.starts_with("/api/cache")
-            || url.starts_with("/api/wallet"))
+            || url.starts_with("/api/wallet")
+            || url.starts_with("/api/license"))
         && !has_json_content_type(&request)
     {
         let err_json = serde_json::json!({
@@ -638,14 +639,153 @@ async fn handle_studio_request(
         }
     }
 
+    // Route: GET /api/license/status
+    if method == tiny_http::Method::Get && url == "/api/license/status" {
+        let wallet = AudioWallet::load();
+        let json = serde_json::json!({
+            "tier": wallet.tier.name(),
+            "tier_id": wallet.tier.as_str(),
+            "is_pro": wallet.tier.is_pro(),
+            "is_studio": wallet.tier.is_studio(),
+            "balance": wallet.balance,
+            "features": {
+                "m4b": wallet.tier.has_m4b_export(),
+                "acx_certificate": wallet.tier.has_acx_certificate(),
+                "punch_in": wallet.tier.has_punch_in(),
+                "batch": wallet.tier.has_batch_pipeline(),
+                "dataset_export": wallet.tier.has_dataset_export(),
+            },
+            "products": {
+                "solo": {
+                    "name": "Solo PRO",
+                    "price_usd": 45,
+                    "url": "https://gumroad.com/l/audioticon-solo"
+                },
+                "studio": {
+                    "name": "Studio PRO",
+                    "price_usd": 99,
+                    "url": "https://gumroad.com/l/audioticon-studio"
+                }
+            }
+        });
+        let mut resp = tiny_http::Response::from_string(json.to_string());
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: POST /api/license/activate
+    if method == tiny_http::Method::Post && url == "/api/license/activate" {
+        let mut body_str = String::new();
+        if request
+            .as_reader()
+            .take(1024 * 64)
+            .read_to_string(&mut body_str)
+            .is_err()
+        {
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać zapytania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(400));
+            return;
+        }
+
+        #[derive(serde::Deserialize)]
+        struct ActivateReq {
+            key: Option<String>,
+            code: Option<String>,
+        }
+
+        let key_input = match serde_json::from_str::<ActivateReq>(&body_str) {
+            Ok(r) => r.key.or(r.code).unwrap_or_default(),
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "error": "Nieprawidłowy format JSON",
+                    "details": e.to_string()
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                        .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        };
+
+        let mut wallet = AudioWallet::load();
+        match wallet.redeem_code(&key_input) {
+            Ok(result) => {
+                let _ = wallet.save();
+                let success_json = serde_json::json!({
+                    "success": true,
+                    "message": format!(
+                        "Pomyślnie aktywowano licencję! Odblokowano pakiet: {}. Dodano {} AudioCoin$.",
+                        result.tier.name(),
+                        result.credits
+                    ),
+                    "tier": result.tier.name(),
+                    "tier_id": result.tier.as_str(),
+                    "is_pro": result.tier.is_pro(),
+                    "is_studio": result.tier.is_studio(),
+                    "features": {
+                        "m4b": result.tier.has_m4b_export(),
+                        "acx_certificate": result.tier.has_acx_certificate(),
+                        "punch_in": result.tier.has_punch_in(),
+                        "batch": result.tier.has_batch_pipeline(),
+                        "dataset_export": result.tier.has_dataset_export(),
+                    },
+                    "balance": wallet.balance,
+                });
+                let mut resp = tiny_http::Response::from_string(success_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                        .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp);
+                return;
+            }
+            Err(e) => {
+                let err_json = serde_json::json!({
+                    "success": false,
+                    "error": format!("{}", e)
+                });
+                let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
+                        .unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
+                let _ = request.respond(resp.with_status_code(400));
+                return;
+            }
+        }
+    }
+
     // Route: GET /api/ledger/certificate
     if method == tiny_http::Method::Get && url == "/api/ledger/certificate" {
         let wallet = AudioWallet::load();
-        if !wallet.acx_certificate_unlocked {
+        if !wallet.tier.has_acx_certificate() && !wallet.acx_certificate_unlocked {
             let err_json = serde_json::json!({
-                "error": "Certyfikat ACX / Storytel wymaga Pakietu Pisarz (Writer Tier). Odblokuj go w zakładce Doładuj.",
+                "error": "Certyfikat ACX / EBU R128 wymaga licencji Solo PRO lub Studio PRO.",
                 "tier": wallet.tier.name(),
-                "unlocked": false
+                "unlocked": false,
+                "upgrade_url": "https://gumroad.com/l/audioticon-solo"
             });
             let mut resp = tiny_http::Response::from_string(err_json.to_string());
             resp.add_header(
@@ -2016,6 +2156,25 @@ async fn handle_studio_request(
             }
         };
 
+        let wallet = AudioWallet::load();
+        if req.format.to_lowercase() == "m4b" && !wallet.tier.has_m4b_export() {
+            let err_json = serde_json::json!({
+                "error": "m4b_requires_pro",
+                "message": "Eksport audiobooka M4B z rozdziałami i okładką wymaga licencji Solo PRO lub Studio PRO.",
+                "tier": wallet.tier.name(),
+                "upgrade_url": "https://gumroad.com/l/audioticon-solo"
+            });
+            let json_header =
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap();
+            let mut resp = tiny_http::Response::from_string(err_json.to_string());
+            resp.add_header(json_header);
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(402));
+            return;
+        }
+
         let clean_lang = req.lang.to_lowercase();
         let synth = match resolve_synthesizer(
             &req.provider,
@@ -2571,6 +2730,25 @@ async fn handle_studio_request(
 
     // Route: POST /api/voicelab/punch-in/revert
     if method == tiny_http::Method::Post && url == "/api/voicelab/punch-in/revert" {
+        let wallet = AudioWallet::load();
+        if !wallet.tier.has_punch_in() {
+            let err_json = serde_json::json!({
+                "error": "punch_in_requires_pro",
+                "message": "Narzędzie Punch-In & Retake wymaga licencji Solo PRO lub Studio PRO.",
+                "tier": wallet.tier.name(),
+                "upgrade_url": "https://gumroad.com/l/audioticon-solo"
+            });
+            let mut resp = tiny_http::Response::from_string(err_json.to_string());
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(402));
+            return;
+        }
+
         let mut body_str = String::new();
         if request
             .as_reader()
@@ -3162,6 +3340,25 @@ async fn handle_studio_request(
 
     // Route: GET /api/voicelab/dataset?profile=...
     if method == tiny_http::Method::Get && url.starts_with("/api/voicelab/dataset") {
+        let wallet = AudioWallet::load();
+        if !wallet.tier.has_dataset_export() {
+            let err_json = serde_json::json!({
+                "error": "dataset_export_requires_studio",
+                "message": "Eksport datasetu VoiceLab ZIP dla trenowania własnych modeli neuralnych wymaga licencji Studio PRO.",
+                "tier": wallet.tier.name(),
+                "upgrade_url": "https://gumroad.com/l/audioticon-studio"
+            });
+            let mut resp = tiny_http::Response::from_string(err_json.to_string());
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(402));
+            return;
+        }
+
         let query = url.split_once('?').map(|(_, q)| q).unwrap_or("");
         let mut params = std::collections::HashMap::new();
         for pair in query.split('&') {
@@ -3223,6 +3420,25 @@ async fn handle_studio_request(
 
     // Route: POST /api/voicelab/punch-in
     if method == tiny_http::Method::Post && url == "/api/voicelab/punch-in" {
+        let wallet = AudioWallet::load();
+        if !wallet.tier.has_punch_in() {
+            let err_json = serde_json::json!({
+                "error": "punch_in_requires_pro",
+                "message": "Narzędzie Punch-In & Retake (dogrywka aktorska/AI) wymaga licencji Solo PRO lub Studio PRO.",
+                "tier": wallet.tier.name(),
+                "upgrade_url": "https://gumroad.com/l/audioticon-solo"
+            });
+            let mut resp = tiny_http::Response::from_string(err_json.to_string());
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
+            let _ = request.respond(resp.with_status_code(402));
+            return;
+        }
+
         let mut body_str = String::new();
         if request
             .as_reader()

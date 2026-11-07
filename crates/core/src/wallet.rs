@@ -5,7 +5,8 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::voucher::{
-    active_license_secret, compute_hmac_sha256, verify_voucher_code, VoucherPayload, WalletTier,
+    active_license_secret, compute_hmac_sha256, create_gumroad_token, verify_gumroad_license,
+    verify_gumroad_token, verify_voucher_code, VoucherPayload, WalletTier,
 };
 
 /// Cost in AudioCoin$ per minute of neural TTS audio
@@ -103,9 +104,18 @@ impl AudioWallet {
         let mut verified_acx = false;
 
         for code in &self.redeemed_vouchers {
-            let Ok(payload) = verify_voucher_code(code) else {
-                return false;
+            let payload = if code.starts_with("GUMROAD-") {
+                let Ok(p) = verify_gumroad_token(code) else {
+                    return false;
+                };
+                p
+            } else {
+                let Ok(p) = verify_voucher_code(code) else {
+                    return false;
+                };
+                p
             };
+
             if !seen_codes.insert(payload.code) {
                 return false;
             }
@@ -152,6 +162,17 @@ impl AudioWallet {
     /// Loads the wallet from disk and verifies its cryptographic integrity,
     /// or resets to a clean default wallet if missing or manually tampered with.
     pub fn load() -> Self {
+        if let Ok(mock_tier) = std::env::var("AUDIOTICON_MOCK_WALLET_TIER") {
+            let mut wallet = Self::default();
+            wallet.tier = match mock_tier.to_uppercase().as_str() {
+                "STUDIO" | "PUBLISHER" => WalletTier::Studio,
+                "SOLO" | "WRITER" => WalletTier::Solo,
+                _ => WalletTier::Free,
+            };
+            wallet.acx_certificate_unlocked = wallet.tier.has_acx_certificate();
+            return wallet;
+        }
+
         let path = Self::wallet_path();
         if path.exists() {
             if let Ok(content) = fs::read_to_string(&path) {
@@ -237,19 +258,33 @@ impl AudioWallet {
         let _ = self.save();
     }
 
-    /// Redeems a cryptographic voucher code and updates balance & unlocked tier
-    pub fn redeem_voucher(&mut self, code: &str) -> Result<VoucherPayload> {
-        let payload = verify_voucher_code(code)?;
+    /// Redeems either a cryptographic voucher code (`AUD-...`) or an official Gumroad license key
+    pub fn redeem_code(&mut self, raw_code: &str) -> Result<VoucherPayload> {
+        let clean = raw_code.trim();
+        if clean.is_empty() {
+            bail!("Kod nie może być pusty.");
+        }
 
-        // Replay attack prevention: check if code was already redeemed
+        let payload = if clean.to_uppercase().starts_with("AUD-") {
+            verify_voucher_code(clean)?
+        } else if clean.to_uppercase().starts_with("GUMROAD-") {
+            verify_gumroad_token(clean)?
+        } else {
+            // Gumroad raw license key verification
+            let gumroad_info = verify_gumroad_license(clean)?;
+            let token = create_gumroad_token(gumroad_info.tier, &gumroad_info.key);
+            verify_gumroad_token(&token)?
+        };
+
+        // Replay attack prevention: check if this code/token was already redeemed
         if self.redeemed_vouchers.contains(&payload.code) {
-            bail!("Ten voucher został już wcześniej wykorzystany w tym portfelu.");
+            bail!("Ten kod / licencja została już wcześniej aktywowana w tym portfelu.");
         }
 
         self.balance += payload.credits;
         self.redeemed_vouchers.push(payload.code.clone());
 
-        // Upgrade tier if voucher has higher tier
+        // Upgrade tier if voucher/license has higher tier
         if payload.tier > self.tier {
             self.tier = payload.tier;
         }
@@ -265,13 +300,18 @@ impl AudioWallet {
                 .as_secs(),
             amount: payload.credits as i64,
             balance_after: self.balance,
-            description: format!("Voucher VIP: {} (+{} AudioCoin$)", payload.tier.as_str(), payload.credits),
+            description: format!("Aktywacja licencji: {} (+{} AudioCoin$)", payload.tier.name(), payload.credits),
             render_id: None,
         });
         self.integrity_signature = self.compute_integrity_signature();
 
         let _ = self.save();
         Ok(payload)
+    }
+
+    /// Backwards compatible alias for `redeem_code`
+    pub fn redeem_voucher(&mut self, code: &str) -> Result<VoucherPayload> {
+        self.redeem_code(code)
     }
 
     /// Returns estimated minutes of ElevenLabs v3 audio affordable
@@ -351,5 +391,36 @@ mod tests {
         let voucher = crate::voucher::generate_voucher_code(WalletTier::Writer, 20000, "S2026A");
         wallet.redeem_voucher(&voucher).expect("Redeem valid voucher");
         assert!(wallet.verify_integrity());
+    }
+
+    #[test]
+    fn test_gumroad_license_redeem_and_offline_integrity() {
+        std::env::set_var("AUDIOTICON_MOCK_GUMROAD_TIER", "SOLO");
+        let mut wallet = AudioWallet::default();
+        let payload = wallet
+            .redeem_code("SOLO-KEY-1234")
+            .expect("Redeem Gumroad Solo key");
+        assert_eq!(payload.tier, WalletTier::Solo);
+        assert_eq!(wallet.tier, WalletTier::Solo);
+        assert!(wallet.tier.has_m4b_export());
+        assert!(wallet.tier.has_punch_in());
+        assert!(!wallet.tier.has_batch_pipeline());
+        assert!(wallet.verify_integrity());
+
+        // Replay attempt must be rejected
+        assert!(wallet.redeem_code("SOLO-KEY-1234").is_err());
+
+        // Upgrade to Studio
+        std::env::set_var("AUDIOTICON_MOCK_GUMROAD_TIER", "STUDIO");
+        let studio_payload = wallet
+            .redeem_code("STUDIO-KEY-5678")
+            .expect("Redeem Gumroad Studio key");
+        assert_eq!(studio_payload.tier, WalletTier::Studio);
+        assert_eq!(wallet.tier, WalletTier::Studio);
+        assert!(wallet.tier.has_batch_pipeline());
+        assert!(wallet.tier.has_dataset_export());
+        assert!(wallet.verify_integrity());
+
+        std::env::remove_var("AUDIOTICON_MOCK_GUMROAD_TIER");
     }
 }
