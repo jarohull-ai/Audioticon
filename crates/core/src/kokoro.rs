@@ -68,6 +68,7 @@ fn find_onnxruntime_dylib() -> Option<PathBuf> {
     let mut search_roots = Vec::new();
     if let Some(data_dir) = dirs::data_dir() {
         search_roots.push(data_dir.join("audioticon/venv/lib"));
+        search_roots.push(data_dir.join("audioticon/venv/lib64"));
     }
     if let Ok(venv) = std::env::var("VIRTUAL_ENV") {
         search_roots.push(PathBuf::from(venv).join("lib"));
@@ -80,7 +81,7 @@ fn find_onnxruntime_dylib() -> Option<PathBuf> {
         if !root.exists() {
             continue;
         }
-        if let Some(found) = scan_for_libonnxruntime(&root, 4) {
+        if let Some(found) = scan_for_libonnxruntime(&root, 6) {
             return Some(found);
         }
     }
@@ -1011,5 +1012,49 @@ mod tests {
         let parsed = parse_npy_f32(&npy).expect("Parse .npy float32");
         assert_eq!(parsed.len(), 256);
         assert!((parsed[10] - 0.10).abs() < 1e-5);
+    }
+
+    #[tokio::test]
+    async fn test_kokoro_real_synthesis_if_model_present() {
+        let model_path = KokoroBridge::default_model_path();
+        if !model_path.exists() {
+            println!(
+                "Pominięto test rzeczywistej syntezy Kokoro: brak pliku {}",
+                model_path.display()
+            );
+            return;
+        }
+
+        let tmp_dir =
+            std::env::temp_dir().join(format!("test_kokoro_real_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&tmp_dir);
+        let out_wav = tmp_dir.join("kokoro_real_speech.wav");
+
+        let bridge = KokoroBridge::new(model_path, Some(KokoroVoice::AfBella));
+        let segment = TextSegment {
+            text: "Hello, this is a real neural synthesis test of Kokoro.".to_string(),
+            voice: Some("af_bella".to_string()),
+            ..Default::default()
+        };
+
+        let res = bridge.synthesize(&segment, &out_wav).await;
+        assert!(res.is_ok(), "Real Kokoro synthesis failed: {:?}", res.err());
+        assert!(out_wav.exists(), "Output WAV must exist");
+
+        let mut reader = hound::WavReader::open(&out_wav).expect("Open output WAV");
+        let spec = reader.spec();
+        assert_eq!(spec.channels, 1);
+        let samples: Vec<i16> = reader.samples::<i16>().map(|s| s.unwrap()).collect();
+        assert!(!samples.is_empty(), "Audio samples cannot be empty");
+
+        let sum_sq: f64 = samples.iter().map(|&s| (s as f64) * (s as f64)).sum();
+        let rms = (sum_sq / samples.len() as f64).sqrt();
+        assert!(
+            rms > 500.0,
+            "Synthesized audio must have audible speech energy, RMS was {}",
+            rms
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
     }
 }

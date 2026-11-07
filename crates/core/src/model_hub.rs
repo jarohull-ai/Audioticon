@@ -226,10 +226,10 @@ pub fn get_curated_hub_catalog() -> Vec<ModelHubEntry> {
             sha256_checksums: vec![],
         },
 
-        // 2. WHISPER-TINY (Aligner do pozycjonowania słów i oddechów co do 1ms)
+        // 2. WHISPER-TINY (Planowany moduł ASR)
         ModelHubEntry {
             id: "whisper-tiny-aligner".to_string(),
-            name: "Faster-Whisper Tiny (Forced Aligner)".to_string(),
+            name: "Faster-Whisper Tiny (Planowany model ASR)".to_string(),
             author: "OpenAI / Systran".to_string(),
             category: ModelCategory::SpeechAligner,
             license_spdx: "MIT".to_string(),

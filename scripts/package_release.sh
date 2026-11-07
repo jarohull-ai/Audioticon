@@ -191,7 +191,10 @@ Repozytorium: https://github.com/jarohull-ai/Audioticon
 ================================================================================
 EOF
 
-# Kopiowanie licencji jeśli istnieje w głównym katalogu
+# Kopiowanie pełnej dokumentacji i licencji
+if [ -f "$ROOT_DIR/docs/INSTRUKCJA_OBSLUGI.md" ]; then
+    cp "$ROOT_DIR/docs/INSTRUKCJA_OBSLUGI.md" "$PKG_DIR/INSTRUKCJA_OBSLUGI.md"
+fi
 if [ -f "$ROOT_DIR/LICENSE" ]; then
     cp "$ROOT_DIR/LICENSE" "$PKG_DIR/LICENSE.txt"
 fi
