@@ -3513,25 +3513,43 @@
         alert("Błąd: " + e.message);
       }
     }
+
+    function toggleMasterPlay() {
+      if (isPlaying) {
+        pauseMasterPlay();
+      } else {
+        startMasterPlay();
       }
     }
 
     function startMasterPlay() {
       isPlaying = true;
       const btn = document.getElementById('playMasterBtn');
-      btn.innerText = '⏸';
-      btn.style.background = 'var(--danger)';
+      if (btn) {
+        btn.innerText = '⏸';
+        btn.style.background = 'var(--danger)';
+      }
+      if (window.audioPlayer && window.audioPlayer.src) {
+        window.audioPlayer.play().catch(e => console.warn('Audio play error:', e));
+      }
       runVuAnimation();
     }
 
     function pauseMasterPlay() {
       isPlaying = false;
       const btn = document.getElementById('playMasterBtn');
-      btn.innerText = '▶';
-      btn.style.background = 'var(--accent)';
+      if (btn) {
+        btn.innerText = '▶';
+        btn.style.background = 'var(--accent)';
+      }
+      if (window.audioPlayer) {
+        window.audioPlayer.pause();
+      }
       cancelAnimationFrame(animId);
-      document.getElementById('vuBarL').style.width = '12%';
-      document.getElementById('vuBarR').style.width = '12%';
+      const vl = document.getElementById('vuBarL');
+      const vr = document.getElementById('vuBarR');
+      if (vl) vl.style.width = '12%';
+      if (vr) vr.style.width = '12%';
     }
 
     function runVuAnimation() {
