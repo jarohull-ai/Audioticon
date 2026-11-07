@@ -9,7 +9,7 @@ use audioticon_core::{
 use std::collections::HashMap;
 use std::io::Read;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU16, AtomicU64, Ordering};
 use std::sync::Arc;
 use tiny_http::Header;
 use tokio::sync::Mutex;
@@ -17,6 +17,7 @@ use tokio::sync::Mutex;
 use crate::args::{get_default_cache_dir, get_default_piper_model, TtsProvider};
 
 static REQ_COUNTER: AtomicU64 = AtomicU64::new(0);
+static ACTIVE_PORT: AtomicU16 = AtomicU16::new(3000);
 
 const STUDIO_HTML: &str = include_str!("../../../../docs/index.html");
 const MODULAR_STUDIO_HTML: &str = include_str!("../../../../docs/studio.html");
@@ -308,6 +309,26 @@ fn is_allowed_origin(origin: &str) -> bool {
         || clean.starts_with("https://localhost:")
         || clean == "https://127.0.0.1"
         || clean.starts_with("https://127.0.0.1:")
+        || clean.starts_with("http://192.168.")
+        || clean.starts_with("https://192.168.")
+        || clean.starts_with("http://10.")
+        || clean.starts_with("https://10.")
+        || clean.starts_with("http://172.")
+        || clean.starts_with("https://172.")
+        || clean.starts_with("http://0.0.0.0")
+        || clean.contains(".local:")
+        || clean.ends_with(".local")
+}
+
+fn get_local_ip() -> String {
+    if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
+        if socket.connect("8.8.8.8:80").is_ok() {
+            if let Ok(addr) = socket.local_addr() {
+                return addr.ip().to_string();
+            }
+        }
+    }
+    "127.0.0.1".to_string()
 }
 
 fn get_cors_header(request: &tiny_http::Request) -> Option<Header> {
@@ -493,6 +514,36 @@ async fn handle_studio_request(
         let gif_header = Header::from_bytes(&b"Content-Type"[..], &b"image/gif"[..]).unwrap();
         let mut resp = tiny_http::Response::from_data(LOGO_GIF);
         resp.add_header(gif_header);
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: GET /manifest.json (PWA for iPad / Android tablets)
+    if method == tiny_http::Method::Get && url == "/manifest.json" {
+        let manifest = serde_json::json!({
+            "name": "Audioticon Studio",
+            "short_name": "Audioticon",
+            "description": "Emoji-Directed AI Audiobook & Audio Drama Engine",
+            "start_url": "/",
+            "display": "standalone",
+            "background_color": "#0b0f19",
+            "theme_color": "#8b5cf6",
+            "icons": [
+                {
+                    "src": "/logo.png",
+                    "sizes": "512x512",
+                    "type": "image/png",
+                    "purpose": "any maskable"
+                }
+            ]
+        });
+        let mut resp = tiny_http::Response::from_string(manifest.to_string());
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/manifest+json; charset=utf-8"[..]).unwrap(),
+        );
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
         }
@@ -712,6 +763,49 @@ async fn handle_studio_request(
         let mut resp = tiny_http::Response::from_string(json);
         resp.add_header(
             Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: GET /api/system/network-info
+    if method == tiny_http::Method::Get && url == "/api/system/network-info" {
+        let ip = get_local_ip();
+        let port = ACTIVE_PORT.load(Ordering::SeqCst);
+        let json = serde_json::json!({
+            "local_ip": ip,
+            "port": port,
+            "url": format!("http://{}:{}", ip, port),
+            "qr_url": "/api/system/qr-code"
+        });
+        let mut resp = tiny_http::Response::from_string(json.to_string());
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
+        let _ = request.respond(resp);
+        return;
+    }
+
+    // Route: GET /api/system/qr-code
+    if method == tiny_http::Method::Get && (url == "/api/system/qr-code" || url.starts_with("/api/system/qr-code?")) {
+        let ip = get_local_ip();
+        let port = ACTIVE_PORT.load(Ordering::SeqCst);
+        let target_url = format!("http://{}:{}", ip, port);
+
+        let svg_body = match qrcode::QrCode::new(target_url.as_bytes()) {
+            Ok(code) => code.render::<qrcode::render::svg::Color>().build(),
+            Err(_) => "<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><text x='10' y='100'>Błąd QR</text></svg>".to_string(),
+        };
+
+        let mut resp = tiny_http::Response::from_string(svg_body);
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"image/svg+xml; charset=utf-8"[..]).unwrap(),
         );
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -5070,11 +5164,14 @@ pub async fn run_studio_server(
 
     let addr = format!("{}:{}", host, selected_port);
     let server = Arc::new(srv_raw);
+    ACTIVE_PORT.store(selected_port, Ordering::SeqCst);
+    let local_ip = get_local_ip();
 
     println!("============================================================");
     println!("🚀 AUDIOTICON STUDIO (MODULAR WORKBENCH) URUCHOMIONE!");
     println!("============================================================");
-    println!("🌐 Adres w przeglądarce: http://{}", addr);
+    println!("🌐 Adres na komputerze: http://{}", addr);
+    println!("📱 Adres dla tabletu:   http://{}:{}", local_ip, selected_port);
     println!("🎛️  Interfejs:          Modularny Studio Workbench (Cosmic + CapCut + Notion)");
     println!("⚙️  Domyślny silnik:     {:?}", default_provider);
     println!("🗣️  Domyślny język:      {}", default_lang);

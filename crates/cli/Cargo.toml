@@ -18,3 +18,4 @@ dirs = { workspace = true }
 tiny_http = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
