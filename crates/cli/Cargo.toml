@@ -19,3 +19,6 @@ tiny_http = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
