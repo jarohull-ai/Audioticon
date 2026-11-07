@@ -35,18 +35,21 @@ jobs:
         run: |
           node -e '
           const fs = require("fs");
-          const html = fs.readFileSync("docs/index.html", "utf8");
-          const scripts = html.match(/<script[\s\S]*?<\/script>/gi) || [];
-          scripts.forEach((s, i) => {
-            const code = s.replace(/<script[^>]*>/i, "").replace(/<\/script>/i, "");
-            try {
-              new Function(code);
-              console.log(`Script ${i} syntax valid`);
-            } catch (err) {
-              console.error(`Script ${i} syntax error:`, err);
-              process.exit(1);
-            }
-          });
+          for (const file of ["docs/index.html", "docs/studio.html"]) {
+            if (!fs.existsSync(file)) continue;
+            const html = fs.readFileSync(file, "utf8");
+            const scripts = html.match(/<script[\s\S]*?<\/script>/gi) || [];
+            scripts.forEach((s, i) => {
+              const code = s.replace(/<script[^>]*>/i, "").replace(/<\/script>/i, "");
+              try {
+                new Function(code);
+                console.log(`${file} - Script ${i} syntax valid`);
+              } catch (err) {
+                console.error(`${file} - Script ${i} syntax error:`, err);
+                process.exit(1);
+              }
+            });
+          }
           '
 
       - name: Run Clippy Linter

@@ -83,7 +83,7 @@ download_and_verify() {
     echo "✅ Zweryfikowano ${filename} (SHA-256 OK)."
 }
 
-# Model Polski (pl_PL-darkman-medium)
+# Model Polski (pl_PL-darkman-medium) - Licencja CC0-1.0 (Commercial Safe)
 download_and_verify "pl_PL-darkman-medium.onnx" \
     "https://huggingface.co/rhasspy/piper-voices/resolve/main/pl/pl_PL/darkman/medium/pl_PL-darkman-medium.onnx" \
     "db505438a5364e8e2e0242c4324130a873ed660dfbe8d9689cef428ffb1b645f"
@@ -92,14 +92,10 @@ download_and_verify "pl_PL-darkman-medium.onnx.json" \
     "https://huggingface.co/rhasspy/piper-voices/resolve/main/pl/pl_PL/darkman/medium/pl_PL-darkman-medium.onnx.json" \
     "70f999f11fa8ad13d3ef779041ee93c9f38be5abdbacdfad42449712fe91c81b"
 
-# Model Angielski (en_US-lessac-medium)
-download_and_verify "en_US-lessac-medium.onnx" \
-    "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx" \
-    "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f"
-
-download_and_verify "en_US-lessac-medium.onnx.json" \
-    "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json" \
-    "efe19c417bed055f2d69908248c6ba650fa135bc868b0e6abb3da181dab690a0"
+# Uwaga licencyjna: Dodatkowe modele głosowe użytkownik pobiera opcjonalnie
+# w zakładce Model Hub w aplikacji lub poleceniem: audioticon models download <id>.
+# Modele z ograniczeniami niekomercyjnymi (np. Lessac / Blizzard Challenge) nie są
+# pobierane automatycznie. Do komercyjnych produkcji EN zalecany jest model Kokoro-82M (Apache 2.0).
 
 # 6. Kompilacja źródeł LUB przygotowanie gotowej paczki binarnej
 if [ -f "Cargo.toml" ]; then

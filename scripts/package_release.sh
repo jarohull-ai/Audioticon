@@ -195,8 +195,17 @@ EOF
 if [ -f "$ROOT_DIR/docs/INSTRUKCJA_OBSLUGI.md" ]; then
     cp "$ROOT_DIR/docs/INSTRUKCJA_OBSLUGI.md" "$PKG_DIR/INSTRUKCJA_OBSLUGI.md"
 fi
-if [ -f "$ROOT_DIR/LICENSE" ]; then
-    cp "$ROOT_DIR/LICENSE" "$PKG_DIR/LICENSE.txt"
+if [ -f "$ROOT_DIR/LICENSE-MIT" ]; then
+    cp "$ROOT_DIR/LICENSE-MIT" "$PKG_DIR/LICENSE-MIT"
+fi
+if [ -f "$ROOT_DIR/LICENSE-APACHE" ]; then
+    cp "$ROOT_DIR/LICENSE-APACHE" "$PKG_DIR/LICENSE-APACHE"
+fi
+if [ -f "$ROOT_DIR/THIRD_PARTY_NOTICES.md" ]; then
+    cp "$ROOT_DIR/THIRD_PARTY_NOTICES.md" "$PKG_DIR/THIRD_PARTY_NOTICES.md"
+fi
+if [ -f "$ROOT_DIR/README.md" ]; then
+    cp "$ROOT_DIR/README.md" "$PKG_DIR/README.md"
 fi
 
 # 7. Tworzenie archiwów .tar.gz oraz .zip

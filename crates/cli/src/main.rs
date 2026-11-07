@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     let cmd = cli.command.unwrap_or(crate::args::Commands::Serve {
         port: 3000,
-        host: "0.0.0.0".to_string(),
+        host: "127.0.0.1".to_string(),
         provider: crate::args::TtsProvider::Piper,
         lang: "pl".to_string(),
         model: None,

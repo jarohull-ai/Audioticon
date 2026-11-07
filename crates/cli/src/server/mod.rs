@@ -18,6 +18,7 @@ use crate::args::{get_default_cache_dir, get_default_piper_model, TtsProvider};
 
 static REQ_COUNTER: AtomicU64 = AtomicU64::new(0);
 static ACTIVE_PORT: AtomicU16 = AtomicU16::new(3000);
+static ACTIVE_HOST: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 
 const STUDIO_HTML: &str = include_str!("../../../../docs/index.html");
 const MODULAR_STUDIO_HTML: &str = include_str!("../../../../docs/studio.html");
@@ -300,7 +301,7 @@ async fn resolve_synthesizer(
 
 fn is_allowed_origin(origin: &str) -> bool {
     let clean = origin.trim().trim_end_matches('/');
-    clean == "https://jarohull-ai.github.io"
+    let is_localhost = clean == "https://jarohull-ai.github.io"
         || clean == "http://localhost"
         || clean.starts_with("http://localhost:")
         || clean == "http://127.0.0.1"
@@ -308,16 +309,27 @@ fn is_allowed_origin(origin: &str) -> bool {
         || clean == "https://localhost"
         || clean.starts_with("https://localhost:")
         || clean == "https://127.0.0.1"
-        || clean.starts_with("https://127.0.0.1:")
-        || clean.starts_with("http://192.168.")
-        || clean.starts_with("https://192.168.")
-        || clean.starts_with("http://10.")
-        || clean.starts_with("https://10.")
-        || clean.starts_with("http://172.")
-        || clean.starts_with("https://172.")
-        || clean.starts_with("http://0.0.0.0")
-        || clean.contains(".local:")
-        || clean.ends_with(".local")
+        || clean.starts_with("https://127.0.0.1:");
+
+    if is_localhost {
+        return true;
+    }
+
+    // LAN / Private network origins are ONLY accepted when server was started with --host 0.0.0.0 (trusted home network mode)
+    let host = ACTIVE_HOST.get().map(|s| s.as_str()).unwrap_or("127.0.0.1");
+    if host == "0.0.0.0" {
+        return clean.starts_with("http://192.168.")
+            || clean.starts_with("https://192.168.")
+            || clean.starts_with("http://10.")
+            || clean.starts_with("https://10.")
+            || clean.starts_with("http://172.")
+            || clean.starts_with("https://172.")
+            || clean.starts_with("http://0.0.0.0")
+            || clean.contains(".local:")
+            || clean.ends_with(".local");
+    }
+
+    false
 }
 
 fn get_local_ip() -> String {
@@ -773,9 +785,11 @@ async fn handle_studio_request(
 
     // Route: GET /api/system/network-info
     if method == tiny_http::Method::Get && url == "/api/system/network-info" {
-        let ip = get_local_ip();
+        let is_lan = ACTIVE_HOST.get().map(|s| s.as_str()).unwrap_or("127.0.0.1") == "0.0.0.0";
+        let ip = if is_lan { get_local_ip() } else { "127.0.0.1".to_string() };
         let port = ACTIVE_PORT.load(Ordering::SeqCst);
         let json = serde_json::json!({
+            "is_lan_mode": is_lan,
             "local_ip": ip,
             "port": port,
             "url": format!("http://{}:{}", ip, port),
@@ -5164,6 +5178,7 @@ pub async fn run_studio_server(
 
     let addr = format!("{}:{}", host, selected_port);
     let server = Arc::new(srv_raw);
+    let _ = ACTIVE_HOST.set(host.to_string());
     ACTIVE_PORT.store(selected_port, Ordering::SeqCst);
     let local_ip = get_local_ip();
 
@@ -5171,7 +5186,12 @@ pub async fn run_studio_server(
     println!("🚀 AUDIOTICON STUDIO (MODULAR WORKBENCH) URUCHOMIONE!");
     println!("============================================================");
     println!("🌐 Adres na komputerze: http://{}", addr);
-    println!("📱 Adres dla tabletu:   http://{}:{}", local_ip, selected_port);
+    if host == "0.0.0.0" {
+        println!("📱 Adres dla tabletu (LAN): http://{}:{} [Zaufana sieć domowa]", local_ip, selected_port);
+    } else {
+        println!("🔒 Tryb bezpieczny:     Tylko localhost (127.0.0.1)");
+        println!("💡 Dostęp z tabletu:    Uruchom 'audioticon serve --host 0.0.0.0' w zaufanej sieci Wi-Fi");
+    }
     println!("🎛️  Interfejs:          Modularny Studio Workbench (Cosmic + CapCut + Notion)");
     println!("⚙️  Domyślny silnik:     {:?}", default_provider);
     println!("🗣️  Domyślny język:      {}", default_lang);

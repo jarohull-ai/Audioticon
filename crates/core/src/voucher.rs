@@ -2,11 +2,17 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-/// Domain-separated fallback verification key when `AUDIOTICON_LICENSE_SECRET` is not set by a vendor build
+/// Klucz do weryfikacji lokalnego podpisu integralności portfela i kodów voucherów.
+///
+/// UWAGA DOTYCZĄCA BEZPIECZEŃSTWA (SECURITY ARCHITECTURE):
+/// Mechanizm HMAC w Audioticon służy jako lokalny podpis integralności stanu portfela i zapobiega
+/// przypadkowej modyfikacji plików konfiguracyjnych przez użytkownika. Nie stanowi on nieprzełamywalnego
+/// zabezpieczenia DRM (Digital Rights Management) przed zaawansowaną inżynierią wsteczną zdekompilowanej binarki.
+/// Dedykowane instalacje dystrybutorskie mogą nadpisać klucz poprzez zmienną środowiskową `AUDIOTICON_LICENSE_SECRET`.
 pub const VOUCHER_HMAC_SECRET: &[u8] = b"AUDIOTICON_STUDIO_LICENSE_KEY_V2_DERIVATION_SALT";
 
-/// Returns the active license verification key.
-/// Production vendor builds or license servers can inject a private secret via `AUDIOTICON_LICENSE_SECRET`.
+/// Zwraca aktywny klucz podpisu integralności portfela.
+/// Wdrożenia dystrybutorskie mogą przekazać unikalny klucz poprzez `AUDIOTICON_LICENSE_SECRET`.
 pub fn active_license_secret() -> Vec<u8> {
     if let Ok(env_secret) = std::env::var("AUDIOTICON_LICENSE_SECRET") {
         let trimmed = env_secret.trim();

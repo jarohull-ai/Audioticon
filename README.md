@@ -5,7 +5,7 @@
 <h1 align="center">🎧 Audioticon</h1>
 
 <p align="center">
-  <strong>Stacja robocza i język reżyserii audiobooków sterowany emotikonami z bezstratnym cachem zdań, wielogłosowym castingiem, akustyką DSP i certyfikowanym masteringiem ACX / Storytel (EBU R128).</strong>
+  <strong>Stacja robocza i język reżyserii audiobooków sterowany emotikonami z bezstratnym cachem zdań, wielogłosowym castingiem, akustyką DSP i masteringiem parametrów technicznych ACX / Storytel (EBU R128).</strong>
 </p>
 
 <p align="center">
@@ -70,9 +70,9 @@ Audioticon rozwiązuje fundamentalny problem syntezy audiobooków i słuchowisk:
    - Zarządzanie profilami głosowymi, pomiar jakości akustycznej nagrań mikrofonowych (RMS, True Peak, SNR, wykrywanie przesterów).
    - Funkcja **Punch-In**: możliwość nagrania lub podmiany pojedynczego zdania własnym głosem lektora bezpośrednio w cache (`recorded_<hash>.wav`), które bezszwowo łączy się z resztą audiobooka.
    - Eksport próbek do standardowego archiwum datasetu `LJSpeech / XTTS (.zip)` lub projektowanie głosu z opisu (`audioticon voicelab design`).
-8. **Eksport Apple M4B, 24-bit Studio Master FLAC, MP3 & Certyfikacja Audio Ledger**:
+8. **Eksport Apple M4B, 24-bit Studio Master FLAC, MP3 & Raport Jakości Audio Ledger**:
    - Eksport do `.m4b` (AAC + rozdziały QuickTime `+faststart`), `.flac` (16-bit lub **24-bit Studio Master**) oraz `.mp3` (ID3v2 + rozdziały).
-   - **Audio Ledger (`ledger.rs`):** generuje podpisany kryptograficznie certyfikat `.certificate.json` po wykonaniu **rzeczywistego pomiaru fizycznego pliku audio** filtrem `ffmpeg -af loudnorm=print_format=json` (Integrated Loudness LUFS oraz True Peak dBFS) pod kątem wymogów **Audible (ACX)** i **Storytel (EBU R128)**.
+   - **Audio Ledger (`ledger.rs`):** generuje raport techniczny z sumą SHA-256 `.certificate.json` po wykonaniu **rzeczywistego pomiaru fizycznego pliku audio** filtrem `ffmpeg -af loudnorm=print_format=json` (Integrated Loudness LUFS oraz True Peak dBFS), weryfikując zgodność parametrów z normami **Audible (ACX)** i **Storytel (EBU R128)**.
 9. **Model Hub & Safe-Harbor EULA (`audioticon models hub`)**:
    - Katalog certyfikowanych modeli neuronowych z jawną klasyfikacją licencyjną (`CommercialSafe` MIT/Apache-2.0/CC0 vs `NonCommercialOnly`) i kryptograficznym rejestrem podpisanych licencji EULA (`model_receipts.json`).
 
