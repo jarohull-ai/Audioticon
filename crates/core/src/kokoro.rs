@@ -295,8 +295,14 @@ pub fn parse_npy_f32(bytes: &[u8]) -> Result<Vec<f32>> {
     let raw_data = &bytes[data_offset..];
     let num_floats = raw_data.len() / 4;
     let mut floats = Vec::with_capacity(num_floats);
-    for chunk in raw_data.chunks_exact(4) {
-        floats.push(f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
+    for i in 0..num_floats {
+        let start = i * 4;
+        floats.push(f32::from_le_bytes([
+            raw_data[start],
+            raw_data[start + 1],
+            raw_data[start + 2],
+            raw_data[start + 3],
+        ]));
     }
     Ok(floats)
 }
