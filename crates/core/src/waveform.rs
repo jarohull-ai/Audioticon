@@ -1,7 +1,7 @@
-use std::io::Cursor;
-use std::path::Path;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::io::Cursor;
+use std::path::Path;
 
 /// Represents a single min/max/RMS peak point on the downsampled audio waveform.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -58,7 +58,10 @@ pub struct WaveformData {
 }
 
 /// Computes normalized downsampled peaks and an RMS envelope from decoded float PCM samples.
-pub fn compute_waveform_peaks(samples: &[f32], target_buckets: usize) -> (Vec<WaveformPeak>, Vec<f32>) {
+pub fn compute_waveform_peaks(
+    samples: &[f32],
+    target_buckets: usize,
+) -> (Vec<WaveformPeak>, Vec<f32>) {
     if samples.is_empty() || target_buckets == 0 {
         return (Vec::new(), Vec::new());
     }
@@ -79,7 +82,11 @@ pub fn compute_waveform_peaks(samples: &[f32], target_buckets: usize) -> (Vec<Wa
         let slice = &samples[start_idx..end_idx];
 
         if slice.is_empty() {
-            peaks.push(WaveformPeak { min: 0.0, max: 0.0, rms: 0.0 });
+            peaks.push(WaveformPeak {
+                min: 0.0,
+                max: 0.0,
+                rms: 0.0,
+            });
             envelope.push(0.0);
             continue;
         }
@@ -112,26 +119,29 @@ pub fn compute_waveform_peaks(samples: &[f32], target_buckets: usize) -> (Vec<Wa
 }
 
 /// Decodes samples from an in-memory WAV buffer and extracts downsampled waveform peaks.
-pub fn extract_waveform_from_wav_bytes(wav_bytes: &[u8], target_buckets: usize) -> Result<WaveformData> {
+pub fn extract_waveform_from_wav_bytes(
+    wav_bytes: &[u8],
+    target_buckets: usize,
+) -> Result<WaveformData> {
     let cursor = Cursor::new(wav_bytes);
     let mut reader = hound::WavReader::new(cursor)
         .context("Błąd parsowania nagłówka WAV dla analizy fali dźwiękowej")?;
     let spec = reader.spec();
 
     let samples: Vec<f32> = match spec.sample_format {
-        hound::SampleFormat::Float => {
-            reader.samples::<f32>().map(|s| s.unwrap_or(0.0)).collect()
-        }
+        hound::SampleFormat::Float => reader.samples::<f32>().map(|s| s.unwrap_or(0.0)).collect(),
         hound::SampleFormat::Int => {
             let bits = spec.bits_per_sample;
             if bits <= 16 {
                 let max_val = (1i32 << (bits - 1)) as f32;
-                reader.samples::<i32>()
+                reader
+                    .samples::<i32>()
                     .map(|s| (s.unwrap_or(0) as f32 / max_val).clamp(-1.0, 1.0))
                     .collect()
             } else {
                 let max_val = (1i64 << (bits - 1)) as f64;
-                reader.samples::<i32>()
+                reader
+                    .samples::<i32>()
                     .map(|s| ((s.unwrap_or(0) as f64) / max_val) as f32)
                     .collect()
             }
@@ -172,10 +182,13 @@ pub fn extract_waveform_from_wav_bytes(wav_bytes: &[u8], target_buckets: usize) 
 }
 
 /// Reads a WAV file from disk and extracts downsampled waveform data.
-pub fn extract_waveform_from_wav_file<P: AsRef<Path>>(path: P, target_buckets: usize) -> Result<WaveformData> {
+pub fn extract_waveform_from_wav_file<P: AsRef<Path>>(
+    path: P,
+    target_buckets: usize,
+) -> Result<WaveformData> {
     let p = path.as_ref();
-    let bytes = std::fs::read(p)
-        .with_context(|| format!("Nie można odczytać pliku WAV: {:?}", p))?;
+    let bytes =
+        std::fs::read(p).with_context(|| format!("Nie można odczytać pliku WAV: {:?}", p))?;
     extract_waveform_from_wav_bytes(&bytes, target_buckets)
 }
 
@@ -200,11 +213,15 @@ pub fn build_waveform_with_script_segments(
                 // Chapters do not produce separate audio time slices
             }
             crate::types::DirectedItem::Silence(ms) | crate::types::DirectedItem::Breath(ms) => {
-                let dur = item_durations_ms.get(dur_idx).copied().unwrap_or(*ms as u64);
+                let dur = item_durations_ms
+                    .get(dur_idx)
+                    .copied()
+                    .unwrap_or(*ms as u64);
                 current_ms += dur;
                 dur_idx += 1;
             }
-            crate::types::DirectedItem::SoundEffect(_) | crate::types::DirectedItem::Ambience(_) => {
+            crate::types::DirectedItem::SoundEffect(_)
+            | crate::types::DirectedItem::Ambience(_) => {
                 let dur = item_durations_ms.get(dur_idx).copied().unwrap_or(0);
                 current_ms += dur;
                 dur_idx += 1;
@@ -229,7 +246,10 @@ pub fn build_waveform_with_script_segments(
                     end_ms,
                     duration_ms: seg_dur,
                     is_punch_in,
-                    actor_or_voice: seg.voice.clone().or_else(|| Some(default_voice.to_string())),
+                    actor_or_voice: seg
+                        .voice
+                        .clone()
+                        .or_else(|| Some(default_voice.to_string())),
                 });
 
                 current_ms = end_ms;

@@ -284,8 +284,7 @@ pub fn parse_npy_f32(bytes: &[u8]) -> Result<Vec<f32>> {
         if bytes.len() < 12 {
             bail!("Uszkodzony nagłówek .npy v2");
         }
-        let header_len =
-            u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]) as usize;
+        let header_len = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]) as usize;
         12 + header_len
     };
 
@@ -569,8 +568,7 @@ impl KokoroBridge {
         let env = get_ort_environment()?;
 
         let tokens = phonemize_and_tokenize_kokoro(text, voice.lang_code())?;
-        let style_vec =
-            load_voice_style_vector(&self.voices_path, voice.as_str(), tokens.len())?;
+        let style_vec = load_voice_style_vector(&self.voices_path, voice.as_str(), tokens.len())?;
 
         // Pad tokens with leading 0 (BOS) and trailing 0 (EOS): shape [1, N + 2]
         let mut padded_tokens = Vec::with_capacity(tokens.len() + 2);
@@ -598,10 +596,7 @@ impl KokoroBridge {
                     )
                 })?;
 
-            let has_input_ids = session
-                .inputs()
-                .iter()
-                .any(|inp| inp.name() == "input_ids");
+            let has_input_ids = session.inputs().iter().any(|inp| inp.name() == "input_ids");
             let tokens_input_name = if has_input_ids {
                 "input_ids".to_string()
             } else {
@@ -795,8 +790,7 @@ impl SpeechSynthesizer for KokoroBridge {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
-        let temp_raw_wav =
-            out_path.with_extension(format!("{}_{}.kokoro_raw.wav", pid, unique_id));
+        let temp_raw_wav = out_path.with_extension(format!("{}_{}.kokoro_raw.wav", pid, unique_id));
         let temp_wav = out_path.with_extension(format!("{}_{}.temp.wav", pid, unique_id));
 
         let voice = self.resolve_kokoro_voice(segment.voice.as_deref());
@@ -910,8 +904,7 @@ impl SpeechSynthesizer for KokoroBridge {
         if let Some(ref style) = custom_style {
             crate::style_transfer::apply_disentangled_style_to_wav(&temp_wav, style)?;
         } else if is_whisper {
-            let mode =
-                crate::whisper_dsp::WhisperMode::from_filter_tag(segment.filter.as_deref());
+            let mode = crate::whisper_dsp::WhisperMode::from_filter_tag(segment.filter.as_deref());
             crate::whisper_dsp::apply_whisper_to_wav_file_with_mode(&temp_wav, mode)?;
         }
 
@@ -937,7 +930,11 @@ pub fn resample_linear(samples: &[f32], in_rate: u32, out_rate: u32) -> Vec<f32>
         let idx = pos.floor() as usize;
         let frac = (pos - idx as f64) as f32;
 
-        let s1 = if idx < samples.len() { samples[idx] } else { 0.0 };
+        let s1 = if idx < samples.len() {
+            samples[idx]
+        } else {
+            0.0
+        };
         let s2 = if idx + 1 < samples.len() {
             samples[idx + 1]
         } else {
@@ -1000,7 +997,8 @@ mod tests {
         assert!(tokens.iter().all(|&id| id > 0 && id < 178));
 
         // Build a synthetic valid .npy v1 buffer with 256 float32 values
-        let header = b"{'descr': '<f4', 'fortran_order': False, 'shape': (1, 1, 256), }           \n";
+        let header =
+            b"{'descr': '<f4', 'fortran_order': False, 'shape': (1, 1, 256), }           \n";
         let mut npy = Vec::new();
         npy.extend_from_slice(b"\x93NUMPY\x01\x00");
         npy.extend_from_slice(&(header.len() as u16).to_le_bytes());
@@ -1025,8 +1023,7 @@ mod tests {
             return;
         }
 
-        let tmp_dir =
-            std::env::temp_dir().join(format!("test_kokoro_real_{}", std::process::id()));
+        let tmp_dir = std::env::temp_dir().join(format!("test_kokoro_real_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&tmp_dir);
         let out_wav = tmp_dir.join("kokoro_real_speech.wav");
 

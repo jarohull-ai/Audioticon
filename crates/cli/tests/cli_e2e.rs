@@ -159,12 +159,16 @@ fn http_roundtrip(
     let header_str = String::from_utf8_lossy(&res[..header_end]).to_string();
     let body_bytes = if header_end + 4 <= res.len() {
         let raw_body = &res[header_end + 4..];
-        if header_str.to_lowercase().contains("transfer-encoding: chunked") {
+        if header_str
+            .to_lowercase()
+            .contains("transfer-encoding: chunked")
+        {
             let mut dechunked = Vec::new();
             let mut cursor = 0;
             while cursor < raw_body.len() {
                 if let Some(pos) = raw_body[cursor..].windows(2).position(|w| w == b"\r\n") {
-                    let hex_str = std::str::from_utf8(&raw_body[cursor..cursor + pos]).unwrap_or("0");
+                    let hex_str =
+                        std::str::from_utf8(&raw_body[cursor..cursor + pos]).unwrap_or("0");
                     let chunk_size = usize::from_str_radix(hex_str.trim(), 16).unwrap_or(0);
                     if chunk_size == 0 {
                         break;
@@ -260,8 +264,7 @@ fn test_api_server_endpoints_e2e() {
 
     // 1e. POST /api/dialog/apply should return script with voice tags
     let apply_req = "{\"text\": \"Jan: Cześć.\\nAnna: Hej.\", \"casting\": {\"Jan\": \"pl_PL-darkman-medium\", \"Anna\": \"pl_PL-gosia-medium\"}}";
-    let (a_status, _, a_body) =
-        http_roundtrip(port, "POST", "/api/dialog/apply", Some(apply_req));
+    let (a_status, _, a_body) = http_roundtrip(port, "POST", "/api/dialog/apply", Some(apply_req));
     assert_eq!(a_status, 200);
     let a_str = String::from_utf8_lossy(&a_body);
     assert!(a_str.contains("[głos:pl_PL-darkman-medium] Cześć."));
@@ -291,13 +294,19 @@ fn test_api_server_endpoints_e2e() {
     // 5a. Soft-gate check on M4B export before redeeming voucher (Free tier returns 402)
     let export_req = "{\"text\": \"📖 Rozdział 1: Test E2E 🛑 Krótkie zdanie testowe.\", \"format\": \"m4b\", \"title\": \"Test E2E Audiobook\", \"author\": \"Jarosław Kuchta\", \"provider\": \"piper\"}";
     let (s_gate, _, b_gate) = http_roundtrip(port, "POST", "/api/export", Some(export_req));
-    assert_eq!(s_gate, 402, "M4B export on free tier must return 402 Payment Required");
+    assert_eq!(
+        s_gate, 402,
+        "M4B export on free tier must return 402 Payment Required"
+    );
     let gate_str = String::from_utf8_lossy(&b_gate);
     assert!(gate_str.contains("m4b_requires_pro"));
 
     // 5b. POST /api/wallet/redeem: valid cryptographic voucher unlocks Writer Tier (Pisarz)
-    let valid_voucher =
-        audioticon_core::generate_voucher_code(audioticon_core::WalletTier::Writer, 25000, "VIP2026");
+    let valid_voucher = audioticon_core::generate_voucher_code(
+        audioticon_core::WalletTier::Writer,
+        25000,
+        "VIP2026",
+    );
     let redeem_payload = format!("{{\"code\": \"{}\"}}", valid_voucher);
     let (v_status, _, v_body) =
         http_roundtrip(port, "POST", "/api/wallet/redeem", Some(&redeem_payload));
@@ -369,7 +378,9 @@ fn test_api_server_endpoints_e2e() {
         http_roundtrip(port, "POST", "/api/wallet/redeem", Some(&redeem_payload));
     assert_eq!(v_dup_status, 400);
     let v_dup_str = String::from_utf8_lossy(&v_dup_body);
-    assert!(v_dup_str.contains("został już wcześniej wykorzystany") || v_dup_str.contains("aktywowana"));
+    assert!(
+        v_dup_str.contains("został już wcześniej wykorzystany") || v_dup_str.contains("aktywowana")
+    );
 
     // 10. GET /api/ledger/certificate: with Writer tier unlocked, certificate must be returned
     let (cert_status, cert_headers, cert_body) =
@@ -410,7 +421,10 @@ fn test_api_server_endpoints_e2e() {
     if f_status == 200 {
         assert!(f_headers.contains("audio/flac"));
         assert!(f_headers.contains(".flac"));
-        assert!(f_body.windows(4).any(|w| w == b"fLaC"), "FLAC header missing");
+        assert!(
+            f_body.windows(4).any(|w| w == b"fLaC"),
+            "FLAC header missing"
+        );
     }
 
     let _ = child.kill();
@@ -594,12 +608,16 @@ fn http_roundtrip_with_headers(
     let header_str = String::from_utf8_lossy(&res[..header_end]).to_string();
     let body_bytes = if header_end + 4 <= res.len() {
         let raw_body = &res[header_end + 4..];
-        if header_str.to_lowercase().contains("transfer-encoding: chunked") {
+        if header_str
+            .to_lowercase()
+            .contains("transfer-encoding: chunked")
+        {
             let mut dechunked = Vec::new();
             let mut cursor = 0;
             while cursor < raw_body.len() {
                 if let Some(pos) = raw_body[cursor..].windows(2).position(|w| w == b"\r\n") {
-                    let hex_str = std::str::from_utf8(&raw_body[cursor..cursor + pos]).unwrap_or("0");
+                    let hex_str =
+                        std::str::from_utf8(&raw_body[cursor..cursor + pos]).unwrap_or("0");
                     let chunk_size = usize::from_str_radix(hex_str.trim(), 16).unwrap_or(0);
                     if chunk_size == 0 {
                         break;
@@ -1187,10 +1205,8 @@ fn test_cli_sfx_list_and_catalog() {
 #[test]
 fn test_cli_wallet_balance_topup_and_redeem() {
     let exe = env!("CARGO_BIN_EXE_audioticon");
-    let test_wallet = std::env::temp_dir().join(format!(
-        "cli_test_wallet_{}.json",
-        std::process::id()
-    ));
+    let test_wallet =
+        std::env::temp_dir().join(format!("cli_test_wallet_{}.json", std::process::id()));
     let _ = std::fs::remove_file(&test_wallet);
 
     // 1. Balance check
@@ -1432,30 +1448,43 @@ fn test_api_subtitles_export_e2e() {
         "script": "Cisza przed burzą. [pauza: 500ms] Wtem rozległ się potężny grzmot!",
         "format": "srt",
         "item_durations_ms": [1500, 500, 2200]
-    }).to_string();
+    })
+    .to_string();
 
-    let (status, _hdrs, body) = http_roundtrip(port, "POST", "/api/subtitles/export", Some(&req_body));
+    let (status, _hdrs, body) =
+        http_roundtrip(port, "POST", "/api/subtitles/export", Some(&req_body));
     assert_eq!(status, 200, "Export subtitles must return 200 OK");
     let json_resp: serde_json::Value = serde_json::from_slice(&body).expect("Parse JSON response");
     assert_eq!(json_resp["status"], "ok");
     let srt_text = json_resp["content"].as_str().unwrap_or("");
     assert!(srt_text.contains("-->"), "SRT must contain timestamp arrow");
-    assert!(srt_text.contains("Cisza") || srt_text.contains("burzą") || srt_text.contains("grzmot"));
+    assert!(
+        srt_text.contains("Cisza") || srt_text.contains("burzą") || srt_text.contains("grzmot")
+    );
 
     // 2. Query /api/subtitles/export with format=karaoke (vtt)
     let req_karaoke = serde_json::json!({
         "script": "Witaj świecie audiobooków.",
         "format": "karaoke",
         "item_durations_ms": [1800]
-    }).to_string();
+    })
+    .to_string();
 
-    let (s_kar, _, b_kar) = http_roundtrip(port, "POST", "/api/subtitles/export", Some(&req_karaoke));
+    let (s_kar, _, b_kar) =
+        http_roundtrip(port, "POST", "/api/subtitles/export", Some(&req_karaoke));
     assert_eq!(s_kar, 200);
-    let json_kar: serde_json::Value = serde_json::from_slice(&b_kar).expect("Parse karaoke response");
+    let json_kar: serde_json::Value =
+        serde_json::from_slice(&b_kar).expect("Parse karaoke response");
     assert_eq!(json_kar["status"], "ok");
     let vtt_text = json_kar["content"].as_str().unwrap_or("");
-    assert!(vtt_text.starts_with("WEBVTT"), "Karaoke export must start with WEBVTT");
-    assert!(vtt_text.contains("<00:"), "Karaoke must contain inline word timestamps");
+    assert!(
+        vtt_text.starts_with("WEBVTT"),
+        "Karaoke export must start with WEBVTT"
+    );
+    assert!(
+        vtt_text.contains("<00:"),
+        "Karaoke must contain inline word timestamps"
+    );
 
     // Clean up
     let _ = child.kill();
@@ -1505,14 +1534,21 @@ fn test_api_waveform_and_punch_in_lifecycle_e2e() {
 
     let analyze_req = serde_json::json!({
         "audio_base64": format!("data:audio/wav;base64,{}", b64_wav)
-    }).to_string();
+    })
+    .to_string();
 
-    let (s_wave, hdrs, b_wave) = http_roundtrip(port, "POST", "/api/waveform/analyze", Some(&analyze_req));
+    let (s_wave, hdrs, b_wave) =
+        http_roundtrip(port, "POST", "/api/waveform/analyze", Some(&analyze_req));
     assert_eq!(s_wave, 200, "Analyze waveform must return 200 OK");
     let wave_str = String::from_utf8_lossy(&b_wave);
     let wave_json: serde_json::Value = match serde_json::from_str(&wave_str) {
         Ok(v) => v,
-        Err(e) => panic!("Parse waveform json: {:?}, hdrs: {}, raw: {}", e, hdrs, &wave_str[..wave_str.len().min(300)]),
+        Err(e) => panic!(
+            "Parse waveform json: {:?}, hdrs: {}, raw: {}",
+            e,
+            hdrs,
+            &wave_str[..wave_str.len().min(300)]
+        ),
     };
     assert_eq!(wave_json["duration_ms"], 1000);
     assert_eq!(wave_json["sample_rate"], 16000);
@@ -1529,13 +1565,22 @@ fn test_api_waveform_and_punch_in_lifecycle_e2e() {
 
     let revert_req = serde_json::json!({
         "segment_hash": test_hash
-    }).to_string();
-    let (s_rev, _, b_rev) = http_roundtrip(port, "POST", "/api/voicelab/punch-in/revert", Some(&revert_req));
+    })
+    .to_string();
+    let (s_rev, _, b_rev) = http_roundtrip(
+        port,
+        "POST",
+        "/api/voicelab/punch-in/revert",
+        Some(&revert_req),
+    );
     assert_eq!(s_rev, 200, "Punch-in revert must return 200 OK");
     let rev_json: serde_json::Value = serde_json::from_slice(&b_rev).expect("Parse revert json");
     assert_eq!(rev_json["status"], "ok");
     assert_eq!(rev_json["reverted"], true);
-    assert!(!dummy_punch_wav.exists(), "Punch-in file must be deleted upon revert");
+    assert!(
+        !dummy_punch_wav.exists(),
+        "Punch-in file must be deleted upon revert"
+    );
 
     // Clean up
     let _ = child.kill();
@@ -1588,7 +1633,8 @@ fn test_api_qc_latest_and_audit_e2e() {
 
     let audit_req = serde_json::json!({
         "audio_base64": format!("data:audio/wav;base64,{}", b64_wav)
-    }).to_string();
+    })
+    .to_string();
 
     let (s_audit, _, b_audit) = http_roundtrip(port, "POST", "/api/qc/audit", Some(&audit_req));
     assert_eq!(s_audit, 200, "POST /api/qc/audit must return 200 OK");
@@ -1649,7 +1695,8 @@ fn test_api_custom_emojis_sound_design_e2e() {
         "pitch": -4,
         "rate": 0,
         "volume": 1.0
-    }).to_string();
+    })
+    .to_string();
     let (s_add, _, b_add) = http_roundtrip(port, "POST", "/api/custom-emojis/add", Some(&add_req));
     assert_eq!(s_add, 200);
     let add_json: serde_json::Value = serde_json::from_slice(&b_add).expect("Parse add response");
@@ -1664,8 +1711,10 @@ fn test_api_custom_emojis_sound_design_e2e() {
     // 4. POST /api/custom-emojis/remove
     let rem_req = serde_json::json!({
         "emoji": "🧙‍♂️"
-    }).to_string();
-    let (s_rem, _, b_rem) = http_roundtrip(port, "POST", "/api/custom-emojis/remove", Some(&rem_req));
+    })
+    .to_string();
+    let (s_rem, _, b_rem) =
+        http_roundtrip(port, "POST", "/api/custom-emojis/remove", Some(&rem_req));
     assert_eq!(s_rem, 200);
     let rem_json: serde_json::Value = serde_json::from_slice(&b_rem).expect("Parse rem");
     assert!(rem_json["emojis"]["🧙‍♂️"].is_null());
@@ -1711,7 +1760,8 @@ fn test_license_status_activation_and_soft_gates_e2e() {
     // 1. Initial status: Free tier
     let (s_stat, _, b_stat) = http_roundtrip(port, "GET", "/api/license/status", None);
     assert_eq!(s_stat, 200);
-    let stat_json: serde_json::Value = serde_json::from_slice(&b_stat).expect("Parse license status");
+    let stat_json: serde_json::Value =
+        serde_json::from_slice(&b_stat).expect("Parse license status");
     assert_eq!(stat_json["tier"], "Free");
     assert_eq!(stat_json["is_pro"], false);
     assert_eq!(stat_json["features"]["m4b"], false);
@@ -1724,22 +1774,29 @@ fn test_license_status_activation_and_soft_gates_e2e() {
         "provider": "piper",
         "lang": "pl",
         "voice": "pl_PL-gosia-medium"
-    }).to_string();
+    })
+    .to_string();
     let (s_exp, _, b_exp) = http_roundtrip(port, "POST", "/api/export", Some(&export_m4b_req));
-    assert_eq!(s_exp, 402, "M4B export on Free tier must return 402 Payment Required");
-    let exp_json: serde_json::Value = serde_json::from_slice(&b_exp).expect("Parse export soft-gate");
+    assert_eq!(
+        s_exp, 402,
+        "M4B export on Free tier must return 402 Payment Required"
+    );
+    let exp_json: serde_json::Value =
+        serde_json::from_slice(&b_exp).expect("Parse export soft-gate");
     assert_eq!(exp_json["error"], "m4b_requires_pro");
 
     // 3. Activate Solo license via /api/license/activate
     let act_req = serde_json::json!({
         "key": "SOLO-XYZ-999"
-    }).to_string();
+    })
+    .to_string();
     let (s_act, _, b_act) = http_roundtrip(port, "POST", "/api/license/activate", Some(&act_req));
     if s_act != 200 {
         panic!("Activation failed: {}", String::from_utf8_lossy(&b_act));
     }
     assert_eq!(s_act, 200);
-    let act_json: serde_json::Value = serde_json::from_slice(&b_act).expect("Parse activation response");
+    let act_json: serde_json::Value =
+        serde_json::from_slice(&b_act).expect("Parse activation response");
     assert_eq!(act_json["success"], true);
     assert_eq!(act_json["tier"], "Solo PRO");
     assert_eq!(act_json["is_pro"], true);
@@ -1750,7 +1807,8 @@ fn test_license_status_activation_and_soft_gates_e2e() {
     // 4. Verify GET /api/license/status reflects updated tier
     let (s_stat2, _, b_stat2) = http_roundtrip(port, "GET", "/api/license/status", None);
     assert_eq!(s_stat2, 200);
-    let stat2_json: serde_json::Value = serde_json::from_slice(&b_stat2).expect("Parse updated license status");
+    let stat2_json: serde_json::Value =
+        serde_json::from_slice(&b_stat2).expect("Parse updated license status");
     assert_eq!(stat2_json["tier"], "Solo PRO");
     assert_eq!(stat2_json["is_pro"], true);
     assert_eq!(stat2_json["features"]["m4b"], true);

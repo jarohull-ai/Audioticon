@@ -160,15 +160,43 @@ pub fn infer_category(name: &str) -> String {
     let n = name.to_lowercase();
     if n.contains("drzwi") || n.contains("door") || n.contains("zamek") || n.contains("klucz") {
         "Drzwi i Zamki".to_string()
-    } else if n.contains("krok") || n.contains("footstep") || n.contains("chodz") || n.contains("lod") {
+    } else if n.contains("krok")
+        || n.contains("footstep")
+        || n.contains("chodz")
+        || n.contains("lod")
+    {
         "Kroki i Ruch".to_string()
-    } else if n.contains("deszcz") || n.contains("rain") || n.contains("wiatr") || n.contains("wind") || n.contains("burza") || n.contains("grzmot") {
+    } else if n.contains("deszcz")
+        || n.contains("rain")
+        || n.contains("wiatr")
+        || n.contains("wind")
+        || n.contains("burza")
+        || n.contains("grzmot")
+    {
         "Pogoda i Otoczenie".to_string()
-    } else if n.contains("telefon") || n.contains("phone") || n.contains("radio") || n.contains("bell") || n.contains("dzwonek") {
+    } else if n.contains("telefon")
+        || n.contains("phone")
+        || n.contains("radio")
+        || n.contains("bell")
+        || n.contains("dzwonek")
+    {
         "Technika i Sygnały".to_string()
-    } else if n.contains("szklo") || n.contains("glass") || n.contains("papier") || n.contains("notes") || n.contains("kartka") {
+    } else if n.contains("szklo")
+        || n.contains("glass")
+        || n.contains("papier")
+        || n.contains("notes")
+        || n.contains("kartka")
+    {
         "Przedmioty".to_string()
-    } else if n.contains("strzal") || n.contains("shot") || n.contains("wybuch") || n.contains("boom") || n.contains("bron") || n.contains("pistolet") || n.contains("przeladowanie") || n.contains("walka") {
+    } else if n.contains("strzal")
+        || n.contains("shot")
+        || n.contains("wybuch")
+        || n.contains("boom")
+        || n.contains("bron")
+        || n.contains("pistolet")
+        || n.contains("przeladowanie")
+        || n.contains("walka")
+    {
         "Akcja i Walka".to_string()
     } else {
         "Różne".to_string()
@@ -176,7 +204,11 @@ pub fn infer_category(name: &str) -> String {
 }
 
 /// Imports a user-provided audio file into the project or user SFX directory
-pub fn import_custom_sfx(source_path: &Path, custom_name: Option<&str>, target_dir: &Path) -> Result<PathBuf> {
+pub fn import_custom_sfx(
+    source_path: &Path,
+    custom_name: Option<&str>,
+    target_dir: &Path,
+) -> Result<PathBuf> {
     if !source_path.exists() || !source_path.is_file() {
         bail!("Plik źródłowy nie istnieje: {:?}", source_path);
     }
@@ -224,7 +256,11 @@ pub fn list_curated_essentials() -> Vec<CuratedSfxItem> {
             category: "Drzwi i Zamki".to_string(),
             description: "Czyste nagranie skrzypiących starych drzwi pokojowych".to_string(),
             license: "CC0".to_string(),
-            tags: vec!["drzwi".to_string(), "door".to_string(), "skrzyp".to_string()],
+            tags: vec![
+                "drzwi".to_string(),
+                "door".to_string(),
+                "skrzyp".to_string(),
+            ],
         },
         CuratedSfxItem {
             id: "drzwi_stal".to_string(),
@@ -232,7 +268,11 @@ pub fn list_curated_essentials() -> Vec<CuratedSfxItem> {
             category: "Drzwi i Zamki".to_string(),
             description: "Ciężkie metalowe drzwi schronu lub bramy więziennej".to_string(),
             license: "CC0".to_string(),
-            tags: vec!["drzwi".to_string(), "metal".to_string(), "bunkier".to_string()],
+            tags: vec![
+                "drzwi".to_string(),
+                "metal".to_string(),
+                "bunkier".to_string(),
+            ],
         },
         CuratedSfxItem {
             id: "kroki_beton".to_string(),
@@ -240,7 +280,11 @@ pub fn list_curated_essentials() -> Vec<CuratedSfxItem> {
             category: "Kroki i Ruch".to_string(),
             description: "Pojedyncze kroki w butach z twardą podeszwą po posadzce".to_string(),
             license: "CC0".to_string(),
-            tags: vec!["krok".to_string(), "kroki".to_string(), "footstep".to_string()],
+            tags: vec![
+                "krok".to_string(),
+                "kroki".to_string(),
+                "footstep".to_string(),
+            ],
         },
         CuratedSfxItem {
             id: "kroki_bloto".to_string(),
@@ -248,15 +292,24 @@ pub fn list_curated_essentials() -> Vec<CuratedSfxItem> {
             category: "Kroki i Ruch".to_string(),
             description: "Chrzęst i plask kroków na mokrej, leśnej ścieżce".to_string(),
             license: "CC0".to_string(),
-            tags: vec!["krok".to_string(), "bloto".to_string(), "deszcz".to_string()],
+            tags: vec![
+                "krok".to_string(),
+                "bloto".to_string(),
+                "deszcz".to_string(),
+            ],
         },
         CuratedSfxItem {
             id: "radio_szum".to_string(),
             name: "Wojskowa radiostacja (szum i klik)".to_string(),
             category: "Technika i Sygnały".to_string(),
-            description: "Charakterystyczny trzask PTT i szum fali nośnej radiotelefonu".to_string(),
+            description: "Charakterystyczny trzask PTT i szum fali nośnej radiotelefonu"
+                .to_string(),
             license: "CC0".to_string(),
-            tags: vec!["radio".to_string(), "szum".to_string(), "walkie".to_string()],
+            tags: vec![
+                "radio".to_string(),
+                "szum".to_string(),
+                "walkie".to_string(),
+            ],
         },
         CuratedSfxItem {
             id: "telefon_dzwonek".to_string(),
@@ -264,7 +317,11 @@ pub fn list_curated_essentials() -> Vec<CuratedSfxItem> {
             category: "Technika i Sygnały".to_string(),
             description: "Dwutonowy dzwonek gongowy z naturalnym wybrzmieniem".to_string(),
             license: "CC0".to_string(),
-            tags: vec!["telefon".to_string(), "ding".to_string(), "bell".to_string()],
+            tags: vec![
+                "telefon".to_string(),
+                "ding".to_string(),
+                "bell".to_string(),
+            ],
         },
         CuratedSfxItem {
             id: "papier_notes".to_string(),
@@ -272,7 +329,11 @@ pub fn list_curated_essentials() -> Vec<CuratedSfxItem> {
             category: "Przedmioty".to_string(),
             description: "Szelest przewracanej strony starego notesu".to_string(),
             license: "CC0".to_string(),
-            tags: vec!["papier".to_string(), "kartka".to_string(), "notes".to_string()],
+            tags: vec![
+                "papier".to_string(),
+                "kartka".to_string(),
+                "notes".to_string(),
+            ],
         },
         CuratedSfxItem {
             id: "szklo_stluczone".to_string(),
@@ -280,7 +341,11 @@ pub fn list_curated_essentials() -> Vec<CuratedSfxItem> {
             category: "Przedmioty".to_string(),
             description: "Odgłos rozbijanej butelki lub szyby".to_string(),
             license: "CC0".to_string(),
-            tags: vec!["szklo".to_string(), "glass".to_string(), "crash".to_string()],
+            tags: vec![
+                "szklo".to_string(),
+                "glass".to_string(),
+                "crash".to_string(),
+            ],
         },
         CuratedSfxItem {
             id: "uderzenie_metal".to_string(),
@@ -288,7 +353,11 @@ pub fn list_curated_essentials() -> Vec<CuratedSfxItem> {
             category: "Akcja i Walka".to_string(),
             description: "Głuche dudnienie metalowej płyty lub wrót".to_string(),
             license: "CC0".to_string(),
-            tags: vec!["uderzenie".to_string(), "metal".to_string(), "thud".to_string()],
+            tags: vec![
+                "uderzenie".to_string(),
+                "metal".to_string(),
+                "thud".to_string(),
+            ],
         },
         CuratedSfxItem {
             id: "przeladowanie_broni".to_string(),

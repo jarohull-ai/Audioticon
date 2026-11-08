@@ -514,7 +514,10 @@ pub fn create_ambient_track(
                 || clean.contains("noc")
             {
                 // Night forest: 4Hz pulsating crickets
-                let pulse = (2.0 * std::f32::consts::PI * 4.0 * t).sin().max(0.0).powi(2);
+                let pulse = (2.0 * std::f32::consts::PI * 4.0 * t)
+                    .sin()
+                    .max(0.0)
+                    .powi(2);
                 let crickets = bp_forest.process(rng.next_f32()) * pulse * 0.030;
                 let soft_wind = bp_wind.process(rng.next_f32()) * 0.015;
                 crickets + soft_wind
@@ -695,7 +698,8 @@ pub fn stitch_wav_files(inputs: &[PathBuf], out_path: &Path, sample_rate: u32) -
                 let t = i as f32 / xfade as f32;
                 let fade_out = ((1.0 - t) * std::f32::consts::PI / 2.0).sin();
                 let fade_in = (t * std::f32::consts::PI / 2.0).sin();
-                let mixed = (pending_tail[i] * fade_out + chunk_samples[i] * fade_in).clamp(-1.0, 1.0);
+                let mixed =
+                    (pending_tail[i] * fade_out + chunk_samples[i] * fade_in).clamp(-1.0, 1.0);
                 xfade_buf.push(mixed);
             }
 
@@ -992,8 +996,7 @@ impl SpeechSynthesizer for EdgeTtsBridge {
         if let Some(ref style) = custom_style {
             crate::style_transfer::apply_disentangled_style_to_wav(&temp_wav, style)?;
         } else if is_whisper {
-            let mode =
-                crate::whisper_dsp::WhisperMode::from_filter_tag(segment.filter.as_deref());
+            let mode = crate::whisper_dsp::WhisperMode::from_filter_tag(segment.filter.as_deref());
             crate::whisper_dsp::apply_whisper_to_wav_file_with_mode(&temp_wav, mode)?;
         }
 
@@ -1404,8 +1407,7 @@ impl SpeechSynthesizer for PiperBridge {
         if let Some(ref style) = custom_style {
             crate::style_transfer::apply_disentangled_style_to_wav(&temp_wav, style)?;
         } else if is_whisper {
-            let mode =
-                crate::whisper_dsp::WhisperMode::from_filter_tag(segment.filter.as_deref());
+            let mode = crate::whisper_dsp::WhisperMode::from_filter_tag(segment.filter.as_deref());
             crate::whisper_dsp::apply_whisper_to_wav_file_with_mode(&temp_wav, mode)?;
         }
 
@@ -2004,21 +2006,20 @@ impl AudioDirectorEngine {
             cache_hits,
             chunk_paths.len() - cache_hits
         );
-        let subtitles = crate::subtitles::build_subtitles_from_script_and_durations(script, &item_durations_ms);
+        let subtitles =
+            crate::subtitles::build_subtitles_from_script_and_durations(script, &item_durations_ms);
         let default_v = self.synthesizer.resolve_voice_label(None);
-        let waveform = std::fs::read(final_wav)
+        let waveform = std::fs::read(final_wav).ok().and_then(|bytes| {
+            crate::waveform::build_waveform_with_script_segments(
+                &bytes,
+                script,
+                &default_v,
+                &item_durations_ms,
+                &self.cache_dir,
+                512,
+            )
             .ok()
-            .and_then(|bytes| {
-                crate::waveform::build_waveform_with_script_segments(
-                    &bytes,
-                    script,
-                    &default_v,
-                    &item_durations_ms,
-                    &self.cache_dir,
-                    512,
-                )
-                .ok()
-            });
+        });
         Ok(RenderResult {
             total_segments: chunk_paths.len(),
             duration_ms: current_ms,
@@ -2277,7 +2278,10 @@ pub async fn export_to_flac(
 
     if !status.success() {
         let _ = std::fs::remove_file(&tmp_flac);
-        anyhow::bail!("Konwersja do FLAC zakończyła się niepowodzeniem: {:?}", status);
+        anyhow::bail!(
+            "Konwersja do FLAC zakończyła się niepowodzeniem: {:?}",
+            status
+        );
     }
 
     std::fs::rename(&tmp_flac, flac_path)

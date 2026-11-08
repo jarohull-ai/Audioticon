@@ -102,7 +102,11 @@ impl PcmStreamFile {
 
     /// Streams raw PCM samples directly from disk into a standard WAV file.
     /// Memory usage is strictly bounded to `chunk_size` (default ~64 KB).
-    pub fn export_wav(&self, out_wav_path: impl AsRef<Path>, chunk_size: Option<usize>) -> Result<()> {
+    pub fn export_wav(
+        &self,
+        out_wav_path: impl AsRef<Path>,
+        chunk_size: Option<usize>,
+    ) -> Result<()> {
         let out_p = out_wav_path.as_ref();
         if let Some(parent) = out_p.parent() {
             create_dir_all(parent)?;
@@ -167,7 +171,9 @@ mod tests {
         assert_eq!(slice[2], -0.50);
 
         // Stream export to WAV
-        stream.export_wav(&wav_path, Some(4096)).expect("Export WAV");
+        stream
+            .export_wav(&wav_path, Some(4096))
+            .expect("Export WAV");
         assert!(wav_path.exists());
         let reader = hound::WavReader::open(&wav_path).expect("Open WAV");
         assert_eq!(reader.duration(), 24000);

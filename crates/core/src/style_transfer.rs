@@ -680,8 +680,7 @@ pub fn apply_disentangled_style(
         } else {
             1.0
         };
-        cfg.transfer_matrix.proximity_warmth =
-            (-style.proximity_vs_distance).max(0.0) * 0.48;
+        cfg.transfer_matrix.proximity_warmth = (-style.proximity_vs_distance).max(0.0) * 0.48;
         crate::whisper_dsp::to_whisper_with_config(samples, sample_rate, &cfg)
     } else {
         samples.to_vec()
@@ -800,8 +799,12 @@ pub fn apply_disentangled_style_to_wav(
     wav_path: &Path,
     style: &DisentangledStyleMatrix,
 ) -> Result<()> {
-    let reader = WavReader::open(wav_path)
-        .with_context(|| format!("Nie można otworzyć pliku WAV do style transferu: {:?}", wav_path))?;
+    let reader = WavReader::open(wav_path).with_context(|| {
+        format!(
+            "Nie można otworzyć pliku WAV do style transferu: {:?}",
+            wav_path
+        )
+    })?;
     let spec = reader.spec();
     let sample_rate = spec.sample_rate;
 
@@ -977,7 +980,11 @@ mod tests {
 
         for preset in DisentangledStyleMatrix::builtin_catalog() {
             let out = apply_disentangled_style(&sig, sr, &preset);
-            assert!(!out.is_empty(), "Preset {} produced empty output", preset.id);
+            assert!(
+                !out.is_empty(),
+                "Preset {} produced empty output",
+                preset.id
+            );
             let diag = diagnose_styled_audio(&out, sr);
             assert!(diag.detected_median_f0_hz >= 80.0);
         }

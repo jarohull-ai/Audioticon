@@ -26,9 +26,7 @@ pub fn run_wallet(action: Option<WalletAction>) -> Result<()> {
                 "  Limit produkcyjny BYOK (ElevenLabs): ~{} minut",
                 wallet.elevenlabs_minutes()
             );
-            println!(
-                "  Silniki lokalne (Piper / Kokoro-82M / Edge): 100% BEZPŁATNE (0 monet)"
-            );
+            println!("  Silniki lokalne (Piper / Kokoro-82M / Edge): 100% BEZPŁATNE (0 monet)");
             println!(
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             );
@@ -52,29 +50,29 @@ pub fn run_wallet(action: Option<WalletAction>) -> Result<()> {
             println!("   Użyj: audioticon wallet topup");
             println!("   Masz kod vouchera? Użyj: audioticon wallet redeem <KOD>");
         }
-        WalletAction::Redeem { code } => {
-            match wallet.redeem_voucher(&code) {
-                Ok(payload) => {
-                    println!("🎉 SUKCES! Zrealizowano voucher VIP!");
+        WalletAction::Redeem { code } => match wallet.redeem_voucher(&code) {
+            Ok(payload) => {
+                println!("🎉 SUKCES! Zrealizowano voucher VIP!");
+                println!(
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                );
+                println!("  Dodano kredyty:        +{} AudioCoin$", payload.credits);
+                println!("  Nowe saldo:            {} AudioCoin$", wallet.balance);
+                println!("  Zaktualizowany poziom: {}", payload.tier.as_str());
+                if payload.acx_certificate_unlocked {
+                    println!("  🌟 ODBLOKOWANO: Oficjalny Certyfikat Zgodności ACX / Storytel!");
                     println!(
-                        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                    );
-                    println!("  Dodano kredyty:        +{} AudioCoin$", payload.credits);
-                    println!("  Nowe saldo:            {} AudioCoin$", wallet.balance);
-                    println!("  Zaktualizowany poziom: {}", payload.tier.as_str());
-                    if payload.acx_certificate_unlocked {
-                        println!("  🌟 ODBLOKOWANO: Oficjalny Certyfikat Zgodności ACX / Storytel!");
-                        println!("     Twój następny render wygeneruje plik 'audiobook.certificate.json'");
-                    }
-                    println!(
-                        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                        "     Twój następny render wygeneruje plik 'audiobook.certificate.json'"
                     );
                 }
-                Err(err) => {
-                    eprintln!("❌ Błąd realizacji vouchera: {}", err);
-                }
+                println!(
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                );
             }
-        }
+            Err(err) => {
+                eprintln!("❌ Błąd realizacji vouchera: {}", err);
+            }
+        },
         WalletAction::Topup => {
             println!("🛒 PAKIETY LICENCJI AUDIOTICON STUDIO (GUMROAD SECURE CHECKOUT)");
             println!(
@@ -90,7 +88,9 @@ pub fn run_wallet(action: Option<WalletAction>) -> Result<()> {
             println!("2. 🚀 STUDIO PRO (PAKIET WYDAWCA) — $99 USD (Licencja wieczysta v1.x)");
             println!("   • Wszystkie funkcje Solo PRO");
             println!("   • Multi-book Batch Pipeline (przetwarzanie całych serii wydawniczych z crash-resume)");
-            println!("   • Eksport datasetów VoiceLab ZIP dla trenowania własnych modeli neuralnych");
+            println!(
+                "   • Eksport datasetów VoiceLab ZIP dla trenowania własnych modeli neuralnych"
+            );
             println!("   • Kup online: https://gumroad.com/l/audioticon-studio");
             println!(
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

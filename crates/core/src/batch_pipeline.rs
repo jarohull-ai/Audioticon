@@ -242,7 +242,9 @@ pub fn audit_acx_compliance(samples: &[f32], sample_rate: u32) -> AcxComplianceR
 
 fn chrono_timestamp_approx() -> String {
     let now = std::time::SystemTime::now();
-    let since = now.duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+    let since = now
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
     format!("{}.{}", since.as_secs(), since.subsec_millis())
 }
 
@@ -252,7 +254,8 @@ mod tests {
 
     #[test]
     fn test_batch_state_journal_persistence_and_resume() {
-        let tmp_dir = std::env::temp_dir().join(format!("test_batch_journal_{}", std::process::id()));
+        let tmp_dir =
+            std::env::temp_dir().join(format!("test_batch_journal_{}", std::process::id()));
         let journal_path = tmp_dir.join("test_book_state.json");
         let dummy_wav = tmp_dir.join("seg_001.wav");
         let _ = std::fs::create_dir_all(&tmp_dir);
@@ -260,8 +263,8 @@ mod tests {
 
         // 1. Create and populate journal
         {
-            let mut journal = BatchStateJournal::open_or_create(&journal_path, "Lalka")
-                .expect("Open journal");
+            let mut journal =
+                BatchStateJournal::open_or_create(&journal_path, "Lalka").expect("Open journal");
             journal.total_chapters = 30;
             journal.total_segments = 500;
             journal.mark_segment_done("hash_abc123", 1, 1, dummy_wav.clone(), 3500);
@@ -270,8 +273,8 @@ mod tests {
 
         // 2. Re-open (simulate crash and resume)
         {
-            let resumed = BatchStateJournal::open_or_create(&journal_path, "Lalka")
-                .expect("Resume journal");
+            let resumed =
+                BatchStateJournal::open_or_create(&journal_path, "Lalka").expect("Resume journal");
             assert_eq!(resumed.book_title, "Lalka");
             assert_eq!(resumed.completed_segments, 1);
             assert!(resumed.is_segment_done("hash_abc123"));

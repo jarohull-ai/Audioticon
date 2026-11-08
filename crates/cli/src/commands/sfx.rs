@@ -1,7 +1,5 @@
 use anyhow::Result;
-use audioticon_core::{
-    import_custom_sfx, list_curated_essentials, list_installed_sfx, sfx_dir,
-};
+use audioticon_core::{import_custom_sfx, list_curated_essentials, list_installed_sfx, sfx_dir};
 use std::path::PathBuf;
 
 use crate::args::SfxAction;
@@ -22,7 +20,9 @@ pub fn run_sfx(action: Option<SfxAction>) -> Result<()> {
 
             if items.is_empty() {
                 println!("  (Brak zainstalowanych plików audio w bibliotece SFX)");
-                println!("  💡 Silnik korzysta z wbudowanej syntezy proceduralnej dla znanych emotikon.");
+                println!(
+                    "  💡 Silnik korzysta z wbudowanej syntezy proceduralnej dla znanych emotikon."
+                );
                 println!("  💡 Aby zaimportować własny plik audio: audioticon sfx import sciezka/do/dzwieku.wav");
                 println!("  💡 Zobacz rekomendowane dźwięki:      audioticon sfx catalog");
             } else {
@@ -45,7 +45,9 @@ pub fn run_sfx(action: Option<SfxAction>) -> Result<()> {
         }
         SfxAction::Catalog => {
             let curated = list_curated_essentials();
-            println!("📚 Rekomendowane Efekty Studyjne do Audiobooków (Darmowe CC0 / Public Domain)");
+            println!(
+                "📚 Rekomendowane Efekty Studyjne do Audiobooków (Darmowe CC0 / Public Domain)"
+            );
             println!(
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             );
@@ -82,10 +84,7 @@ pub fn run_sfx(action: Option<SfxAction>) -> Result<()> {
             println!("✅ Zaimportowano efekt dźwiękowy!");
             println!("   Plik źródłowy: {:?}", file);
             println!("   Zapisano do:   {:?}", dest);
-            let stem = dest
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("efekt");
+            let stem = dest.file_stem().and_then(|s| s.to_str()).unwrap_or("efekt");
             println!(
                 "   💡 Użycie w scenariuszu: [sfx:{}] lub przypisz do emotki w audioticon.toml",
                 stem

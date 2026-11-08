@@ -94,8 +94,25 @@ pub fn infer_character_gender(name: &str) -> &'static str {
 
     // Common international / English female names without 'a' ending
     let common_female_names = [
-        "mary", "sarah", "bella", "emma", "alice", "lucy", "helen", "grace", "kate", "chloe",
-        "elizabeth", "claire", "jane", "jessica", "rachel", "amy", "zoe", "dorothy", "lily",
+        "mary",
+        "sarah",
+        "bella",
+        "emma",
+        "alice",
+        "lucy",
+        "helen",
+        "grace",
+        "kate",
+        "chloe",
+        "elizabeth",
+        "claire",
+        "jane",
+        "jessica",
+        "rachel",
+        "amy",
+        "zoe",
+        "dorothy",
+        "lily",
     ];
     if common_female_names.contains(&lower.as_str()) {
         return "female";
@@ -182,9 +199,7 @@ pub fn analyze_dialogue(text: &str, lang: &str) -> DialogAnalysisResult {
             } else {
                 total_dialogue += 1;
             }
-            let entry = stats
-                .entry(char_name)
-                .or_insert_with(|| (0, 0, Vec::new()));
+            let entry = stats.entry(char_name).or_insert_with(|| (0, 0, Vec::new()));
             entry.0 += 1;
             entry.1 += words;
             if entry.2.len() < 3 && !speech.is_empty() {
@@ -204,9 +219,7 @@ pub fn analyze_dialogue(text: &str, lang: &str) -> DialogAnalysisResult {
             } else {
                 total_dialogue += 1;
             }
-            let entry = stats
-                .entry(char_name)
-                .or_insert_with(|| (0, 0, Vec::new()));
+            let entry = stats.entry(char_name).or_insert_with(|| (0, 0, Vec::new()));
             entry.0 += 1;
             entry.1 += words;
             if entry.2.len() < 3 {
@@ -226,9 +239,7 @@ pub fn analyze_dialogue(text: &str, lang: &str) -> DialogAnalysisResult {
             } else {
                 total_dialogue += 1;
             }
-            let entry = stats
-                .entry(char_name)
-                .or_insert_with(|| (0, 0, Vec::new()));
+            let entry = stats.entry(char_name).or_insert_with(|| (0, 0, Vec::new()));
             entry.0 += 1;
             entry.1 += words;
             if entry.2.len() < 3 {

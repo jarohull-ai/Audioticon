@@ -135,9 +135,8 @@ impl VoiceTransferMatrix {
                 // Calibrated from Jaro's Normal -> Action Whisper with anti-rustle (anti-szelest) damping above 4 kHz:
                 // Tight vocal tract (-14 dB low cut), focused 1.2-2.6 kHz tactical mid-range, rolled-off highs!
                 delta_band_db: [
-                    -10.0, -11.5, -12.5, -13.5, -14.0, -13.5, -12.0, -9.5, -6.0, -3.0,
-                    0.0, 2.0, 3.5, 4.2, 4.5, 4.0, 2.5, 0.5, -2.0, -4.0, -6.0, -7.5,
-                    -9.0, -10.5,
+                    -10.0, -11.5, -12.5, -13.5, -14.0, -13.5, -12.0, -9.5, -6.0, -3.0, 0.0, 2.0,
+                    3.5, 4.2, 4.5, 4.0, 2.5, 0.5, -2.0, -4.0, -6.0, -7.5, -9.0, -10.5,
                 ],
                 band_articulation_mix: [0.35, 0.45, 0.60, 0.68, 0.72, 0.78, 0.88, 0.95],
                 rms_offset_db: -1.5,
@@ -154,19 +153,18 @@ impl VoiceTransferMatrix {
                 // Calibrated from Jaro's Normal -> Romantic Close-Ear Whisper with zero robotic comb or sibilant hiss:
                 // Warm 90-180 Hz close-ear proximity body, scooped 2-4 kHz harshness, velvety silk roll-off above 4.5 kHz!
                 delta_band_db: [
-                    -2.0, -3.5, -4.5, -9.5, -12.0, -12.5, -11.5, -9.5, -6.5, -3.5,
-                    -1.5, 0.5, 1.5, 1.0, -1.0, -2.5, -3.5, -4.0, -5.0, -6.5, -8.0, -9.5,
-                    -11.0, -12.0,
+                    -2.0, -3.5, -4.5, -9.5, -12.0, -12.5, -11.5, -9.5, -6.5, -3.5, -1.5, 0.5, 1.5,
+                    1.0, -1.0, -2.5, -3.5, -4.0, -5.0, -6.5, -8.0, -9.5, -11.0, -12.0,
                 ],
                 band_articulation_mix: [0.75, 0.75, 0.72, 0.74, 0.78, 0.82, 0.90, 0.95],
                 rms_offset_db: -5.0,
                 vowel_to_consonant_db: -4.0,
-                attack_sharpness: 0.78, // Soft, velvety syllable onset
-                release_gate: 0.75,     // Smooth legato decay
+                attack_sharpness: 0.78,     // Soft, velvety syllable onset
+                release_gate: 0.75,         // Smooth legato decay
                 wsola_stretch_ratio: 1.00, // Pacing handled natively by TTS (-18% rate) to avoid WSOLA robot artifacts!
                 formant_shift_factor: 1.00, // Zero pitch-shifting monster/robot distortion!
-                proximity_warmth: 0.38, // Warm close-ear proximity murmur cushion (80-165 Hz)
-                exhale_sigh_level: 0.0, // No synthetic noise bursts between phrases
+                proximity_warmth: 0.38,    // Warm close-ear proximity murmur cushion (80-165 Hz)
+                exhale_sigh_level: 0.0,    // No synthetic noise bursts between phrases
             },
             WhisperMode::CloseMic => Self {
                 profile_name: "close_mic_capsule_whisper".to_string(),
@@ -212,10 +210,10 @@ impl WhisperConfig {
             mode,
             lpc_order: 28,
             whisper_purity: match mode {
-                WhisperMode::CloseMic => 0.58,  // 42% clear close-capsule voice + 58% warm LPC formant breath
-                WhisperMode::Action => 0.50,    // 50% tense tactical articulation + 50% tight mid breath (zero rustle!)
+                WhisperMode::CloseMic => 0.58, // 42% clear close-capsule voice + 58% warm LPC formant breath
+                WhisperMode::Action => 0.50, // 50% tense tactical articulation + 50% tight mid breath (zero rustle!)
                 WhisperMode::Narrative => 0.42, // 58% clear stage half-whisper diction + 42% gentle breath
-                WhisperMode::Romantic => 0.40,  // 60% velvety close-ear murmur + 40% warm silky breath (zero robot hiss!)
+                WhisperMode::Romantic => 0.40, // 60% velvety close-ear murmur + 40% warm silky breath (zero robot hiss!)
             },
             air_boost_db: match mode {
                 WhisperMode::Action => 1.0,
@@ -512,7 +510,9 @@ pub fn extract_voice_transfer_matrix(
 /// using a cascade of 8 grouped critical-band biquad equalizers.
 pub fn apply_24band_transfer_eq(samples: &mut [f32], sample_rate: f32, delta_db: &[f32; 24]) {
     // Group the 24 Bark bands into 8 high-precision parametric stages (3 adjacent bands per stage)
-    let stage_centers = [110.0f32, 240.0, 440.0, 780.0, 1450.0, 2400.0, 3850.0, 6800.0];
+    let stage_centers = [
+        110.0f32, 240.0, 440.0, 780.0, 1450.0, 2400.0, 3850.0, 6800.0,
+    ];
     let stage_indices = [
         [0, 1, 2],
         [3, 4, 5],
@@ -529,8 +529,7 @@ pub fn apply_24band_transfer_eq(samples: &mut [f32], sample_rate: f32, delta_db:
         if fc >= sample_rate * 0.45 {
             continue;
         }
-        let avg_gain =
-            (delta_db[s_idx[0]] + delta_db[s_idx[1]] + delta_db[s_idx[2]]) / 3.0;
+        let avg_gain = (delta_db[s_idx[0]] + delta_db[s_idx[1]] + delta_db[s_idx[2]]) / 3.0;
         // Scale differential gain by 0.65 so cascaded biquads don't over-ring while preserving the exact spectral shape
         stages.push(WhisperBiquad::peaking_eq(
             sample_rate,
@@ -575,7 +574,10 @@ pub fn to_whisper_with_config(
         || (config.transfer_matrix.wsola_stretch_ratio - 1.0).abs() > 0.02)
         && samples.len() > 2048
     {
-        let alpha = config.transfer_matrix.formant_shift_factor.clamp(0.75, 1.25);
+        let alpha = config
+            .transfer_matrix
+            .formant_shift_factor
+            .clamp(0.75, 1.25);
         let resampled = if (alpha - 1.0).abs() > 0.01 {
             let new_len = ((samples.len() as f32) / alpha).round().max(64.0) as usize;
             let mut buf = Vec::with_capacity(new_len);
@@ -633,8 +635,8 @@ pub fn to_whisper_with_config(
         1.0,
         match config.mode {
             WhisperMode::Narrative => 3.5,
-            WhisperMode::Action => 4.2,     // Focused tactical mid-range clarity!
-            WhisperMode::Romantic => -4.5,  // Scooped metallic mids for velvety close-ear murmur!
+            WhisperMode::Action => 4.2, // Focused tactical mid-range clarity!
+            WhisperMode::Romantic => -4.5, // Scooped metallic mids for velvety close-ear murmur!
             WhisperMode::CloseMic => 2.5,
         },
     );
@@ -655,8 +657,8 @@ pub fn to_whisper_with_config(
         prev = no_f0;
         pre_emphasized.push(pre);
 
-        let soft_v =
-            eq_soft_voice_diction.process(eq_soft_voice_notch.process(hp_soft_voice.process(no_f0)));
+        let soft_v = eq_soft_voice_diction
+            .process(eq_soft_voice_notch.process(hp_soft_voice.process(no_f0)));
         deglottalized_articulation.push(soft_v);
     }
 
@@ -906,7 +908,7 @@ pub fn to_whisper_with_config(
         sr_f,
         match config.mode {
             WhisperMode::CloseMic => 240.0,
-            WhisperMode::Romantic => 180.0,  // Strips vocal-cord F0 hum while keeping warm close-ear F1!
+            WhisperMode::Romantic => 180.0, // Strips vocal-cord F0 hum while keeping warm close-ear F1!
             WhisperMode::Narrative => 200.0, // Preserves natural conversational half-whisper warmth!
             WhisperMode::Action => 310.0,    // Cuts all low chest boom for tense tactical whisper!
         },
@@ -944,7 +946,9 @@ pub fn to_whisper_with_config(
 /// Checks whether a [`crate::types::TextSegment`] is marked for whispered delivery
 /// via `ActorTag::Whisper` (`🤫`, `[szept]`, `[whisper]`) or an explicit `"whisper"` / `"🤫"` / `"💋"` / `"🪖"` preset.
 pub fn is_whisper_segment(segment: &crate::types::TextSegment) -> bool {
-    segment.actor_tags.contains(&crate::types::ActorTag::Whisper)
+    segment
+        .actor_tags
+        .contains(&crate::types::ActorTag::Whisper)
         || segment
             .filter
             .as_deref()
@@ -1108,24 +1112,58 @@ mod tests {
             voiced.push(sig);
         }
 
-        let narrative = to_whisper_with_config(&voiced, sample_rate, &WhisperConfig::for_mode(WhisperMode::Narrative));
-        let action = to_whisper_with_config(&voiced, sample_rate, &WhisperConfig::for_mode(WhisperMode::Action));
-        let romantic = to_whisper_with_config(&voiced, sample_rate, &WhisperConfig::for_mode(WhisperMode::Romantic));
-        let close_mic = to_whisper_with_config(&voiced, sample_rate, &WhisperConfig::for_mode(WhisperMode::CloseMic));
+        let narrative = to_whisper_with_config(
+            &voiced,
+            sample_rate,
+            &WhisperConfig::for_mode(WhisperMode::Narrative),
+        );
+        let action = to_whisper_with_config(
+            &voiced,
+            sample_rate,
+            &WhisperConfig::for_mode(WhisperMode::Action),
+        );
+        let romantic = to_whisper_with_config(
+            &voiced,
+            sample_rate,
+            &WhisperConfig::for_mode(WhisperMode::Romantic),
+        );
+        let close_mic = to_whisper_with_config(
+            &voiced,
+            sample_rate,
+            &WhisperConfig::for_mode(WhisperMode::CloseMic),
+        );
 
         // Action mode is faster/clipped than Narrative and Romantic
-        assert!(action.len() < narrative.len(), "Action whisper should be faster than Narrative");
-        assert!(action.len() < romantic.len(), "Action whisper should be faster than Romantic");
+        assert!(
+            action.len() < narrative.len(),
+            "Action whisper should be faster than Narrative"
+        );
+        assert!(
+            action.len() < romantic.len(),
+            "Action whisper should be faster than Romantic"
+        );
 
         let rms = |s: &[f32]| (s.iter().map(|x| x * x).sum::<f32>() / s.len() as f32).sqrt();
         let zcr = |s: &[f32]| {
-            s.windows(2).filter(|w| (w[0] >= 0.0) != (w[1] >= 0.0)).count() as f32 / s.len() as f32
+            s.windows(2)
+                .filter(|w| (w[0] >= 0.0) != (w[1] >= 0.0))
+                .count() as f32
+                / s.len() as f32
         };
 
         // Romantic is quieter and warmer (lower ZCR) than Action and Narrative
-        assert!(rms(&romantic) < rms(&narrative), "Romantic whisper RMS should be softer than Narrative");
-        assert!(zcr(&romantic) < zcr(&action), "Romantic whisper ZCR should be warmer/lower than Action");
-        assert!((zcr(&close_mic) - zcr(&narrative)).abs() > 0.005, "CloseMic capsule and Narrative half-whisper must have distinct spectral ZCR");
+        assert!(
+            rms(&romantic) < rms(&narrative),
+            "Romantic whisper RMS should be softer than Narrative"
+        );
+        assert!(
+            zcr(&romantic) < zcr(&action),
+            "Romantic whisper ZCR should be warmer/lower than Action"
+        );
+        assert!(
+            (zcr(&close_mic) - zcr(&narrative)).abs() > 0.005,
+            "CloseMic capsule and Narrative half-whisper must have distinct spectral ZCR"
+        );
     }
 
     #[test]

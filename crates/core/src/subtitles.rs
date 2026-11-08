@@ -232,7 +232,9 @@ fn split_text_into_subtitle_clauses(text: &str, max_chars: usize) -> Vec<String>
             || w.ends_with(':')
             || w.ends_with('—');
 
-        if !current_clause.is_empty() && (current_len + w_len + 1 > max_chars || (ends_with_punct && current_len > 28)) {
+        if !current_clause.is_empty()
+            && (current_len + w_len + 1 > max_chars || (ends_with_punct && current_len > 28))
+        {
             current_clause.push(w);
             out.push(current_clause.join(" "));
             current_clause.clear();
@@ -264,9 +266,16 @@ fn distribute_words_in_clause(clause: &str, start_ms: u64, dur_ms: u64) -> Vec<W
     let weights: Vec<f64> = raw_words
         .iter()
         .map(|w| {
-            let len = w.trim_matches(|c: char| c.is_ascii_punctuation()).chars().count().max(1);
+            let len = w
+                .trim_matches(|c: char| c.is_ascii_punctuation())
+                .chars()
+                .count()
+                .max(1);
             // Vowels typically extend acoustic duration in Polish
-            let vowels = w.chars().filter(|c| "aąeęioóuyAĄEĘIOÓUY".contains(*c)).count();
+            let vowels = w
+                .chars()
+                .filter(|c| "aąeęioóuyAĄEĘIOÓUY".contains(*c))
+                .count();
             (len as f64 * 0.75 + vowels as f64 * 0.45).max(1.0)
         })
         .collect();
@@ -302,7 +311,10 @@ pub fn build_subtitles_from_script_and_durations(
     for item in &script.items {
         match item {
             DirectedItem::Silence(ms) | DirectedItem::Breath(ms) => {
-                let dur = chunk_durations_ms.get(duration_idx).copied().unwrap_or(*ms as u64);
+                let dur = chunk_durations_ms
+                    .get(duration_idx)
+                    .copied()
+                    .unwrap_or(*ms as u64);
                 current_time_ms += dur;
                 duration_idx += 1;
             }

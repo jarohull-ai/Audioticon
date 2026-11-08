@@ -401,19 +401,25 @@ impl EmojiDirector {
             }
         } else if def.action_type == "sfx" {
             let sfx_name = def.filter.clone().unwrap_or_else(|| "bell".to_string());
-            self.actions
-                .insert(emoji.to_string(), EmojiAction::SoundEffect(sfx_name.clone()));
+            self.actions.insert(
+                emoji.to_string(),
+                EmojiAction::SoundEffect(sfx_name.clone()),
+            );
             if let Some(alias) = &def.alias {
                 self.actions
                     .insert(format!("[{}]", alias), EmojiAction::SoundEffect(sfx_name));
             }
         } else if def.action_type == "ambient" {
             let amb_name = def.filter.clone().unwrap_or_else(|| "wind".to_string());
-            self.actions
-                .insert(emoji.to_string(), EmojiAction::Ambience(Some(amb_name.clone())));
+            self.actions.insert(
+                emoji.to_string(),
+                EmojiAction::Ambience(Some(amb_name.clone())),
+            );
             if let Some(alias) = &def.alias {
-                self.actions
-                    .insert(format!("[{}]", alias), EmojiAction::Ambience(Some(amb_name)));
+                self.actions.insert(
+                    format!("[{}]", alias),
+                    EmojiAction::Ambience(Some(amb_name)),
+                );
             }
         }
         self.compiled_regex = Self::build_regex(&self.actions);

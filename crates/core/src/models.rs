@@ -450,8 +450,7 @@ pub fn download_model(name_or_id: &str, force: bool) -> Result<PathBuf> {
     let clean_id = name_or_id.trim().to_lowercase();
     let hub_catalog = crate::model_hub::get_curated_hub_catalog();
     let hub_match = hub_catalog.iter().find(|m| {
-        m.id.to_lowercase() == clean_id
-            || (clean_id == "kokoro" && m.id == "kokoro-82m-int8")
+        m.id.to_lowercase() == clean_id || (clean_id == "kokoro" && m.id == "kokoro-82m-int8")
     });
 
     if let Some(hub_entry) = hub_match {

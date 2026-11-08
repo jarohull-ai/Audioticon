@@ -51,7 +51,10 @@ impl WalletTier {
     }
 
     pub fn is_pro(&self) -> bool {
-        matches!(self, Self::Solo | Self::Writer | Self::Studio | Self::Publisher)
+        matches!(
+            self,
+            Self::Solo | Self::Writer | Self::Studio | Self::Publisher
+        )
     }
 
     pub fn is_studio(&self) -> bool {
@@ -188,9 +191,9 @@ pub fn verify_voucher_code(code: &str) -> Result<VoucherPayload> {
         _ => bail!("Nieznana kategoria vouchera: {}", tier_str),
     };
 
-    let credits: u64 = credits_str
-        .parse()
-        .map_err(|_| anyhow::anyhow!("Nieprawidłowa liczba kredytów w voucherze: {}", credits_str))?;
+    let credits: u64 = credits_str.parse().map_err(|_| {
+        anyhow::anyhow!("Nieprawidłowa liczba kredytów w voucherze: {}", credits_str)
+    })?;
 
     let secret = active_license_secret();
     let payload = format!(
@@ -326,7 +329,10 @@ pub fn verify_gumroad_license(license_key: &str) -> Result<GumroadLicenseInfo> {
     let val: serde_json::Value = serde_json::from_str(&response_str)
         .with_context(|| format!("Niepoprawna odpowiedź z serwera Gumroad: {}", response_str))?;
 
-    let success = val.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
+    let success = val
+        .get("success")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     if !success {
         let msg = val
             .get("message")
@@ -339,13 +345,25 @@ pub fn verify_gumroad_license(license_key: &str) -> Result<GumroadLicenseInfo> {
         .get("purchase")
         .context("Brak danych o zakupie w odpowiedzi Gumroad.")?;
 
-    if purchase.get("refunded").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if purchase
+        .get("refunded")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         bail!("Ta licencja została zrefundowana.");
     }
-    if purchase.get("chargebacked").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if purchase
+        .get("chargebacked")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         bail!("Płatność za tę licencję została cofnięta (chargeback).");
     }
-    if purchase.get("disputed").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if purchase
+        .get("disputed")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         bail!("Licencja została zablokowana ze względu na spór transakcji.");
     }
 
@@ -354,8 +372,14 @@ pub fn verify_gumroad_license(license_key: &str) -> Result<GumroadLicenseInfo> {
         .and_then(|v| v.as_str())
         .unwrap_or("Audioticon Solo PRO")
         .to_string();
-    let permalink = purchase.get("permalink").and_then(|v| v.as_str()).unwrap_or("");
-    let email = purchase.get("email").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let permalink = purchase
+        .get("permalink")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let email = purchase
+        .get("email")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
     let uses = val.get("uses").and_then(|v| v.as_u64()).unwrap_or(1) as u32;
 
     let tier = if product_name.to_lowercase().contains("studio")
@@ -457,7 +481,8 @@ mod tests {
     #[test]
     fn test_mock_gumroad_license_verification() {
         std::env::set_var("AUDIOTICON_MOCK_GUMROAD_TIER", "STUDIO");
-        let info = verify_gumroad_license("MOCK-STUDIO-KEY").expect("Mock studio verification succeeds");
+        let info =
+            verify_gumroad_license("MOCK-STUDIO-KEY").expect("Mock studio verification succeeds");
         assert_eq!(info.tier, WalletTier::Studio);
         assert_eq!(info.product_name, "Audioticon Studio PRO");
 

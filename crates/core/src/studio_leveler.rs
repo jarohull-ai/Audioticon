@@ -164,8 +164,12 @@ pub fn peak_limit(
     }
 
     let ceiling = 10.0f32.powf(ceiling_db / 20.0);
-    let lookahead_samples = (sample_rate as f32 * (lookahead_ms / 1000.0)).round().max(1.0) as usize;
-    let release_samples = (sample_rate as f32 * (release_ms / 1000.0)).round().max(1.0) as usize;
+    let lookahead_samples = (sample_rate as f32 * (lookahead_ms / 1000.0))
+        .round()
+        .max(1.0) as usize;
+    let release_samples = (sample_rate as f32 * (release_ms / 1000.0))
+        .round()
+        .max(1.0) as usize;
 
     let n = samples.len();
     let mut raw_gain = vec![1.0f32; n];
@@ -242,7 +246,12 @@ mod tests {
         let out = peak_limit(&signal, sample_rate, ceiling_db, 5.0, 50.0);
 
         for &val in &out {
-            assert!(val.abs() <= ceiling_linear + 1e-4, "Value {} exceeded ceiling {}", val, ceiling_linear);
+            assert!(
+                val.abs() <= ceiling_linear + 1e-4,
+                "Value {} exceeded ceiling {}",
+                val,
+                ceiling_linear
+            );
         }
     }
 }

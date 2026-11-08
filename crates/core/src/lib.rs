@@ -66,7 +66,8 @@ pub use dialog_master::{
 };
 pub use estimator::{estimate_cost, CostEstimate};
 pub use importer::{
-    base64_decode, base64_encode, decode_html_entities, strip_html_tags, ImportedBook, ImportedChapter,
+    base64_decode, base64_encode, decode_html_entities, strip_html_tags, ImportedBook,
+    ImportedChapter,
 };
 pub use kokoro::{KokoroBridge, KokoroVoice, KOKORO_SAMPLE_RATE};
 pub use ledger::{measure_audio_loudness, AudioCertificate};
@@ -104,9 +105,7 @@ pub use types::{
     DirectedScript, EmojiAction, ProductionStyle, ProjectChapter, ProjectMasteringConfig,
     ProjectSettings, RenderResult, TextSegment,
 };
-pub use updater::{
-    check_for_updates, is_newer_version, parse_semver, UpdateCheckResponse,
-};
+pub use updater::{check_for_updates, is_newer_version, parse_semver, UpdateCheckResponse};
 pub use verbalizer::normalize_polish_text;
 pub use voice_design::{
     create_voice_design_previews, save_designed_voice, DesignedVoicePreview, VoiceDesignResponse,

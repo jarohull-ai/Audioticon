@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::voicelab::{profile_dir, save_voice_profile, sanitize_slug, VoiceProfile, VoiceSampleMeta};
+use crate::voicelab::{
+    profile_dir, sanitize_slug, save_voice_profile, VoiceProfile, VoiceSampleMeta,
+};
 
 /// A generated voice preview returned from ElevenLabs Voice Design
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -104,7 +106,8 @@ pub fn create_voice_design_previews(
     let _ = fs::remove_file(&tmp_cfg);
     let _ = fs::remove_file(&tmp_payload);
 
-    let output = output.context("Nie udało się uruchomić polecenia curl dla ElevenLabs Voice Design")?;
+    let output =
+        output.context("Nie udało się uruchomić polecenia curl dla ElevenLabs Voice Design")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -118,8 +121,12 @@ pub fn create_voice_design_previews(
     }
 
     let resp_str = String::from_utf8_lossy(&output.stdout);
-    let parsed: VoiceDesignResponse = serde_json::from_str(&resp_str)
-        .with_context(|| format!("Nie można zdekodować odpowiedzi ElevenLabs Voice Design: {}", resp_str))?;
+    let parsed: VoiceDesignResponse = serde_json::from_str(&resp_str).with_context(|| {
+        format!(
+            "Nie można zdekodować odpowiedzi ElevenLabs Voice Design: {}",
+            resp_str
+        )
+    })?;
 
     if parsed.previews.is_empty() {
         bail!("ElevenLabs nie zwróciło żadnych próbek podglądu dla podanego opisu głosu.");
@@ -209,7 +216,8 @@ pub fn save_designed_voice(
     let _ = fs::remove_file(&tmp_cfg);
     let _ = fs::remove_file(&tmp_payload);
 
-    let output = output.context("Nie udało się uruchomić polecenia curl do zapisu głosu w ElevenLabs")?;
+    let output =
+        output.context("Nie udało się uruchomić polecenia curl do zapisu głosu w ElevenLabs")?;
 
     let resp_str = String::from_utf8_lossy(&output.stdout);
     if !output.status.success() {

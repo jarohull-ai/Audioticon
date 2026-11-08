@@ -673,7 +673,10 @@ fn normalize_headings_and_ordinals(text: &str) -> String {
     let step1 = re_masc.replace_all(text, |caps: &Captures| {
         let noun = &caps[1];
         let num_str = &caps[2];
-        let num_opt = num_str.parse::<u32>().ok().or_else(|| roman_to_u32(num_str));
+        let num_opt = num_str
+            .parse::<u32>()
+            .ok()
+            .or_else(|| roman_to_u32(num_str));
         if let Some(n) = num_opt {
             if (1..=31).contains(&n) {
                 return format!("{} {}", noun, ORDINAL_CHAPTERS_MASCULINE[n as usize]);
@@ -692,7 +695,10 @@ fn normalize_headings_and_ordinals(text: &str) -> String {
         .replace_all(&step1, |caps: &Captures| {
             let noun = &caps[1];
             let num_str = &caps[2];
-            let num_opt = num_str.parse::<u32>().ok().or_else(|| roman_to_u32(num_str));
+            let num_opt = num_str
+                .parse::<u32>()
+                .ok()
+                .or_else(|| roman_to_u32(num_str));
             if let Some(n) = num_opt {
                 if (1..=31).contains(&n) {
                     return format!("{} {}", noun, ORDINAL_CHAPTERS_FEMININE[n as usize]);
@@ -708,7 +714,8 @@ fn normalize_year_abbreviations(text: &str) -> String {
     // 1. Miejscownik po przyimku "w" / "we": "w 2026 roku" lub "w 2026 r."
     static RE_LOC: OnceLock<Regex> = OnceLock::new();
     let re_loc = RE_LOC.get_or_init(|| {
-        Regex::new(r"(?i)\b(w|we)\s+([1-2][0-9]{3})\s*(?:roku|r\.)").expect("Valid year locative regex")
+        Regex::new(r"(?i)\b(w|we)\s+([1-2][0-9]{3})\s*(?:roku|r\.)")
+            .expect("Valid year locative regex")
     });
     let step0 = re_loc.replace_all(text, |caps: &Captures| {
         let prep = &caps[1];

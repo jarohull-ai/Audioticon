@@ -96,8 +96,8 @@ impl RoomToneProfile {
             lowpass_state += self.warmth_factor * (raw_f32 - lowpass_state);
 
             // 2. High-pass DC/rumble block (cuts sub-bass mud < 80 Hz)
-            let hp_out = self.rumble_cutoff_factor
-                * (highpass_prev_out + lowpass_state - highpass_prev_in);
+            let hp_out =
+                self.rumble_cutoff_factor * (highpass_prev_out + lowpass_state - highpass_prev_in);
             highpass_prev_in = lowpass_state;
             highpass_prev_out = hp_out;
 
@@ -119,16 +119,13 @@ pub fn trim_speech_padding(
         return (0, 0);
     }
 
-    let margin_samples = (sample_rate as usize * margin_ms.unwrap_or(PLOSIVE_PROTECTION_MARGIN_MS) as usize) / 1000;
+    let margin_samples =
+        (sample_rate as usize * margin_ms.unwrap_or(PLOSIVE_PROTECTION_MARGIN_MS) as usize) / 1000;
     let silence_threshold = 10.0f32.powf(-50.0 / 20.0); // -50 dBFS threshold
 
-    let first_voiced = samples
-        .iter()
-        .position(|&s| s.abs() > silence_threshold);
+    let first_voiced = samples.iter().position(|&s| s.abs() > silence_threshold);
 
-    let last_voiced = samples
-        .iter()
-        .rposition(|&s| s.abs() > silence_threshold);
+    let last_voiced = samples.iter().rposition(|&s| s.abs() > silence_threshold);
 
     match (first_voiced, last_voiced) {
         (Some(start), Some(end)) => {
@@ -207,7 +204,8 @@ pub fn fill_gaps_with_room_tone(
                         // Cosine / Sine equal power blend
                         let speech_gain = (std::f32::consts::FRAC_PI_2 * (1.0 - t)).cos();
                         let tone_gain = (std::f32::consts::FRAC_PI_2 * t).sin();
-                        output[out_start + i] = output[out_start + i] * speech_gain + tone[i] * tone_gain;
+                        output[out_start + i] =
+                            output[out_start + i] * speech_gain + tone[i] * tone_gain;
                     }
                     output.extend_from_slice(&tone[fade_len..]);
                 } else {
@@ -243,7 +241,7 @@ mod tests {
     fn test_trim_speech_padding_plosive_protection() {
         let sample_rate = 24000;
         let mut signal = vec![0.0f32; 24000]; // 1 sec silence
-        // Add voiced burst at 0.5s (sample 12000)
+                                              // Add voiced burst at 0.5s (sample 12000)
         for sample in signal.iter_mut().take(12500).skip(12000) {
             *sample = 0.5;
         }

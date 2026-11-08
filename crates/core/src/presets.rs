@@ -514,7 +514,12 @@ impl PresetRegistry {
                 },
             );
         }
-        for alias in ["whisper:akcja", "whisper:zolnierz", "whisper:żołnierz", "whisper:action"] {
+        for alias in [
+            "whisper:akcja",
+            "whisper:zolnierz",
+            "whisper:żołnierz",
+            "whisper:action",
+        ] {
             self.presets.insert(
                 alias.to_string(),
                 EffectPreset {

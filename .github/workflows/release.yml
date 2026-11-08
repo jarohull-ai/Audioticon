@@ -28,10 +28,6 @@ jobs:
             os: macos-latest
             artifact_name: audioticon
             asset_ext: tar.gz
-          - target: x86_64-apple-darwin
-            os: macos-13
-            artifact_name: audioticon
-            asset_ext: tar.gz
 
     steps:
       - name: Checkout code
@@ -53,6 +49,13 @@ jobs:
           PKG_NAME="Audioticon-${VERSION}-windows-x86_64"
           mkdir -p "dist/${PKG_NAME}"
           cp "target/${{ matrix.target }}/release/audioticon.exe" "dist/${PKG_NAME}/Audioticon.exe"
+          cat << 'EOF' > "dist/${PKG_NAME}/Start_Audioticon.bat"
+@echo off
+title Audioticon Studio v1.0.0
+echo Uruchamianie Audioticon Studio Workbench...
+start http://127.0.0.1:3000
+Audioticon.exe
+EOF
           cp docs/INSTRUKCJA_OBSLUGI.md "dist/${PKG_NAME}/" 2>/dev/null || true
           cp LICENSE-MIT LICENSE-APACHE THIRD_PARTY_NOTICES.md README.md "dist/${PKG_NAME}/" 2>/dev/null || true
           cd dist

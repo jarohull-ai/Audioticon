@@ -543,8 +543,8 @@ impl ImportedBook {
             .read_to_string(&mut xml_content)
             .context("Błąd odczytu content.xml")?;
 
-        let block_re = Regex::new(r"(?s)<text:(?:p|h)\b[^>]*>(.*?)</text:(?:p|h)>")
-            .expect("Valid ODT regex");
+        let block_re =
+            Regex::new(r"(?s)<text:(?:p|h)\b[^>]*>(.*?)</text:(?:p|h)>").expect("Valid ODT regex");
         let mut lines = Vec::new();
         for cap in block_re.captures_iter(&xml_content) {
             let inner = decode_html_entities(&strip_html_tags(&cap[1]));
@@ -854,10 +854,7 @@ trait CharDocExt {
 }
 impl CharDocExt for char {
     fn is_ascii_newline_or_punct(&self) -> bool {
-        *self == '\n'
-            || *self == '\r'
-            || self.is_ascii_digit()
-            || self.is_ascii_punctuation()
+        *self == '\n' || *self == '\r' || self.is_ascii_digit() || self.is_ascii_punctuation()
     }
 }
 

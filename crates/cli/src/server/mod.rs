@@ -2,8 +2,8 @@ use anyhow::Result;
 use audioticon_core::{
     base64_decode, compute_segment_hash, credentials, download_model, estimate_cost, export_to_m4b,
     export_to_mp3, find_model, list_models, models_dir, presets, remove_model,
-    update_voices_catalog, voice_design, voicelab, AudioCertificate, AudioDirectorEngine, AudioWallet,
-    AudiobookMetadata, CustomEmojiDef, DirectedItem, EdgeTtsBridge, ElevenLabsBridge,
+    update_voices_catalog, voice_design, voicelab, AudioCertificate, AudioDirectorEngine,
+    AudioWallet, AudiobookMetadata, CustomEmojiDef, DirectedItem, EdgeTtsBridge, ElevenLabsBridge,
     EmojiDirector, ImportedBook, PiperBridge, ProjectConfig, SpeechSynthesizer, VoiceProfile,
 };
 use std::collections::HashMap;
@@ -229,12 +229,18 @@ async fn resolve_synthesizer(
         } else {
             audioticon_core::KokoroBridge::default_model_path()
         };
-        let kokoro_voice = if voice != "default" && voice != "pl-PL-MarekNeural" && !voice.is_empty() {
-            voice.parse::<audioticon_core::KokoroVoice>().unwrap_or(audioticon_core::KokoroVoice::AfBella)
-        } else {
-            audioticon_core::KokoroVoice::AfBella
-        };
-        Ok(Arc::new(audioticon_core::KokoroBridge::new(m_path, Some(kokoro_voice))))
+        let kokoro_voice =
+            if voice != "default" && voice != "pl-PL-MarekNeural" && !voice.is_empty() {
+                voice
+                    .parse::<audioticon_core::KokoroVoice>()
+                    .unwrap_or(audioticon_core::KokoroVoice::AfBella)
+            } else {
+                audioticon_core::KokoroVoice::AfBella
+            };
+        Ok(Arc::new(audioticon_core::KokoroBridge::new(
+            m_path,
+            Some(kokoro_voice),
+        )))
     } else if provider == "elevenlabs" {
         let api_key = credentials::get_api_key("elevenlabs").ok_or_else(|| {
             "Brak skonfigurowanego klucza API dla ElevenLabs. Skonfiguruj klucz w ustawieniach dostawców API.".to_string()
@@ -554,7 +560,11 @@ async fn handle_studio_request(
         });
         let mut resp = tiny_http::Response::from_string(manifest.to_string());
         resp.add_header(
-            Header::from_bytes(&b"Content-Type"[..], &b"application/manifest+json; charset=utf-8"[..]).unwrap(),
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/manifest+json; charset=utf-8"[..],
+            )
+            .unwrap(),
         );
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -603,7 +613,11 @@ async fn handle_studio_request(
         });
         let mut resp = tiny_http::Response::from_string(json.to_string());
         resp.add_header(
-            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
         );
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -644,8 +658,11 @@ async fn handle_studio_request(
                 });
                 let mut resp = tiny_http::Response::from_string(err_json.to_string());
                 resp.add_header(
-                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                        .unwrap(),
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
                 );
                 if let Some(ref h) = cors_header {
                     resp.add_header(h.clone());
@@ -674,8 +691,11 @@ async fn handle_studio_request(
                 });
                 let mut resp = tiny_http::Response::from_string(success_json.to_string());
                 resp.add_header(
-                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                        .unwrap(),
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
                 );
                 if let Some(ref h) = cors_header {
                     resp.add_header(h.clone());
@@ -690,8 +710,11 @@ async fn handle_studio_request(
                 });
                 let mut resp = tiny_http::Response::from_string(err_json.to_string());
                 resp.add_header(
-                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                        .unwrap(),
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
                 );
                 if let Some(ref h) = cors_header {
                     resp.add_header(h.clone());
@@ -733,7 +756,11 @@ async fn handle_studio_request(
         });
         let mut resp = tiny_http::Response::from_string(json.to_string());
         resp.add_header(
-            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
         );
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -757,7 +784,11 @@ async fn handle_studio_request(
         });
         let mut resp = tiny_http::Response::from_string(json.to_string());
         resp.add_header(
-            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
         );
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -774,7 +805,11 @@ async fn handle_studio_request(
         let json = serde_json::to_string(&update_info).unwrap_or_else(|_| "{}".to_string());
         let mut resp = tiny_http::Response::from_string(json);
         resp.add_header(
-            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
         );
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -786,7 +821,11 @@ async fn handle_studio_request(
     // Route: GET /api/system/network-info
     if method == tiny_http::Method::Get && url == "/api/system/network-info" {
         let is_lan = ACTIVE_HOST.get().map(|s| s.as_str()).unwrap_or("127.0.0.1") == "0.0.0.0";
-        let ip = if is_lan { get_local_ip() } else { "127.0.0.1".to_string() };
+        let ip = if is_lan {
+            get_local_ip()
+        } else {
+            "127.0.0.1".to_string()
+        };
         let port = ACTIVE_PORT.load(Ordering::SeqCst);
         let json = serde_json::json!({
             "is_lan_mode": is_lan,
@@ -797,7 +836,11 @@ async fn handle_studio_request(
         });
         let mut resp = tiny_http::Response::from_string(json.to_string());
         resp.add_header(
-            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
         );
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -807,7 +850,9 @@ async fn handle_studio_request(
     }
 
     // Route: GET /api/system/qr-code
-    if method == tiny_http::Method::Get && (url == "/api/system/qr-code" || url.starts_with("/api/system/qr-code?")) {
+    if method == tiny_http::Method::Get
+        && (url == "/api/system/qr-code" || url.starts_with("/api/system/qr-code?"))
+    {
         let ip = get_local_ip();
         let port = ACTIVE_PORT.load(Ordering::SeqCst);
         let target_url = format!("http://{}:{}", ip, port);
@@ -837,8 +882,9 @@ async fn handle_studio_request(
             .read_to_string(&mut body_str)
             .is_err()
         {
-            let mut resp =
-                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać treści zapytania\"}");
+            let mut resp = tiny_http::Response::from_string(
+                "{\"error\": \"Nie można odczytać treści zapytania\"}",
+            );
             if let Some(ref h) = cors_header {
                 resp.add_header(h.clone());
             }
@@ -857,8 +903,9 @@ async fn handle_studio_request(
         let req_data: DialogAnalyzeReq = match serde_json::from_str(&body_str) {
             Ok(d) => d,
             Err(_) => {
-                let mut resp =
-                    tiny_http::Response::from_string("{\"error\": \"Niepoprawny format JSON zapytania\"}");
+                let mut resp = tiny_http::Response::from_string(
+                    "{\"error\": \"Niepoprawny format JSON zapytania\"}",
+                );
                 if let Some(ref h) = cors_header {
                     resp.add_header(h.clone());
                 }
@@ -871,7 +918,11 @@ async fn handle_studio_request(
         let json = serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string());
         let mut resp = tiny_http::Response::from_string(json);
         resp.add_header(
-            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
         );
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -889,8 +940,9 @@ async fn handle_studio_request(
             .read_to_string(&mut body_str)
             .is_err()
         {
-            let mut resp =
-                tiny_http::Response::from_string("{\"error\": \"Nie można odczytać treści zapytania\"}");
+            let mut resp = tiny_http::Response::from_string(
+                "{\"error\": \"Nie można odczytać treści zapytania\"}",
+            );
             if let Some(ref h) = cors_header {
                 resp.add_header(h.clone());
             }
@@ -909,8 +961,9 @@ async fn handle_studio_request(
         let req_data: DialogApplyReq = match serde_json::from_str(&body_str) {
             Ok(d) => d,
             Err(_) => {
-                let mut resp =
-                    tiny_http::Response::from_string("{\"error\": \"Niepoprawny format JSON zapytania\"}");
+                let mut resp = tiny_http::Response::from_string(
+                    "{\"error\": \"Niepoprawny format JSON zapytania\"}",
+                );
                 if let Some(ref h) = cors_header {
                     resp.add_header(h.clone());
                 }
@@ -926,7 +979,11 @@ async fn handle_studio_request(
         });
         let mut resp = tiny_http::Response::from_string(json.to_string());
         resp.add_header(
-            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
         );
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -968,8 +1025,11 @@ async fn handle_studio_request(
                 });
                 let mut resp = tiny_http::Response::from_string(err_json.to_string());
                 resp.add_header(
-                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                        .unwrap(),
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
                 );
                 if let Some(ref h) = cors_header {
                     resp.add_header(h.clone());
@@ -1005,8 +1065,11 @@ async fn handle_studio_request(
                 });
                 let mut resp = tiny_http::Response::from_string(success_json.to_string());
                 resp.add_header(
-                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                        .unwrap(),
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
                 );
                 if let Some(ref h) = cors_header {
                     resp.add_header(h.clone());
@@ -1021,8 +1084,11 @@ async fn handle_studio_request(
                 });
                 let mut resp = tiny_http::Response::from_string(err_json.to_string());
                 resp.add_header(
-                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                        .unwrap(),
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
                 );
                 if let Some(ref h) = cors_header {
                     resp.add_header(h.clone());
@@ -1045,8 +1111,11 @@ async fn handle_studio_request(
             });
             let mut resp = tiny_http::Response::from_string(err_json.to_string());
             resp.add_header(
-                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                    .unwrap(),
+                Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap(),
             );
             if let Some(ref h) = cors_header {
                 resp.add_header(h.clone());
@@ -1063,8 +1132,11 @@ async fn handle_studio_request(
             });
             let mut resp = tiny_http::Response::from_string(err_json.to_string());
             resp.add_header(
-                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                    .unwrap(),
+                Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap(),
             );
             if let Some(ref h) = cors_header {
                 resp.add_header(h.clone());
@@ -1076,7 +1148,11 @@ async fn handle_studio_request(
 
         let mut resp = tiny_http::Response::from_string(cert_content);
         resp.add_header(
-            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
         );
         resp.add_header(
             Header::from_bytes(
@@ -1455,8 +1531,11 @@ async fn handle_studio_request(
                 "model": d_req.model,
                 "eula_required": true
             });
-            let json_header =
-                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap();
+            let json_header = Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap();
             let mut resp = tiny_http::Response::from_string(err_json.to_string());
             resp.add_header(json_header);
             if let Some(ref h) = cors_header {
@@ -1696,10 +1775,17 @@ async fn handle_studio_request(
         let entry_opt = catalog.into_iter().find(|m| m.id == a_req.model_id);
 
         let res = (|| -> anyhow::Result<audioticon_core::LicenseReceipt> {
-            let entry = entry_opt.ok_or_else(|| anyhow::anyhow!("Nie znaleziono modelu '{}' w Hubie", a_req.model_id))?;
+            let entry = entry_opt.ok_or_else(|| {
+                anyhow::anyhow!("Nie znaleziono modelu '{}' w Hubie", a_req.model_id)
+            })?;
             let mut store = audioticon_core::ReceiptStore::load_or_default();
-            let client_tag = format!("audioticon-server/{} ({})", env!("CARGO_PKG_VERSION"), a_req.user_id.as_deref().unwrap_or("studio_user"));
-            let receipt = store.record_acceptance(&entry.id, &entry.terms_fingerprint, true, &client_tag);
+            let client_tag = format!(
+                "audioticon-server/{} ({})",
+                env!("CARGO_PKG_VERSION"),
+                a_req.user_id.as_deref().unwrap_or("studio_user")
+            );
+            let receipt =
+                store.record_acceptance(&entry.id, &entry.terms_fingerprint, true, &client_tag);
             store.save()?;
             Ok(receipt)
         })();
@@ -2207,7 +2293,10 @@ async fn handle_studio_request(
                         render_res.duration_ms as f64 / 1000.0,
                         &wallet,
                     ) {
-                        let _ = std::fs::write(&cert_path, serde_json::to_string_pretty(&cert).unwrap_or_default());
+                        let _ = std::fs::write(
+                            &cert_path,
+                            serde_json::to_string_pretty(&cert).unwrap_or_default(),
+                        );
                         cert_opt = Some(cert);
                     }
                 }
@@ -2216,7 +2305,10 @@ async fn handle_studio_request(
                     let _ = std::fs::write(cache_dir.join("latest_subtitles.json"), subs.to_json());
                     let _ = std::fs::write(cache_dir.join("latest_subtitles.srt"), subs.to_srt());
                     let _ = std::fs::write(cache_dir.join("latest_subtitles.vtt"), subs.to_vtt());
-                    let _ = std::fs::write(cache_dir.join("latest_subtitles_karaoke.vtt"), subs.to_karaoke_vtt());
+                    let _ = std::fs::write(
+                        cache_dir.join("latest_subtitles_karaoke.vtt"),
+                        subs.to_karaoke_vtt(),
+                    );
                 }
 
                 if let Some(ref wave) = render_res.waveform {
@@ -2240,23 +2332,21 @@ async fn handle_studio_request(
                         .unwrap(),
                     );
                     resp.add_header(
-                        Header::from_bytes(
-                            &b"X-Audioticon-Subtitles-Available"[..],
-                            &b"true"[..],
-                        )
-                        .unwrap(),
+                        Header::from_bytes(&b"X-Audioticon-Subtitles-Available"[..], &b"true"[..])
+                            .unwrap(),
                     );
                     resp.add_header(
-                        Header::from_bytes(
-                            &b"X-Audioticon-Waveform-Available"[..],
-                            &b"true"[..],
-                        )
-                        .unwrap(),
+                        Header::from_bytes(&b"X-Audioticon-Waveform-Available"[..], &b"true"[..])
+                            .unwrap(),
                     );
                     resp.add_header(
                         Header::from_bytes(
                             &b"X-Audioticon-Acx-Unlocked"[..],
-                            if wallet.acx_certificate_unlocked { &b"true"[..] } else { &b"false"[..] },
+                            if wallet.acx_certificate_unlocked {
+                                &b"true"[..]
+                            } else {
+                                &b"false"[..]
+                            },
                         )
                         .unwrap(),
                     );
@@ -2276,13 +2366,25 @@ async fn handle_studio_request(
                     );
                     if let Some(ref cert) = cert_opt {
                         resp.add_header(
-                            Header::from_bytes(&b"X-Audioticon-Ledger-Id"[..], cert.ledger_id.as_bytes()).unwrap(),
+                            Header::from_bytes(
+                                &b"X-Audioticon-Ledger-Id"[..],
+                                cert.ledger_id.as_bytes(),
+                            )
+                            .unwrap(),
                         );
                         resp.add_header(
-                            Header::from_bytes(&b"X-Audioticon-Lufs"[..], format!("{:.1}", cert.master_lufs).as_bytes()).unwrap(),
+                            Header::from_bytes(
+                                &b"X-Audioticon-Lufs"[..],
+                                format!("{:.1}", cert.master_lufs).as_bytes(),
+                            )
+                            .unwrap(),
                         );
                         resp.add_header(
-                            Header::from_bytes(&b"X-Audioticon-Peak"[..], format!("{:.1}", cert.true_peak_db).as_bytes()).unwrap(),
+                            Header::from_bytes(
+                                &b"X-Audioticon-Peak"[..],
+                                format!("{:.1}", cert.true_peak_db).as_bytes(),
+                            )
+                            .unwrap(),
                         );
                     }
                     if let Some(ref h) = cors_header {
@@ -2420,8 +2522,11 @@ async fn handle_studio_request(
                 "tier": wallet.tier.name(),
                 "upgrade_url": "https://gumroad.com/l/audioticon-solo"
             });
-            let json_header =
-                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap();
+            let json_header = Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap();
             let mut resp = tiny_http::Response::from_string(err_json.to_string());
             resp.add_header(json_header);
             if let Some(ref h) = cors_header {
@@ -2523,7 +2628,10 @@ async fn handle_studio_request(
                     let _ = std::fs::write(cache_dir.join("latest_subtitles.json"), subs.to_json());
                     let _ = std::fs::write(cache_dir.join("latest_subtitles.srt"), subs.to_srt());
                     let _ = std::fs::write(cache_dir.join("latest_subtitles.vtt"), subs.to_vtt());
-                    let _ = std::fs::write(cache_dir.join("latest_subtitles_karaoke.vtt"), subs.to_karaoke_vtt());
+                    let _ = std::fs::write(
+                        cache_dir.join("latest_subtitles_karaoke.vtt"),
+                        subs.to_karaoke_vtt(),
+                    );
                 }
 
                 if let Some(ref wave) = render_res.waveform {
@@ -2539,27 +2647,53 @@ async fn handle_studio_request(
                     .replace(|c: char| !c.is_alphanumeric() && c != '_' && c != '-', "_");
 
                 if req.format.to_lowercase() == "srt" {
-                    let content = render_res.subtitles.as_ref().map(|s| s.to_srt()).unwrap_or_default();
+                    let content = render_res
+                        .subtitles
+                        .as_ref()
+                        .map(|s| s.to_srt())
+                        .unwrap_or_default();
                     let cd_str = format!("attachment; filename=\"{}.srt\"", safe_title);
                     let mut resp = tiny_http::Response::from_string(content);
-                    resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"text/plain; charset=utf-8"[..]).unwrap());
-                    resp.add_header(Header::from_bytes(&b"Content-Disposition"[..], cd_str.as_bytes()).unwrap());
-                    if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+                    resp.add_header(
+                        Header::from_bytes(&b"Content-Type"[..], &b"text/plain; charset=utf-8"[..])
+                            .unwrap(),
+                    );
+                    resp.add_header(
+                        Header::from_bytes(&b"Content-Disposition"[..], cd_str.as_bytes()).unwrap(),
+                    );
+                    if let Some(ref h) = cors_header {
+                        resp.add_header(h.clone());
+                    }
                     let _ = request.respond(resp);
                     return;
                 }
 
                 if req.format.to_lowercase() == "vtt" || req.format.to_lowercase() == "karaoke" {
                     let content = if req.format.to_lowercase() == "karaoke" {
-                        render_res.subtitles.as_ref().map(|s| s.to_karaoke_vtt()).unwrap_or_default()
+                        render_res
+                            .subtitles
+                            .as_ref()
+                            .map(|s| s.to_karaoke_vtt())
+                            .unwrap_or_default()
                     } else {
-                        render_res.subtitles.as_ref().map(|s| s.to_vtt()).unwrap_or_default()
+                        render_res
+                            .subtitles
+                            .as_ref()
+                            .map(|s| s.to_vtt())
+                            .unwrap_or_default()
                     };
                     let cd_str = format!("attachment; filename=\"{}.vtt\"", safe_title);
                     let mut resp = tiny_http::Response::from_string(content);
-                    resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"text/vtt; charset=utf-8"[..]).unwrap());
-                    resp.add_header(Header::from_bytes(&b"Content-Disposition"[..], cd_str.as_bytes()).unwrap());
-                    if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+                    resp.add_header(
+                        Header::from_bytes(&b"Content-Type"[..], &b"text/vtt; charset=utf-8"[..])
+                            .unwrap(),
+                    );
+                    resp.add_header(
+                        Header::from_bytes(&b"Content-Disposition"[..], cd_str.as_bytes()).unwrap(),
+                    );
+                    if let Some(ref h) = cors_header {
+                        resp.add_header(h.clone());
+                    }
                     let _ = request.respond(resp);
                     return;
                 }
@@ -2571,7 +2705,8 @@ async fn handle_studio_request(
                 }
 
                 let mut cert_opt = None;
-                let (measured_lufs, measured_peak) = audioticon_core::measure_audio_loudness(&out_target).unwrap_or((-19.5, -3.2));
+                let (measured_lufs, measured_peak) =
+                    audioticon_core::measure_audio_loudness(&out_target).unwrap_or((-19.5, -3.2));
                 if wallet.acx_certificate_unlocked {
                     let cert_path = cache_dir.join("latest_preview.certificate.json");
                     let title = meta.title.as_deref().unwrap_or("Audioticon Audiobook");
@@ -2585,7 +2720,10 @@ async fn handle_studio_request(
                         render_res.duration_ms as f64 / 1000.0,
                         &wallet,
                     ) {
-                        let _ = std::fs::write(&cert_path, serde_json::to_string_pretty(&cert).unwrap_or_default());
+                        let _ = std::fs::write(
+                            &cert_path,
+                            serde_json::to_string_pretty(&cert).unwrap_or_default(),
+                        );
                         cert_opt = Some(cert);
                     }
                 }
@@ -2597,9 +2735,14 @@ async fn handle_studio_request(
                 let mut qc_recs = Vec::new();
                 if !lufs_pass {
                     if measured_lufs < -23.8 {
-                        qc_recs.push("Podgłośnij ścieżkę lektora lub włącz Studio Leveler (+2.0 dB)".to_string());
+                        qc_recs.push(
+                            "Podgłośnij ścieżkę lektora lub włącz Studio Leveler (+2.0 dB)"
+                                .to_string(),
+                        );
                     } else {
-                        qc_recs.push("Ścieżka lektora jest zbyt głośna, obniż poziom o 1.5 dB".to_string());
+                        qc_recs.push(
+                            "Ścieżka lektora jest zbyt głośna, obniż poziom o 1.5 dB".to_string(),
+                        );
                     }
                 }
                 if !peak_pass {
@@ -2619,7 +2762,10 @@ async fn handle_studio_request(
                     "tier": wallet.tier.name(),
                     "certificate_unlocked": wallet.acx_certificate_unlocked
                 });
-                let _ = std::fs::write(cache_dir.join("latest_qc_report.json"), serde_json::to_string_pretty(&qc_report).unwrap_or_default());
+                let _ = std::fs::write(
+                    cache_dir.join("latest_qc_report.json"),
+                    serde_json::to_string_pretty(&qc_report).unwrap_or_default(),
+                );
 
                 if let Ok(bytes) = std::fs::read(&out_target) {
                     let _ = std::fs::remove_file(&out_target);
@@ -2661,23 +2807,21 @@ async fn handle_studio_request(
                         .unwrap(),
                     );
                     resp.add_header(
-                        Header::from_bytes(
-                            &b"X-Audioticon-Subtitles-Available"[..],
-                            &b"true"[..],
-                        )
-                        .unwrap(),
+                        Header::from_bytes(&b"X-Audioticon-Subtitles-Available"[..], &b"true"[..])
+                            .unwrap(),
                     );
                     resp.add_header(
-                        Header::from_bytes(
-                            &b"X-Audioticon-Waveform-Available"[..],
-                            &b"true"[..],
-                        )
-                        .unwrap(),
+                        Header::from_bytes(&b"X-Audioticon-Waveform-Available"[..], &b"true"[..])
+                            .unwrap(),
                     );
                     resp.add_header(
                         Header::from_bytes(
                             &b"X-Audioticon-Acx-Unlocked"[..],
-                            if wallet.acx_certificate_unlocked { &b"true"[..] } else { &b"false"[..] },
+                            if wallet.acx_certificate_unlocked {
+                                &b"true"[..]
+                            } else {
+                                &b"false"[..]
+                            },
                         )
                         .unwrap(),
                     );
@@ -2697,13 +2841,25 @@ async fn handle_studio_request(
                     );
                     if let Some(ref cert) = cert_opt {
                         resp.add_header(
-                            Header::from_bytes(&b"X-Audioticon-Ledger-Id"[..], cert.ledger_id.as_bytes()).unwrap(),
+                            Header::from_bytes(
+                                &b"X-Audioticon-Ledger-Id"[..],
+                                cert.ledger_id.as_bytes(),
+                            )
+                            .unwrap(),
                         );
                         resp.add_header(
-                            Header::from_bytes(&b"X-Audioticon-Lufs"[..], format!("{:.1}", cert.master_lufs).as_bytes()).unwrap(),
+                            Header::from_bytes(
+                                &b"X-Audioticon-Lufs"[..],
+                                format!("{:.1}", cert.master_lufs).as_bytes(),
+                            )
+                            .unwrap(),
                         );
                         resp.add_header(
-                            Header::from_bytes(&b"X-Audioticon-Peak"[..], format!("{:.1}", cert.true_peak_db).as_bytes()).unwrap(),
+                            Header::from_bytes(
+                                &b"X-Audioticon-Peak"[..],
+                                format!("{:.1}", cert.true_peak_db).as_bytes(),
+                            )
+                            .unwrap(),
                         );
                     }
                     if let Some(ref h) = cors_header {
@@ -2756,9 +2912,7 @@ async fn handle_studio_request(
                     "text/plain; charset=utf-8"
                 };
                 let mut resp = tiny_http::Response::from_string(content);
-                resp.add_header(
-                    Header::from_bytes(&b"Content-Type"[..], ct.as_bytes()).unwrap(),
-                );
+                resp.add_header(Header::from_bytes(&b"Content-Type"[..], ct.as_bytes()).unwrap());
                 if let Some(ref h) = cors_header {
                     resp.add_header(h.clone());
                 }
@@ -2770,8 +2924,11 @@ async fn handle_studio_request(
             "{\"error\": \"Brak wygenerowanych napisów. Wyrenderuj najpierw audio w Studio.\", \"status\": \"not_found\"}",
         );
         resp.add_header(
-            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                .unwrap(),
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
         );
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -2888,8 +3045,11 @@ async fn handle_studio_request(
                     Header::from_bytes(&b"Content-Length"[..], len.to_string().as_bytes()).unwrap(),
                 );
                 resp.add_header(
-                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                        .unwrap(),
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
                 );
                 if let Some(ref h) = cors_header {
                     resp.add_header(h.clone());
@@ -2902,8 +3062,11 @@ async fn handle_studio_request(
             "{\"error\": \"Brak wygenerowanej fali dźwiękowej. Wyrenderuj najpierw audio w Studio.\", \"status\": \"not_found\"}",
         );
         resp.add_header(
-            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                .unwrap(),
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
         );
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -2921,7 +3084,8 @@ async fn handle_studio_request(
             .read_to_end(&mut body_bytes)
             .is_err()
         {
-            let mut resp = tiny_http::Response::from_string("{\"error\": \"Błąd odczytu danych WAV\"}");
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Błąd odczytu danych WAV\"}");
             if let Some(ref h) = cors_header {
                 resp.add_header(h.clone());
             }
@@ -2958,8 +3122,11 @@ async fn handle_studio_request(
                     Header::from_bytes(&b"Content-Length"[..], len.to_string().as_bytes()).unwrap(),
                 );
                 resp.add_header(
-                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                        .unwrap(),
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
                 );
                 if let Some(ref h) = cors_header {
                     resp.add_header(h.clone());
@@ -2996,7 +3163,11 @@ async fn handle_studio_request(
             });
             let mut resp = tiny_http::Response::from_string(err_json.to_string());
             resp.add_header(
-                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+                Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap(),
             );
             if let Some(ref h) = cors_header {
                 resp.add_header(h.clone());
@@ -3012,8 +3183,11 @@ async fn handle_studio_request(
             .read_to_string(&mut body_str)
             .is_err()
         {
-            let mut resp = tiny_http::Response::from_string("{\"error\": \"Błąd odczytu żądania\"}");
-            if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Błąd odczytu żądania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
             let _ = request.respond(resp.with_status_code(400));
             return;
         }
@@ -3028,14 +3202,21 @@ async fn handle_studio_request(
             Err(e) => {
                 let err_json = serde_json::json!({ "error": format!("Błąd JSON: {}", e) });
                 let mut resp = tiny_http::Response::from_string(err_json.to_string());
-                resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
-                if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
                 let _ = request.respond(resp.with_status_code(400));
                 return;
             }
         };
 
-        let clean_hash = parsed.segment_hash.trim().replace(|c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '-', "");
+        let clean_hash = parsed.segment_hash.trim().replace(
+            |c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '-',
+            "",
+        );
         let cache_dir = get_default_cache_dir();
         let punch_wav = cache_dir.join(format!("recorded_{}.wav", clean_hash));
         let punch_meta = cache_dir.join(format!("recorded_{}.meta.json", clean_hash));
@@ -3054,8 +3235,12 @@ async fn handle_studio_request(
             "reverted": removed
         });
         let mut resp = tiny_http::Response::from_string(resp_json.to_string());
-        resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
-        if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+        resp.add_header(
+            Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
         let _ = request.respond(resp);
         return;
     }
@@ -3069,8 +3254,11 @@ async fn handle_studio_request(
             .read_to_string(&mut body_str)
             .is_err()
         {
-            let mut resp = tiny_http::Response::from_string("{\"error\": \"Błąd odczytu żądania\"}");
-            if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Błąd odczytu żądania\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
             let _ = request.respond(resp.with_status_code(400));
             return;
         }
@@ -3096,14 +3284,21 @@ async fn handle_studio_request(
             Err(e) => {
                 let err_json = serde_json::json!({ "error": format!("Błąd JSON: {}", e) });
                 let mut resp = tiny_http::Response::from_string(err_json.to_string());
-                resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
-                if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
                 let _ = request.respond(resp.with_status_code(400));
                 return;
             }
         };
 
-        let clean_hash = parsed.segment_hash.trim().replace(|c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '-', "");
+        let clean_hash = parsed.segment_hash.trim().replace(
+            |c: char| !c.is_ascii_alphanumeric() && c != '_' && c != '-',
+            "",
+        );
         let cache_dir = get_default_cache_dir();
         let punch_wav = cache_dir.join(format!("recorded_{}.wav", clean_hash));
         let punch_meta = cache_dir.join(format!("recorded_{}.meta.json", clean_hash));
@@ -3111,7 +3306,10 @@ async fn handle_studio_request(
         let seg = audioticon_core::types::TextSegment {
             text: parsed.text.clone(),
             voice: Some(parsed.voice.clone()),
-            rate_mod: parsed.rate.map(|r| ((r - 1.0) * 100.0).round() as i32).unwrap_or(-6),
+            rate_mod: parsed
+                .rate
+                .map(|r| ((r - 1.0) * 100.0).round() as i32)
+                .unwrap_or(-6),
             pitch_mod: parsed.pitch.unwrap_or(-4),
             ..Default::default()
         };
@@ -3125,15 +3323,20 @@ async fn handle_studio_request(
             &clean_lang,
             default_model.as_ref(),
             &piper_cache,
-        ).await;
+        )
+        .await;
 
         let synth = match synth_res {
             Ok(s) => s,
             Err(e) => {
                 let err_json = serde_json::json!({ "error": format!("Nie można zainicjalizować syntezatora: {}", e) });
                 let mut resp = tiny_http::Response::from_string(err_json.to_string());
-                resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
-                if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
                 let _ = request.respond(resp.with_status_code(400));
                 return;
             }
@@ -3148,7 +3351,10 @@ async fn handle_studio_request(
                     "provider": prov,
                     "timestamp": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
                 });
-                let _ = std::fs::write(&punch_meta, serde_json::to_string_pretty(&meta).unwrap_or_default());
+                let _ = std::fs::write(
+                    &punch_meta,
+                    serde_json::to_string_pretty(&meta).unwrap_or_default(),
+                );
 
                 let resp_json = serde_json::json!({
                     "status": "ok",
@@ -3157,16 +3363,25 @@ async fn handle_studio_request(
                     "path": punch_wav.to_string_lossy()
                 });
                 let mut resp = tiny_http::Response::from_string(resp_json.to_string());
-                resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
-                if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
                 let _ = request.respond(resp);
                 return;
             }
             Err(e) => {
-                let err_json = serde_json::json!({ "error": format!("Błąd resyntezy segmentu: {}", e) });
+                let err_json =
+                    serde_json::json!({ "error": format!("Błąd resyntezy segmentu: {}", e) });
                 let mut resp = tiny_http::Response::from_string(err_json.to_string());
-                resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
-                if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+                resp.add_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                );
+                if let Some(ref h) = cors_header {
+                    resp.add_header(h.clone());
+                }
                 let _ = request.respond(resp.with_status_code(500));
                 return;
             }
@@ -3187,8 +3402,11 @@ async fn handle_studio_request(
                     Header::from_bytes(&b"Content-Length"[..], len.to_string().as_bytes()).unwrap(),
                 );
                 resp.add_header(
-                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                        .unwrap(),
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
                 );
                 if let Some(ref h) = cors_header {
                     resp.add_header(h.clone());
@@ -3216,9 +3434,19 @@ async fn handle_studio_request(
         let bytes = serde_json::to_vec_pretty(&default_qc).unwrap_or_default();
         let len = bytes.len();
         let mut resp = tiny_http::Response::from_data(bytes);
-        resp.add_header(Header::from_bytes(&b"Content-Length"[..], len.to_string().as_bytes()).unwrap());
-        resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap());
-        if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+        resp.add_header(
+            Header::from_bytes(&b"Content-Length"[..], len.to_string().as_bytes()).unwrap(),
+        );
+        resp.add_header(
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
         let _ = request.respond(resp);
         return;
     }
@@ -3232,8 +3460,11 @@ async fn handle_studio_request(
             .read_to_end(&mut body_bytes)
             .is_err()
         {
-            let mut resp = tiny_http::Response::from_string("{\"error\": \"Błąd odczytu danych audio\"}");
-            if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+            let mut resp =
+                tiny_http::Response::from_string("{\"error\": \"Błąd odczytu danych audio\"}");
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
             let _ = request.respond(resp.with_status_code(400));
             return;
         }
@@ -3261,26 +3492,37 @@ async fn handle_studio_request(
         let cache_dir = get_default_cache_dir();
         let tmp_test_wav = cache_dir.join(format!("tmp_audit_{}.wav", std::process::id()));
         if let Err(e) = std::fs::write(&tmp_test_wav, &audio_data) {
-            let err_json = serde_json::json!({ "error": format!("Błąd zapisu pliku tymczasowego: {}", e) });
+            let err_json =
+                serde_json::json!({ "error": format!("Błąd zapisu pliku tymczasowego: {}", e) });
             let mut resp = tiny_http::Response::from_string(err_json.to_string());
-            resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
-            if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+            resp.add_header(
+                Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+            );
+            if let Some(ref h) = cors_header {
+                resp.add_header(h.clone());
+            }
             let _ = request.respond(resp.with_status_code(500));
             return;
         }
 
-        let (master_lufs, true_peak_db) = match audioticon_core::measure_audio_loudness(&tmp_test_wav) {
-            Ok(pair) => pair,
-            Err(e) => {
-                let _ = std::fs::remove_file(&tmp_test_wav);
-                let err_json = serde_json::json!({ "error": format!("Błąd pomiaru głośności: {}", e) });
-                let mut resp = tiny_http::Response::from_string(err_json.to_string());
-                resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
-                if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
-                let _ = request.respond(resp.with_status_code(400));
-                return;
-            }
-        };
+        let (master_lufs, true_peak_db) =
+            match audioticon_core::measure_audio_loudness(&tmp_test_wav) {
+                Ok(pair) => pair,
+                Err(e) => {
+                    let _ = std::fs::remove_file(&tmp_test_wav);
+                    let err_json =
+                        serde_json::json!({ "error": format!("Błąd pomiaru głośności: {}", e) });
+                    let mut resp = tiny_http::Response::from_string(err_json.to_string());
+                    resp.add_header(
+                        Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                    );
+                    if let Some(ref h) = cors_header {
+                        resp.add_header(h.clone());
+                    }
+                    let _ = request.respond(resp.with_status_code(400));
+                    return;
+                }
+            };
         let _ = std::fs::remove_file(&tmp_test_wav);
 
         let wallet = AudioWallet::load();
@@ -3304,9 +3546,19 @@ async fn handle_studio_request(
         let res_bytes = serde_json::to_vec(&res_json).unwrap_or_default();
         let len = res_bytes.len();
         let mut resp = tiny_http::Response::from_data(res_bytes);
-        resp.add_header(Header::from_bytes(&b"Content-Length"[..], len.to_string().as_bytes()).unwrap());
-        resp.add_header(Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap());
-        if let Some(ref h) = cors_header { resp.add_header(h.clone()); }
+        resp.add_header(
+            Header::from_bytes(&b"Content-Length"[..], len.to_string().as_bytes()).unwrap(),
+        );
+        resp.add_header(
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
+        );
+        if let Some(ref h) = cors_header {
+            resp.add_header(h.clone());
+        }
         let _ = request.respond(resp);
         return;
     }
@@ -3606,7 +3858,11 @@ async fn handle_studio_request(
             });
             let mut resp = tiny_http::Response::from_string(err_json.to_string());
             resp.add_header(
-                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+                Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap(),
             );
             if let Some(ref h) = cors_header {
                 resp.add_header(h.clone());
@@ -3686,7 +3942,11 @@ async fn handle_studio_request(
             });
             let mut resp = tiny_http::Response::from_string(err_json.to_string());
             resp.add_header(
-                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..]).unwrap(),
+                Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap(),
             );
             if let Some(ref h) = cors_header {
                 resp.add_header(h.clone());
@@ -4546,8 +4806,11 @@ async fn handle_studio_request(
             });
             let mut resp = tiny_http::Response::from_string(err_json.to_string());
             resp.add_header(
-                Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                    .unwrap(),
+                Header::from_bytes(
+                    &b"Content-Type"[..],
+                    &b"application/json; charset=utf-8"[..],
+                )
+                .unwrap(),
             );
             if let Some(ref h) = cors_header {
                 resp.add_header(h.clone());
@@ -4693,8 +4956,11 @@ async fn handle_studio_request(
         });
         let mut resp = tiny_http::Response::from_string(json_resp.to_string());
         resp.add_header(
-            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                .unwrap(),
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
         );
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -4866,8 +5132,11 @@ async fn handle_studio_request(
                 });
                 let mut resp = tiny_http::Response::from_string(json_resp.to_string());
                 resp.add_header(
-                    Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                        .unwrap(),
+                    Header::from_bytes(
+                        &b"Content-Type"[..],
+                        &b"application/json; charset=utf-8"[..],
+                    )
+                    .unwrap(),
                 );
                 if let Some(ref h) = cors_header {
                     resp.add_header(h.clone());
@@ -4944,22 +5213,23 @@ async fn handle_studio_request(
             .text
             .as_deref()
             .filter(|s| !s.trim().is_empty())
-            .unwrap_or("To jest test naszego nowego wzorca ekspresji głosowej w czasie rzeczywistym.");
+            .unwrap_or(
+                "To jest test naszego nowego wzorca ekspresji głosowej w czasie rzeczywistym.",
+            );
         let provider = parsed.provider.as_deref().unwrap_or("piper");
 
-        let voice_str = if gender.eq_ignore_ascii_case("female")
-            || gender.eq_ignore_ascii_case("kobieta")
-        {
-            if provider == "edge" {
-                "pl-PL-ZofiaNeural"
+        let voice_str =
+            if gender.eq_ignore_ascii_case("female") || gender.eq_ignore_ascii_case("kobieta") {
+                if provider == "edge" {
+                    "pl-PL-ZofiaNeural"
+                } else {
+                    "female"
+                }
+            } else if provider == "edge" {
+                "pl-PL-MarekNeural"
             } else {
-                "female"
-            }
-        } else if provider == "edge" {
-            "pl-PL-MarekNeural"
-        } else {
-            "male"
-        };
+                "male"
+            };
 
         let cache_dir = get_default_cache_dir();
         let _ = std::fs::create_dir_all(&cache_dir);
@@ -4985,8 +5255,10 @@ async fn handle_studio_request(
             };
             if synth.synthesize(&seg, &dry_wav).await.is_ok() {
                 if let Ok((samples_i16, sr, _)) = voicelab::read_wav_samples(&dry_wav) {
-                    let f32_vec: Vec<f32> =
-                        samples_i16.into_iter().map(|s| s as f32 / 32768.0).collect();
+                    let f32_vec: Vec<f32> = samples_i16
+                        .into_iter()
+                        .map(|s| s as f32 / 32768.0)
+                        .collect();
                     dry_samples_opt = Some((f32_vec, sr));
                 }
             }
@@ -5025,8 +5297,11 @@ async fn handle_studio_request(
         });
         let mut resp = tiny_http::Response::from_string(json_resp.to_string());
         resp.add_header(
-            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                .unwrap(),
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
         );
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -5118,8 +5393,11 @@ async fn handle_studio_request(
         });
         let mut resp = tiny_http::Response::from_string(json_resp.to_string());
         resp.add_header(
-            Header::from_bytes(&b"Content-Type"[..], &b"application/json; charset=utf-8"[..])
-                .unwrap(),
+            Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"application/json; charset=utf-8"[..],
+            )
+            .unwrap(),
         );
         if let Some(ref h) = cors_header {
             resp.add_header(h.clone());
@@ -5187,7 +5465,10 @@ pub async fn run_studio_server(
     println!("============================================================");
     println!("🌐 Adres na komputerze: http://{}", addr);
     if host == "0.0.0.0" {
-        println!("📱 Adres dla tabletu (LAN): http://{}:{} [Zaufana sieć domowa]", local_ip, selected_port);
+        println!(
+            "📱 Adres dla tabletu (LAN): http://{}:{} [Zaufana sieć domowa]",
+            local_ip, selected_port
+        );
     } else {
         println!("🔒 Tryb bezpieczny:     Tylko localhost (127.0.0.1)");
         println!("💡 Dostęp z tabletu:    Uruchom 'audioticon serve --host 0.0.0.0' w zaufanej sieci Wi-Fi");

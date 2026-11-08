@@ -3,8 +3,8 @@ use audioticon_core::{
     credentials, estimate_cost, export_to_m4b, export_to_mp3, find_model, models_dir,
     parse_size_string, presets, prune_cache_lru, AudioCertificate, AudioDirectorEngine,
     AudioWallet, AudiobookMetadata, EdgeTtsBridge, ElevenLabsBridge, EmojiDirector, ImportedBook,
-    PiperBridge, KokoroBridge, KokoroVoice, PresetRegistry, ProjectConfig, SpeechSynthesizer, DEFAULT_MAX_CACHE_BYTES,
-    DEFAULT_SAMPLE_RATE,
+    KokoroBridge, KokoroVoice, PiperBridge, PresetRegistry, ProjectConfig, SpeechSynthesizer,
+    DEFAULT_MAX_CACHE_BYTES, DEFAULT_SAMPLE_RATE,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -418,7 +418,10 @@ pub async fn run_render(
                 println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             }
             Err(e) => {
-                eprintln!("⚠️ Nie udało się wygenerować raportu pomiarowego ACX: {}", e);
+                eprintln!(
+                    "⚠️ Nie udało się wygenerować raportu pomiarowego ACX: {}",
+                    e
+                );
             }
         }
     } else {

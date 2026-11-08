@@ -452,7 +452,11 @@ mod tests {
         // 1. Próba autoryzacji bez akceptacji -> musi zwrócić błąd LicenseNotAccepted
         let err = authorize_model_access("kokoro-82m-int8", &catalog, &store).unwrap_err();
         match err {
-            ModelHubError::LicenseNotAccepted { model_id, license_spdx, .. } => {
+            ModelHubError::LicenseNotAccepted {
+                model_id,
+                license_spdx,
+                ..
+            } => {
                 assert_eq!(model_id, "kokoro-82m-int8");
                 assert_eq!(license_spdx, "Apache-2.0");
             }
@@ -478,7 +482,10 @@ mod tests {
     fn test_receipt_tamper_proofing() {
         let catalog = get_curated_hub_catalog();
         let mut store = ReceiptStore::default();
-        let entry = catalog.iter().find(|m| m.id == "omnivoice-zeroshot").unwrap();
+        let entry = catalog
+            .iter()
+            .find(|m| m.id == "omnivoice-zeroshot")
+            .unwrap();
 
         let mut receipt = store.record_acceptance(
             &entry.id,

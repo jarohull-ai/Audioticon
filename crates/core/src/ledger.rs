@@ -58,7 +58,9 @@ impl AudioCertificate {
     /// - True Peak: <= -1.0 dBFS
     /// - Sample rate: 44100 Hz or 48000 Hz
     pub fn is_storytel_compliant(lufs: f32, peak: f32, sample_rate: u32) -> bool {
-        (-22.5..=-18.0).contains(&lufs) && peak <= -1.0 && (sample_rate == 44100 || sample_rate == 48000)
+        (-22.5..=-18.0).contains(&lufs)
+            && peak <= -1.0
+            && (sample_rate == 44100 || sample_rate == 48000)
     }
 
     /// Generates and signs an Audio Certificate for the rendered book using genuine EBU R128 / True-Peak measurements
@@ -86,7 +88,8 @@ impl AudioCertificate {
         let (master_lufs, true_peak_db) = measure_audio_loudness(audio_path)?;
 
         let acx_compliant = Self::is_acx_compliant(master_lufs, true_peak_db, sample_rate);
-        let storytel_compliant = Self::is_storytel_compliant(master_lufs, true_peak_db, sample_rate);
+        let storytel_compliant =
+            Self::is_storytel_compliant(master_lufs, true_peak_db, sample_rate);
 
         let id_suffix = &audio_hash[..8].to_uppercase();
         let ledger_id = format!("AUD-ACX-2026-{}", id_suffix);
@@ -94,9 +97,16 @@ impl AudioCertificate {
         // Sign payload with internal HMAC key
         let signature_payload = format!(
             "{}:{}:{}:{}:{}",
-            ledger_id, audio_hash, master_lufs, wallet.tier.as_str(), now
+            ledger_id,
+            audio_hash,
+            master_lufs,
+            wallet.tier.as_str(),
+            now
         );
-        let sig_bytes = compute_hmac_sha256(crate::voucher::VOUCHER_HMAC_SECRET, signature_payload.as_bytes());
+        let sig_bytes = compute_hmac_sha256(
+            crate::voucher::VOUCHER_HMAC_SECRET,
+            signature_payload.as_bytes(),
+        );
         let digital_signature = hex::encode(sig_bytes);
 
         let cert = Self {
@@ -194,7 +204,10 @@ pub fn measure_audio_loudness(audio_path: &Path) -> Result<(f32, f32)> {
             -99.0
         };
 
-        return Ok(((lufs * 10.0).round() / 10.0, (peak_db * 10.0).round() / 10.0));
+        return Ok((
+            (lufs * 10.0).round() / 10.0,
+            (peak_db * 10.0).round() / 10.0,
+        ));
     }
 
     anyhow::bail!(
@@ -288,9 +301,19 @@ mod tests {
         }
 
         let (loud_lufs, loud_peak) = measure_audio_loudness(&loud_wav).expect("Measure loud WAV");
-        assert!(loud_lufs > -6.0, "Expected loud LUFS > -6.0, got {}", loud_lufs);
-        assert!(loud_peak > -1.0, "Expected loud peak > -1.0, got {}", loud_peak);
-        assert!(!AudioCertificate::is_acx_compliant(loud_lufs, loud_peak, 44100));
+        assert!(
+            loud_lufs > -6.0,
+            "Expected loud LUFS > -6.0, got {}",
+            loud_lufs
+        );
+        assert!(
+            loud_peak > -1.0,
+            "Expected loud peak > -1.0, got {}",
+            loud_peak
+        );
+        assert!(!AudioCertificate::is_acx_compliant(
+            loud_lufs, loud_peak, 44100
+        ));
 
         let _ = std::fs::remove_dir_all(&tmp_dir);
     }

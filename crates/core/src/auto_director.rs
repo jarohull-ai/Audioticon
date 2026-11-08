@@ -727,9 +727,11 @@ pub fn expected_speaker_constraint(text: &str) -> String {
         return caps[1].to_string();
     }
 
-    let verb_before_name =
-        Regex::new(&format!(r"{}\s+(?:cicho\s+|głośno\s+)?([A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)\b", verbs))
-            .unwrap();
+    let verb_before_name = Regex::new(&format!(
+        r"{}\s+(?:cicho\s+|głośno\s+)?([A-ZĄĆĘŁŃÓŚŹŻ][a-ząćęłńóśźż]+)\b",
+        verbs
+    ))
+    .unwrap();
     if let Some(caps) = verb_before_name.captures(stripped) {
         return caps[1].to_string();
     }
@@ -749,7 +751,11 @@ pub fn segment_source_text(source_text: &str) -> Vec<SourceSegment> {
             continue;
         }
         // If paragraph has multiple lines where a line starts with dialogue dash, split by line
-        let lines: Vec<&str> = trimmed.lines().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
+        let lines: Vec<&str> = trimmed
+            .lines()
+            .map(|l| l.trim())
+            .filter(|l| !l.is_empty())
+            .collect();
         if lines.len() > 1
             && lines.iter().any(|l| {
                 l.starts_with('—') || l.starts_with('–') || l.starts_with('„') || l.starts_with('"')
@@ -973,10 +979,7 @@ pub fn validate_proposal_envelope(
             if !has_question {
                 errors.push(format!("missing_author_question:{}", seg.segment_id));
             } else {
-                warnings.push(format!(
-                    "{}:speaker_needs_author_decision",
-                    seg.segment_id
-                ));
+                warnings.push(format!("{}:speaker_needs_author_decision", seg.segment_id));
             }
         }
     }
@@ -1067,7 +1070,8 @@ pub fn build_annotation_only_proposal(
                     safe_cues,
                 )
             } else {
-                let (heur_emotion, heur_pace, heur_cues) = infer_heuristic_expressive_cues(&src.text);
+                let (heur_emotion, heur_pace, heur_cues) =
+                    infer_heuristic_expressive_cues(&src.text);
                 let pb = if src.index == 0 { 0 } else { 400 };
                 let pa = if src.index + 1 == total_segs {
                     900
@@ -1085,11 +1089,7 @@ pub fn build_annotation_only_proposal(
                 )
             };
 
-        if speaker == "unknown"
-            && !open_questions
-                .iter()
-                .any(|q| q.contains(&src.segment_id))
-        {
+        if speaker == "unknown" && !open_questions.iter().any(|q| q.contains(&src.segment_id)) {
             open_questions.push(format!(
                 "{}: Kto wypowiada tę kwestię dialogową? (\"{}\")",
                 src.segment_id,
@@ -1388,10 +1388,7 @@ pub fn reject_proposal_envelope(
     reviewer_note: &str,
 ) -> Result<()> {
     if envelope.status != ProposalStatus::Proposed {
-        bail!(
-            "transition_not_allowed:{:?}->rejected",
-            envelope.status
-        );
+        bail!("transition_not_allowed:{:?}->rejected", envelope.status);
     }
     if reviewer_note.trim().is_empty() {
         bail!("reviewer_note_required: Podaj powód odrzucenia propozycji.");
@@ -1641,8 +1638,13 @@ mod tests {
         assert!(err_tampered.is_err());
 
         // Valid approval with resolved unknown speaker and untouched source text
-        approve_proposal_envelope(&mut env, source, "Zatwierdzono przez autora", Some(&overrides))
-            .unwrap();
+        approve_proposal_envelope(
+            &mut env,
+            source,
+            "Zatwierdzono przez autora",
+            Some(&overrides),
+        )
+        .unwrap();
         assert_eq!(env.status, ProposalStatus::Approved);
         assert!(env.open_questions.is_empty());
 

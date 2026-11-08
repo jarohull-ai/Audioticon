@@ -13,7 +13,7 @@ use crate::voucher::{
 pub const COST_PER_MIN_ELEVENLABS_V3: u64 = 5;
 pub const COST_PER_MIN_ELEVENLABS_CLONE: u64 = 50;
 pub const COST_PER_MIN_EDGE_TTS: u64 = 0; // 100% Free
-pub const COST_PER_MIN_PIPER: u64 = 0;    // 100% Free / Offline
+pub const COST_PER_MIN_PIPER: u64 = 0; // 100% Free / Offline
 
 /// Welcome credits granted automatically on a fresh install
 pub const STARTING_CREDITS: u64 = 1000;
@@ -300,7 +300,11 @@ impl AudioWallet {
                 .as_secs(),
             amount: payload.credits as i64,
             balance_after: self.balance,
-            description: format!("Aktywacja licencji: {} (+{} AudioCoin$)", payload.tier.name(), payload.credits),
+            description: format!(
+                "Aktywacja licencji: {} (+{} AudioCoin$)",
+                payload.tier.name(),
+                payload.credits
+            ),
             render_id: None,
         });
         self.integrity_signature = self.compute_integrity_signature();
@@ -389,7 +393,9 @@ mod tests {
 
         // 3. Legitimate voucher redemption passes integrity verification
         let voucher = crate::voucher::generate_voucher_code(WalletTier::Writer, 20000, "S2026A");
-        wallet.redeem_voucher(&voucher).expect("Redeem valid voucher");
+        wallet
+            .redeem_voucher(&voucher)
+            .expect("Redeem valid voucher");
         assert!(wallet.verify_integrity());
     }
 

@@ -1,5 +1,7 @@
 use anyhow::{Context, Result};
-use audioticon_core::{credentials, sanitize_slug, voice_design, voicelab, AudioWallet, VoiceProfile};
+use audioticon_core::{
+    credentials, sanitize_slug, voice_design, voicelab, AudioWallet, VoiceProfile,
+};
 
 use crate::args::{get_default_cache_dir, VoiceLabAction};
 
@@ -153,8 +155,7 @@ pub fn run_voicelab(action: Option<VoiceLabAction>) -> Result<()> {
             }
             println!("⏳ Generowanie próbek audio przez ElevenLabs AI...");
 
-            let resp =
-                voice_design::create_voice_design_previews(&key, &prompt, text.as_deref())?;
+            let resp = voice_design::create_voice_design_previews(&key, &prompt, text.as_deref())?;
 
             println!(
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
